@@ -34,9 +34,9 @@ jobs:
         run: mkdir ./artifacts
 
       # this section is only for test purposes
-      # - name: Compile X_X_X port
-      #   if: always()
-      #   run: ./scripts/x_x_x.sh
+      - name: Compile for ESP32 GENERIC 
+        if: always()
+        run: ./scripts/esp32/generic.sh
 
       - name: List artifacts directory
         run: ls ./artifacts/* -l
