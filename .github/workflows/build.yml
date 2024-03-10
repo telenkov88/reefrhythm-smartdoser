@@ -18,8 +18,8 @@ jobs:
         id: date
         run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
 
-      - name: mount ramfs of build
-        run: sudo /usr/local/bin/mount_ramfs.sh
+      #- name: mount ramfs of build
+      #  run: sudo /usr/local/bin/mount_ramfs.sh
 
       - name: Checkout builder
         uses: actions/checkout@v1
