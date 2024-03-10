@@ -36,6 +36,10 @@ jobs:
       - name: Create artifacts directory
         run: mkdir ./artifacts
 
+      - name: Give execution permissions
+        if: always()
+        run: chmod +x ./scripts/esp32/generic-s3-spiram-16mb-ota.sh
+
       - name: Compile for ESP32-S3 8MB SPIRAM/16MB Flash
         if: always()
         run: ./scripts/esp32/generic-s3-spiram-16mb-ota.sh
