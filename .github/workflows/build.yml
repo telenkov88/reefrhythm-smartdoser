@@ -19,10 +19,7 @@ jobs:
         run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
 
       - name: mount ramfs of build
-        run: sudo mount -t ramfs -o size=2G ramfs /home/tester/actions-runner/_work
-
-      - name: give permission ramfs
-        run: sudo mount chmod 777 /home/tester/actions-runner/_work
+        run: sudo /usr/local/bin/mount_ramfs.sh
 
       - name: Checkout builder
         uses: actions/checkout@v1
