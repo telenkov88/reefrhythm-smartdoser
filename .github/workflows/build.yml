@@ -11,12 +11,18 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: self-hosted
     steps:
 
       - name: Get current date
         id: date
         run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+
+      - name: mount ramfs of build
+        run: sudo mount -t ramfs -o size=2G ramfs /home/tester/actions-runner/_work
+
+      - name: give permission ramfs
+        run: sudo mount chmod 777 /home/tester/actions-runner/_work
 
       - name: Checkout builder
         uses: actions/checkout@v1
@@ -33,14 +39,9 @@ jobs:
       - name: Create artifacts directory
         run: mkdir ./artifacts
 
-      # this section is only for test purposes
-      # - name: Compile unix port
-      #   if: always()
-      # #   run: ./scripts/unix.sh
-
-      - name: Compile for ESP32 GENERIC 
+      - name: Compile for ESP32-S3 8MB SPIRAM/16MB Flash
         if: always()
-        run: ./scripts/esp32/generic.sh
+        run: ./scripts/esp32/generic-s3-spiram-16mb-ota.sh
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:

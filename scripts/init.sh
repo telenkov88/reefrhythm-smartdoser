@@ -23,8 +23,22 @@ git clone https://github.com/v923z/micropython-ulab ulab || git -C ulab pull
 # only check out micropython, if it is not available locally, otherwise, pull
 git clone https://github.com/micropython/micropython micropython || git -C micropython pull
 cd micropython
+git checkout v1.22.2
 git submodule update --init
 cd ..
+
+
+# Lib for OTA update:
+git clone https://github.com/glenn20/micropython-esp32-ota.git
+cd micropython-esp32-ota
+git checkout main
+mkdir -p ../micropython/ports/esp32/modules/ota/
+cp -r mip/ota/*.py ../micropython/ports/esp32/modules/ota/
+cd ..
+
+
+# copy ESP32 custom board to micropython
+cp -rf ./boards/ESP32_GENERIC_S3_16MiB_OTA micropython/ports/esp32/boards/ESP32_GENERIC_S3_16MiB_OTA
 
 
 # only check out micropython-lib, if it is not available locally, otherwise, pull
