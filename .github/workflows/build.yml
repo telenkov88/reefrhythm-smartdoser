@@ -40,6 +40,13 @@ jobs:
         if: always()
         run: chmod +x ./scripts/esp32/generic-s3-spiram-16mb-ota.sh
 
+      - name: Check hostname and set MAKEOPTS
+        run: |
+          if [ "$(hostname)" = "reefpi" ]; then
+            echo "MAKEOPTS=2" >> $GITHUB_ENV
+          fi
+        if: always()
+
       - name: Compile for ESP32-S3 8MB SPIRAM/16MB Flash
         if: always()
         run: ./scripts/esp32/generic-s3-spiram-16mb-ota.sh
