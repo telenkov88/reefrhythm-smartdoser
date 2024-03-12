@@ -1,6 +1,6 @@
 # micropython-builder
 
-Bleeding edge `micropython` firmware with `ulab` included.
+`micropython` firmware for DIY high-precise stepper motor Dosing pump.
 ## Contents
 
 1. [Overview](#overview)
@@ -10,41 +10,51 @@ Bleeding edge `micropython` firmware with `ulab` included.
     1. [Testing the build process on github](#testing-the-build-process-on-github)
 
 ## Overview
+This project aims to provide a highly precise and stable DIY solution for dosing pumps with a user-friendly interface and extensive IoT integration capabilities.
 
-This project aims to bring [ulab](https://github.com/v923z/micropython-ulab/)
-to those microcontrollers that are supported by `micropython`. Every second day, the github CI automatically
-clones the latest `micropython`, and `ulab` repositories, compiles the firmware, and uploads the binary files to
-[Releases](https://github.com/v923z/micropython-builder/releases).
+It's designed to automate and simplify the dosing process, ensuring accurate and consistent dosing without manual calculations. Leveraging advanced stepper motor drivers with G-code control and the Ulab library for high-performance calculations, this project offers a cutting-edge solution for aquarists and hobbyists. Additionally, it features built-in OTA functionality for seamless firmware upgrades, ensuring the system remains up-to-date with the latest improvements and features.
 
-The github [workflow file](https://github.com/v923z/micropython-builder/blob/main/.github/workflows/build.yml)
-simply calls the platform-specific [build scripts](https://github.com/v923z/micropython-builder/tree/main/scripts)
-one after the other, and contains no other steps. This approach results in build steps that can easily be
-reproduced on any linux computer. We hope that by offering the community build scripts that are proven
-to run on a freshly installed system, we can significantly lower the threshold to firmware customisation.
+## Features
+- **High Precision Dosing**: Utilizes advanced stepper motor drivers to ensure accurate dosing volumes.
+- **User-Friendly Interface**: Designed with ease of use in mind, allowing users to manage dosing schedules and volumes effortlessly.
+- **IoT Integration**: Offers extensive IoT capabilities for integration with various smart home systems and devices.
+- **Automated Calculations**: All dosing calculations are performed by the system, eliminating the need for manual input and reducing the risk of errors.
+- **OTA Updates**: Supports Over-The-Air (OTA) firmware updates, making it easy to upgrade to the latest version without physical access to the device.
+- **Customizable**: Flexible design accommodates different setups and requirements, making it suitable for a wide range of applications.
+
+## Hardware Requirements
+- **Controller**: [ESP32-S3 N16R8](https://www.espressif.com/sites/default/files/documentation/esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf) with 16 MB Flash and 8 MB PSRAM, unless otherwise specified.
+- **Stepper Motor Driver**: [BIGTREETECH MKS-Servo42C](https://github.com/makerbase-mks/MKS-SERVO42C) with UART control for precise motor management.
+- **Power Supply**: Suitable power source for the ESP-S3 controller and stepper motor driver.
+- **Peristaltic Pump**: DIY or commercially available peristaltic pump compatible with the stepper motor.
+- **Miscellaneous**: Cables, connectors, and mounting hardware as needed for your specific setup.
+
+## Software & Libraries
+- **Firmware**: Custom firmware for the ESP-S3 controller, designed specifically for dosing pump control.
+- **[Ulab Library](https://github.com/v923z/micropython-ulab)**: Utilized for high-performance mathematical calculations within the firmware.
+- **[Micropython OTA tools for ESP32](https://github.com/glenn20/micropython-esp32-ota)**: Allows for Over-The-Air updates.
+
+## Installation
+1. Assemble the hardware according to the provided schematics and connection diagrams.
+2. Flash the initial firmware to the ESP-S3 controller.
+3. Configure the system settings, including WiFi credentials, through the initial setup interface.
+4. Mount and secure the peristaltic pump in the desired location, ensuring proper alignment with the stepper motor.
+
+## Usage
+1. Access the device's web interface using its IP address or hostname.
+2. Set up dosing schedules, specifying the volume, frequency, and start times for each dosing task.
+3. Monitor dosing activity and system status through the interface.
+4. Update firmware OTA as new versions become available to access new features and improvements.
 
 [Contents](#contents)
 
-## Platforms and firmware
-
-Unless otherwise specified, firmware is built with default settings (i.e., those given in the `mpconfigboad.h` file),
-and with support for 2-dimensional complex arrays. On platforms, where flash size is a concern, the dimensionality
-might be reduced, complex support might be switched off, and certain functions might be excluded from the firmware.
-Compilation details, pre-processor switches etc., can always be read out of the corresponding build script. Again,
-the build scripts are the only place holding information on the binary output.
-
-Each firmware file is named after the board on which it is supposed to run, and, in addition, the binary contains
-the short git hash of `micropython` (in `micropython`'s welcome prompt), and the short git hash of `ulab`
-(in the `ulab.__sha__` variable). Hence, it is always possible to determine,
-which [micropython](https://github.com/micropython/micropython/commits/master), and
-[ulab](https://github.com/v923z/micropython-ulab/commits/master) commits, respectively, are included by looking at the 
-`micropython` welcome prompt, and then 
-
-```python
-import ulab
-ulab.__sha__
+# Flashing the firmware
+1. Install [esptool ](https://docs.espressif.com/projects/esptool/en/latest/esp32/installation.html)
+2. Download latest [release](https://github.com/telenkov88/reefrhythm-smartdoser/releases)
+3. Connect ESP32-S3 N16R8 controller to USB port in boot mode and flash the firmware:
+```bash
+python -m esptool -p (PORT) -b 460800 --before default_reset --after no_reset --chip esp32s3  write_flash --flash_mode dio --flash_size 16MB --flash_freq 80m 0x0 bootloader.bin 0x8000 partition-table.bin 0x10000 micropython.bin
 ```
-
-[Contents](#contents)
 
 ## Compiling locally
 
@@ -52,45 +62,27 @@ If you would like to compile (or customise) the firmware on a local machine, all
 with
 
 ```bash
-git clone https://github.com/v923z/micropython-builder.git
+git clone https://github.com/telenkov88/reefrhythm-smartdoser.git
 ```
 
 then
 
 ```bash
-cd micropython-builder
+cd reefrhythm-smartdoser
 ```
 
 and there run
 
 ```bash
-./scripts/some_port/some_board.sh
+./scripts/esp32/generic-s3-spiram-16mb-ota.sh
 ```
 
 The rest is taken care of.
 
 [Contents](#contents)
 
-## Contributing and issues
+## Contributing
+Contributions to this project are welcome! Whether it's reporting bugs, suggesting features, or submitting pull requests, your input is valuable. Please refer to the contributing guidelines for more information on how to get involved.
 
-If your board is not listed, but you would like to see it here, you can submit a build script by means of a
-[pull request](https://github.com/v923z/micropython-builder/pulls). Alternatively, you can open an
-[issue](https://github.com/v923z/micropython-builder/issues) with the specifications of your board. Note that,
-by definition, only those boards can be included in the CI that are supported by `micropython`.
-
-Issues concerning `micropython`, or `ulab` themselves should be opened in their respective repositories, i.e.,
-[micropython issues](https://github.com/micropython/micropython/issues), and
-[ulab issues](https://github.com/v923z/micropython-ulab/issues).
-
-### Testing the build process on github
-
-If you have a script that compiles the firmware on the local computer, you can easily test it on github.
-All you have to do is fork this repository, and create a branch called `testing` on your copy. In
-`.github/workflows/template.yml`, add a section with a link to your script, and create a pull request
-against your `master` branch. This should trigger the job to run. Your script should complete without
-errors, and at the end of the workflow run, you should see the artifacts listed. Once you are satisfied
-with the results, you can modify the `.github/workflows/build.yml` file to include the new section, and
-open a pull request against this repository.
-
-
-[Contents](#contents)
+## License
+This project is licensed under the [MIT License](LICENSE). See the LICENSE file for more details.
