@@ -29,12 +29,12 @@ cd ..
 
 
 # Lib for OTA update:
-git clone https://github.com/glenn20/micropython-esp32-ota.git
-cd micropython-esp32-ota
-git checkout main
-mkdir -p ../micropython/ports/esp32/modules/ota/
-cp -r mip/ota/*.py ../micropython/ports/esp32/modules/ota/
-cd ..
+#git clone https://github.com/glenn20/micropython-esp32-ota.git
+#cd micropython-esp32-ota
+#git checkout main
+#mkdir -p ../micropython/ports/esp32/modules/ota/
+#cp -r mip/ota/*.py ../micropython/ports/esp32/modules/ota/
+#cd ..
 
 
 # copy ESP32 custom board to micropython
