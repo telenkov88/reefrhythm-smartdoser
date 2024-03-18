@@ -13,8 +13,8 @@ jobs:
   build:
     runs-on: ubuntu-20.04
     steps:
+
       - name: Get current date
-        working-directory: /build
         id: date
         run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
 
@@ -25,28 +25,22 @@ jobs:
         uses: actions/checkout@v1
 
       - name: Install arm toolchain
-        working-directory: /build
         run: ./scripts/install_arm.sh
 
       - name: Install ESP-IDF toolchain
-        working-directory: /build
         run: ./scripts/install_espidf.sh
 
       - name: Checkout ulab/micropython
-        working-directory: /build
         run: ./scripts/init.sh
 
       - name: Create artifacts directory
-        working-directory: /build
         run: mkdir ./artifacts
 
       - name: Give execution permissions
         if: always()
-        working-directory: /build
         run: chmod +x ./scripts/esp32/generic-s3-spiram-16mb-ota.sh
 
       - name: Check hostname and set MAKEOPTS
-        working-directory: /build
         run: |
           if [ "$(hostname)" = "reefpi" ]; then
             echo "MAKEOPTS=2" >> $GITHUB_ENV
@@ -54,13 +48,11 @@ jobs:
         if: always()
 
       - name: Compile for ESP32-S3 8MB SPIRAM/16MB Flash
-        working-directory: /build
         if: always()
         run: ./scripts/esp32/generic-s3-spiram-16mb-ota.sh
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
-          working-directory: /build
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: false
           automatic_release_tag: "latest"
