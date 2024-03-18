@@ -29,17 +29,18 @@ cd ..
 
 
 # Lib for OTA update:
-#git clone https://github.com/glenn20/micropython-esp32-ota.git
-#cd micropython-esp32-ota
-#git checkout main
-#mkdir -p ../micropython/ports/esp32/modules/ota/
-#cp -r mip/ota/*.py ../micropython/ports/esp32/modules/ota/
-#cd ..
+git clone https://github.com/glenn20/micropython-esp32-ota.git
+cd micropython-esp32-ota
+git checkout main
+mkdir -p ../micropython/ports/esp32/modules/ota/
+cp -r mip/ota/*.py ../micropython/ports/esp32/modules/ota/
+cd ..
 
 
 # copy ESP32 custom board to micropython
 cp -rf ./boards/ESP32_GENERIC_S3_16MiB_OTA micropython/ports/esp32/boards/ESP32_GENERIC_S3_16MiB_OTA
-
+VERSION_NAME=$(cat version.txt)
+sed -i "/MICROPY_HW_BOARD_NAME/c\        MICROPY_HW_BOARD_NAME=\"$VERSION_NAME\"" micropython/ports/esp32/boards/ESP32_GENERIC_S3_16MiB_OTA/mpconfigboard.cmake
 
 # only check out micropython-lib, if it is not available locally, otherwise, pull
 git clone https://github.com/micropython/micropython-lib || git -C micropython-lib pull
