@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Pump Calibration</title>
+    <style>
+        header {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background-color: #f0f0f0;
+        }
+        header a {
+            text-decoration: none;
+            color: #333;
+            padding: 5px 10px;
+        }
+
+        label, select, input, button {
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .form-border {
+            <!-- border:1px solid red; -->
+            padding: 5px;
+            padding-bottom: 10px;
+        }
+
+        .form-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1px;
+        }
+
+        .form-row label {
+            margin-right: 10px;
+            min-width: 150px;
+
+
+        }
+    </style>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/regression@2.0.1/dist/regression.min.js"></script>
+</head>
+<body>
+    <header>
+        <a href="/">Home</a>
+        <a href="/calibration">Calibration</a>
+        <a href="/settings">Settings</a>
+        <a href="/ota-upgrade">OTA</a>
+    </header>
+
+<h2>Pump Calibration</h2>
+    <!-- Pump selection dropdown -->
+<label for="pumpSelector">Select Pump:</label>
+<select id="pumpSelector"></select>
+
+<button id="uploadDataBtn">Upload Calibration Data</button>
+
+<div class="form-border">
+    <div class="form-row">
+        <label for="RpmTestInput">Run with RPM</label>
+        <input type="number" id="RpmTestInput" placeholder="Enter RPM">
+    </div>
+
+    <div class="form-row">
+        <label for="timeInput">Runtime</label>
+        <input type="number" id="timeInput" placeholder="Enter time in sec">
+    </div>
+
+    <div class="form-row">
+        <label for="directionInput">Direction:</label>
+        <select id="directionInput">
+            <option value="1">Clockwise</option>
+            <option value="0">Counterclockwise</option>
+        </select>
+    </div>
+
+    <div class="form-row">
+        <button id="runButton" disabled>Run with rpm</button>
+    </div>
+</div>
+
+
+
+<!-- Form for Pumps -->
+<div id="calibrationFormsContainer"></div>
+
+<!-- Chart Container -->
+<div id="chart-container" style="width: 98%; aspect-ratio : 2 / 1;border:1px solid red; align-content: center ">
+    <canvas id="calibrationChart" style="width: 100%;"></canvas>
+</div>
+
+<script>
+
+let calibrationData = {};
+let rpmData = {};
+let flowData = {};
+
+const numberOfPumps = 9; // Total number of pumps
+
+for (let i = 1; i <= numberOfPumps; i++) {
+    calibrationData[`pump${i}`] = [];
+    rpmData[`pump${i}`] = [];
+    flowData[`pump${i}`] = [];
+}
+
+function checkInputs() {
+            const RpmTestInput = document.getElementById('RpmTestInput').value;
+            const timeInput = document.getElementById('timeInput').value;
+            const runButton = document.getElementById('runButton');
+
+            const isAmountValid = parseFloat(RpmTestInput) > 0;
+            const isTimeValid = parseFloat(timeInput) > 0;
+
+            runButton.disabled = !(isAmountValid && isTimeValid);
+        }
+document.getElementById('RpmTestInput').addEventListener('input', checkInputs);
+document.getElementById('timeInput').addEventListener('input', checkInputs);
+
+document.getElementById('runButton').addEventListener('click', function() {
+            const pumpNumber = document.getElementById('pumpSelector').value;
+            const rpm = document.getElementById(`RpmTestInput`).value;
+            const time = document.getElementById('timeInput').value;
+            const direction = document.getElementById('directionInput').value;
+
+            // Replace <address> with your server's address
+            const url = `/run_with_rpm?id=${pumpNumber}&rpm=${rpm}&time=${time}&direction=${direction}`;
+            console.log(url)
+            fetch(url)
+            .then(response => response.json())
+            .then(data => console.log('Success:', data))
+            .catch((error) => console.error('Error:', error));
+});
+
+
+document.getElementById('uploadDataBtn').addEventListener('click', function() {
+    const url = window.location.href;
+    const data = {};
+
+    for (const [pumpKey, pumpData] of Object.entries(calibrationData)) {
+        data[pumpKey] = pumpData;
+    }
+
+    console.log("upload data", data)
+
+    fetch(url, {
+        method: 'POST', // or 'PUT'
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+    })
+    .then(response => {
+        console.log("Response:", response)
+    })
+    .then(data => {
+        console.log('Success:', data);
+        //const numberOfPumps = 9;
+        for (let i = 1; i <= numberOfPumps; i++) {
+            loadCalibrationPointsFromCookie(i)
+            updateCalibrationPointsList(i);
+        }
+
+        const selected_pump = document.getElementById('pumpSelector').value
+        fetchDataAndUpdateChart(selected_pump);
+
+    })
+    .catch((error) => {
+        console.error('Error:', error);
+    });
+});
+function fetchRpmPoints(pumpNumber) {
+    return fetch(`/get_rpm_points?pump=${pumpNumber}`)
+        .then(response => response.json())
+        .then(data => {
+            console.log("Loading RPM points for", pumpNumber);
+            rpmData['pump' + pumpNumber] = data;
+        })
+        .catch(error => console.error('Error fetching RPM data:', error));
+}
+
+function fetchFlowPoints(pumpNumber) {
+    return fetch(`/get_flow_points?pump=${pumpNumber}`)
+        .then(response => response.json())
+        .then(data => {
+            console.log("Loading Flow points for", pumpNumber);
+            flowData['pump' + pumpNumber] = data;
+        })
+        .catch(error => console.error('Error fetching Flow data:', error));
+}
+
+async function fetchDataAndUpdateChart(pumpNumber) {
+    try {
+        await Promise.all([fetchRpmPoints(pumpNumber), fetchFlowPoints(pumpNumber)]);
+        console.log("After fetching rpmData", rpmData);
+        console.log("After fetching flowData", flowData);
+        updateChart(pumpNumber);
+    } catch (error) {
+        console.error('Error fetching data:', error);
+    }
+}
+
+function loadCalibrationPointsFromCookie(pumpNumber){
+    const calibrationDataPump = getCookie('calibrationDataPump'+ pumpNumber);
+    if (calibrationDataPump) {
+        const validJsonString = calibrationDataPump.replace(/'/g, '"');
+        calibrationData[`pump${pumpNumber}`] = JSON.parse(validJsonString);
+        console.log('Load pump'+pumpNumber+' data from Cookie:', calibrationData[`pump${pumpNumber}`]);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("Cookie update event")
+    //const numberOfPumps = 9;
+
+    // Dynamically add pump selectors
+    const pumpSelector = document.getElementById('pumpSelector');
+
+    for (let i = 1; i <= numberOfPumps; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.text = 'Pump ' + i;
+        pumpSelector.appendChild(option);
+    }
+
+    // Dynamically add form for Pumps chart
+    const container = document.getElementById('calibrationFormsContainer');
+    for (let i = 1; i <= numberOfPumps; i++) {
+        // Create the form element
+        const form = document.createElement('form');
+        form.id = `calibrationForm${i}`;
+        form.className = 'calibrationForm';
+        form.setAttribute('onsubmit', 'return false;');
+
+        // Add the form content
+        form.innerHTML = `
+            <div class="form-border">
+            <h2>Add calibration point</h2>
+            <div class="form-row">
+            <label for="rpmInput${i}">RPM</label>
+            <input type="number" id="rpmInput${i}" placeholder="Enter RPM">
+            </div>
+            <div class="form-row">
+            <label for="flowRateInput${i}">Flow Rate (ml/min)</label>
+            <input type="number" id="flowRateInput${i}" placeholder="Enter Flow Rate">
+            </div>
+            <button type="button" onclick="addCalibrationPoint(${i})">Add Calibration Point</button>
+            </div>
+        `;
+
+        // Append the form to the container
+        container.appendChild(form);
+
+        // Create and append the list for calibration points
+        const listDiv = document.createElement('div');
+        listDiv.id = `calibrationPointsList${i}`;
+        container.appendChild(listDiv);
+    }
+
+    // Load calibration data for Pumps
+    for (let i = 1; i <= numberOfPumps; i++) {
+        loadCalibrationPointsFromCookie(i)
+    }
+    var pumpOptions = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    var selected_pump = document.getElementById('pumpSelector').value
+
+    // Update the list and chart for pumps
+    for (let i = 1; i <= numberOfPumps; i++) {
+        updateCalibrationPointsList(i)
+    }
+
+    // Call this function with the selected pump number
+    // Assuming Pump 1 is the default selected pump and its value is '1'
+    fetchDataAndUpdateChart(selected_pump);
+
+    console.log("Selected pump ", selected_pump)
+    pumpOptions = pumpOptions.filter(option => option !== selected_pump);
+
+    pumpOptions.forEach(pumpNumber => {
+        // If the pump is the selected one, show its calibration points list and update the chart
+        if (pumpNumber === selected_pump) {
+            document.getElementById('calibrationForm' + pumpNumber).style.display = 'block';
+            document.getElementById('calibrationPointsList' + pumpNumber).style.display = 'block';
+
+            updateChart(pumpNumber);
+        } else {
+            // If the pump is not selected, hide its calibration points list
+            document.getElementById('calibrationForm' + pumpNumber).style.display = 'none';
+            document.getElementById('calibrationPointsList' + pumpNumber).style.display = 'none';
+
+        }
+    });
+
+});
+
+document.getElementById('pumpSelector').addEventListener('change', function() {
+    const pumpNumber = this.value;
+    fetchDataAndUpdateChart(pumpNumber);
+    // Show the relevant form and hide the other
+    document.querySelectorAll('.calibrationForm').forEach(form => form.style.display = 'none');
+    document.getElementById('calibrationForm' + pumpNumber).style.display = 'block';
+
+    // Show the relevant list of calibration points and hide the others
+    document.querySelectorAll('[id^="calibrationPointsList"]').forEach(list => list.style.display = 'none');
+    document.getElementById('calibrationPointsList' + pumpNumber).style.display = 'block';
+
+});
+
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function addCalibrationPoint(pumpNumber) {
+    const rpmInput = document.getElementById('rpmInput' + pumpNumber);
+    const flowRateInput = document.getElementById('flowRateInput' + pumpNumber);
+    if (rpmInput.value && flowRateInput.value) {
+        calibrationData['pump' + pumpNumber].push({
+            rpm: parseFloat(rpmInput.value),
+            flowRate: parseFloat(flowRateInput.value)
+        });
+        rpmInput.value = '';
+        flowRateInput.value = '';
+        updateCalibrationPointsList(pumpNumber);
+        updateChart(pumpNumber);
+    }
+}
+
+
+function updateCalibrationPointsList(pumpNumber) {
+    const listContainer = document.getElementById('calibrationPointsList' + pumpNumber);
+    listContainer.innerHTML = '';
+
+    const table = document.createElement('table');
+    listContainer.appendChild(table);
+
+    calibrationData['pump' + pumpNumber].forEach((point, index) => {
+        const row = table.insertRow(-1); // Insert a new row at the end of the table
+
+        // Point cell
+        const pointCell = row.insertCell(0);
+        pointCell.textContent = `Point ${index + 1}`;
+
+        // RPM cell
+        const rpmCell = row.insertCell(1);
+        rpmCell.textContent = `RPM: ${point.rpm}`;
+
+        // Flow Rate cell
+        const flowRateCell = row.insertCell(2);
+        flowRateCell.textContent = `Flow Rate: ${point.flowRate}`;
+
+        // Delete button cell
+        const deleteCell = row.insertCell(3);
+        const deleteButton = document.createElement('button');
+        deleteButton.textContent = 'Delete';
+        deleteButton.onclick = function() {
+            deleteCalibrationPoint(pumpNumber, index);
+        };
+        deleteCell.appendChild(deleteButton);
+    });
+}
+
+
+
+
+function deleteCalibrationPoint(pumpNumber, pointIndex) {
+    calibrationData['pump' + pumpNumber].splice(pointIndex, 1);
+    updateCalibrationPointsList(pumpNumber);
+    updateChart(pumpNumber);
+}
+
+function updateChart(pumpNumber) {
+    const data = calibrationData['pump' + pumpNumber];
+
+    const extrapolatedPoints = rpmData['pump' + pumpNumber]
+    const extrapolatedFlowPoints = flowData['pump' + pumpNumber]
+    console.log("Flow points:", extrapolatedFlowPoints)
+
+        // Find the maximum flow rate from both calibration and extrapolated points
+    const maxFlowCalibration = Math.max(...data.map(point => point.flowRate));
+    const maxFlowExtrapolated = Math.max(...flowData['pump' + pumpNumber]);
+    const maxFlow = Math.max(maxFlowCalibration, maxFlowExtrapolated);
+    console.log("Max flow:", maxFlow)
+
+
+    const extrapolatedDataset = extrapolatedPoints.map((rpm, index) => ({
+        x: rpm,
+        y: extrapolatedFlowPoints[index]
+    }));
+    console.log("dataset", extrapolatedDataset)
+
+
+    const calibrationPoints = data.map(point => ({ x: point.rpm, y: point.flowRate }));
+
+    const ctx = document.getElementById('calibrationChart').getContext('2d');
+    if (window.myChart) window.myChart.destroy();
+    window.myChart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: `Calibration Points for Pump ${pumpNumber}`,
+                data: calibrationPoints,
+                backgroundColor: 'rgba(255, 99, 132, 1)'
+            }, {
+                label: `Extrapolated Curve for Pump ${pumpNumber}`,
+                data: extrapolatedDataset,
+                backgroundColor: 'rgba(54, 162, 235, 1)',
+                showLine: true,
+                fill: false
+            }]
+        },
+        options: {
+            scales: {
+                x: { title: { display: true, text: 'RPM' } },
+                y: { title: { display: true, text: 'Flow Rate (ml/min)' } }
+            }
+        }
+    });
+}
+
+// Initialize the page with Pump 1 data
+document.getElementById('pumpSelector').value = 1
+
+</script>
+
+</body>
+</html>

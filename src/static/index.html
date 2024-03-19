@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dosing Control</title>
+    <style>
+        header {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background-color: #f0f0f0;
+        }
+        header a {
+            text-decoration: none;
+            color: #333;
+            padding: 5px 10px;
+        }
+        .container {
+            padding: 20px;
+        }
+        label, select, input, button {
+            display: block;
+            margin-bottom: 10px;
+        }
+    </style>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+    <header>
+        <a href="/">Home</a>
+        <a href="/calibration">Calibration</a>
+        <a href="/settings">Settings</a>
+        <a href="/ota-upgrade">OTA</a>
+    </header>
+
+    <div class="container">
+        <h2>Dosing Control</h2>
+
+        <label for="pumpSelector">Select Pump:</label>
+        <select id="pumpSelector">
+            <option value="1">Pump 1</option>
+            <option value="2">Pump 2</option>
+            <option value="3">Pump 3</option>
+            <option value="4">Pump 4</option>
+            <option value="5">Pump 5</option>
+            <option value="6">Pump 6</option>
+            <option value="7">Pump 7</option>
+            <option value="8">Pump 8</option>
+            <option value="9">Pump 9</option>
+        </select>
+
+        <label for="amountInput">Amount (ml) to Dose:</label>
+        <input type="number" id="amountInput" placeholder="Enter amount in ml">
+
+        <label for="timeInput">Time to Dose (minutes):</label>
+        <input type="number" id="timeInput" placeholder="Enter time in minutes">
+
+        <label for="directionInput">Direction:</label>
+        <select id="directionInput">
+            <option value="1">Clockwise</option>
+            <option value="0">Counterclockwise</option>
+        </select>
+
+        <button id="doseButton" disabled>Start Dosing</button>
+    </div>
+
+    <script>
+        const numberOfPumps = 9; // Total number of pumps
+
+        function checkInputs() {
+            const amountInput = document.getElementById('amountInput').value;
+            const timeInput = document.getElementById('timeInput').value;
+            const doseButton = document.getElementById('doseButton');
+
+            const isAmountValid = parseFloat(amountInput) > 0;
+            const isTimeValid = parseFloat(timeInput) > 0;
+
+            doseButton.disabled = !(isAmountValid && isTimeValid);
+        }
+
+        document.getElementById('amountInput').addEventListener('input', checkInputs);
+        document.getElementById('timeInput').addEventListener('input', checkInputs);
+
+        document.getElementById('doseButton').addEventListener('click', function() {
+            const pumpNumber = document.getElementById('pumpSelector').value;
+            const amount = document.getElementById('amountInput').value;
+            const time = document.getElementById('timeInput').value;
+            const direction = document.getElementById('directionInput').value;
+
+            // Replace <address> with your server's address
+            const url = `/dose?volume=${amount}&time=${time}&direction=${direction}&id=${pumpNumber}`;
+
+            fetch(url)
+            .then(response => response.json())
+            .then(data => console.log('Success:', data))
+            .catch((error) => console.error('Error:', error));
+        });
+
+        checkInputs(); // Run once on page load to set initial button state
+    </script>
+</body>
+</html>
