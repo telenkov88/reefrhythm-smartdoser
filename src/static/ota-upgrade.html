@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OTA Upgrade</title>
+    <style>
+        header {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background-color: #f0f0f0;
+        }
+        header a {
+            text-decoration: none;
+            color: #333;
+            padding: 5px 10px;
+        }
+        .container {
+            padding: 20px;
+        }
+        label, input, button {
+            display: block;
+            margin-bottom: 10px;
+        }
+    </style>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+
+</head>
+<body>
+    <header>
+        <a href="/">Home</a>
+        <a href="/calibration">Calibration</a>
+        <a href="/settings">Settings</a>
+        <a href="/ota-upgrade">OTA</a>
+    </header>
+
+    <div class="container">
+        <h2>OTA Upgrade</h2>
+
+        <p id="otaPartitionInfo"></p>
+        <p id="firmwareVesrion"></p>
+
+        <label for="firmwareLinkInput">Firmware Link:</label>
+        <input type="text" id="firmwareLinkInput" placeholder="Enter firmware download link" value="http://github.com/telenkov88/reefrhythm-smartdoser/releases/download/latest/micropython.bin">
+
+        <button id="startUpgradeButton">Start Upgrade</button>
+        <button id="cancelButton">Cancel Rollback</button>
+    </div>
+        <div id="otaUpgradeContainer" style="display: none;">
+        <h3>OTA Upgrade Progress</h3>
+        <div id="progressBarContainer" style="width: 100%; background-color: #ddd;">
+            <div id="progressBar" style="width: 0%; height: 30px; background-color: #4CAF50; text-align: center; line-height: 30px; color: white;">0%</div>
+        </div>
+        <p id="downloadSize">Downloaded: 0 KB</p>
+    </div>
+
+
+    <script>
+        const otaPartition = getCookie('otaPartition');
+        const otaStatus = getCookie('ota_lock');
+
+        // Load OTA Partition information from Cookie
+        document.getElementById('otaPartitionInfo').textContent = 'OTA Partition: ' + otaPartition;
+        document.getElementById('firmwareVesrion').textContent = 'Firmware Version: ' + getCookie('firmware');
+
+        function getCookie(name) {
+            let cookieArray = document.cookie.split(';');
+            for(let i = 0; i < cookieArray.length; i++) {
+                let cookiePair = cookieArray[i].split('=');
+                if(name == cookiePair[0].trim()) {
+                    return decodeURIComponent(cookiePair[1]);
+                }
+            }
+            return null;
+        }
+
+        if (otaStatus){
+            document.getElementById("startUpgradeButton").disabled = true;
+            document.getElementById("cancelButton").disabled = true;
+        }
+
+
+        // Event listener for Start Upgrade button
+        document.getElementById('startUpgradeButton').addEventListener('click', function() {
+            const firmwareLink = document.getElementById('firmwareLinkInput').value;
+
+            // Replace <address> with your server's address
+            const url = `/ota-upgrade?link=${firmwareLink}`;
+            console.log("start upgare from link ", firmwareLink)
+            document.getElementById("otaUpgradeContainer").style.display = 'block';
+            fetch(url, {
+                method: 'POST',
+            })
+            .then(response => response.json())
+            .then(data => console.log('Success:', data))
+            .catch((error) => console.error('Error:', error));
+        });
+
+        // Event listener for Cancel button (Rollback)
+        document.getElementById('cancelButton').addEventListener('click', function() {
+            const partition = getCookie('otaPartition');
+            console.log("Set current partition as primary: ", partition)
+
+            const url = `/ota-upgrade?ota_partition=${partition}&cancel_rollback=True`;
+            console.log("POST request: ", url)
+            fetch(url, {
+                method: 'POST',
+            })
+            .then(response => response.json())
+            .then(data => console.log('Success:', data))
+            .catch((error) => console.error('Error:', error));
+
+            // Logic for canceling upgrade or initiating rollback goes here
+            // This might involve another POST request or a redirect, depending on your setup
+        });
+
+
+        // Subscribe to Server-Sent Events (SSE) from the server
+        const eventSource = new EventSource("/ota-sse");
+
+        eventSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            const { progress, size, status } = data;
+
+            // Select elements
+            const upgradeContainer = document.getElementById("otaUpgradeContainer");
+            const progressBar = document.getElementById("progressBar");
+            const downloadSize = document.getElementById("downloadSize");
+
+            if (status) {
+                document.getElementById("startUpgradeButton").disabled = true;
+                document.getElementById("cancelButton").disabled = true;
+
+                // Show the progress bar container
+                upgradeContainer.style.display = "block";
+
+                // Update progress bar width and text
+                progressBar.style.width = `${progress}%`;
+                progressBar.textContent = `${progress}%`;
+
+                // Update downloaded size
+                downloadSize.textContent = `Downloaded: ${size} KB`;
+            } else {
+                // Hide the progress bar container if status is false
+                upgradeContainer.style.display = "none";
+            }
+        };
+
+        // Close the event source connection when navigating away from the page
+        window.addEventListener("beforeunload", function() {
+            eventSource.close();
+        });
+
+    </script>
+</body>
+</html>
