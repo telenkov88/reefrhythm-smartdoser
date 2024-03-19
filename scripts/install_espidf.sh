@@ -10,3 +10,4 @@ git -C esp-idf checkout v5.1.2
 
 cd esp-idf
 ./install.sh all
+source esp-idf/export.sh
