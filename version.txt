@@ -1,1 +1,1 @@
-ReefRhythm Doser v0.5 dev
+ReefRhythm Doser v0.5 stable
