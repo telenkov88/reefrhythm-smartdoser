@@ -1,9 +1,9 @@
-name: Build release binaries
+name: Build binaries
 
 on:
   push:
     branches:
-      - develop
+      - master
 
 jobs:
   build:
@@ -61,22 +61,6 @@ jobs:
       - name: Compile for ESP32-S3 8MB SPIRAM/16MB Flash
         run: ./scripts/esp32/generic-s3-spiram-16mb-ota.sh
 
-      # Conditionally update the latest_stable tag if on a specified branch
-      - name: Update latest_stable tag
-        if: steps.check_branch.outputs.is_matched
-        run: |
-          # Delete the local and remote 'latest_stable' tag
-          git tag -d latest_stable || true  # Ignore errors if tag doesn't exist
-          git push origin :refs/tags/latest_stable || true  # Ignore errors if tag doesn't exist remotely
-
-          # Create the 'latest_stable' tag pointing to the current commit
-          git tag latest_stable
-
-          # Push the 'latest_stable' tag to remote
-          git push origin latest_stable
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       # Extract the branch name and set a dynamic tag for the build
       - name: Extract Branch Name and Set Tag
         run: |
@@ -86,14 +70,30 @@ jobs:
           echo "RELEASE_TAG=${RELEASE_VER}-${BRANCH_NAME}-${DATE}-${SHORT_SHA}" >> $GITHUB_ENV
           RELEASE_VER=$(cat version.txt)
           echo "RELEASE_VER=${RELEASE_VER}-${BRANCH_NAME}-${DATE}" >> $GITHUB_ENV
+          
+      # Conditionally update the latest_stable tag if on a specified branch
+      - name: Update latest tag
+        if: steps.check_branch.outputs.is_matched
+        run: |
+          # Delete the local and remote 'latest' tag
+          git tag -d latest || true  # Ignore errors if tag doesn't exist
+          git push origin :refs/tags/latest || true  # Ignore errors if tag doesn't exist remotely
+
+          # Create the 'latest' tag pointing to the current commit
+          git tag latest
+
+          # Push the 'latest' tag to remote
+          git push origin latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Create a GitHub release with the artifacts
       - name: Create GitHub Release
         uses: marvinpinto/action-automatic-releases@latest
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          prerelease: true
-          automatic_release_tag: "${{ env.RELEASE_TAG }}"
+          prerelease: false
+          automatic_release_tag: "latest"
           title: "Release ${{ env.RELEASE_VER }}"
           files: ./artifacts/*
         if: env.RELEASE_TAG != ''
