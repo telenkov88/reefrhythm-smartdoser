@@ -19,11 +19,18 @@
         .container {
             padding: 20px;
         }
+        .form-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1px;
+        }
         label, select, input, button {
             display: block;
             margin-bottom: 10px;
         }
     </style>
+    <link rel="stylesheet" href="https://unpkg.com/cron-expression-input@1.2.7/lib/cron-expression-input.min.css">
+    <script src="https://unpkg.com/cron-expression-input@1.2.7/lib/cron-expression-input.min.js"></script>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
 </head>
 <body>
@@ -39,15 +46,6 @@
 
         <label for="pumpSelector">Select Pump:</label>
         <select id="pumpSelector">
-            <option value="1">Pump 1</option>
-            <option value="2">Pump 2</option>
-            <option value="3">Pump 3</option>
-            <option value="4">Pump 4</option>
-            <option value="5">Pump 5</option>
-            <option value="6">Pump 6</option>
-            <option value="7">Pump 7</option>
-            <option value="8">Pump 8</option>
-            <option value="9">Pump 9</option>
         </select>
 
         <label for="amountInput">Amount (ml) to Dose:</label>
@@ -65,8 +63,17 @@
         <button id="doseButton" disabled>Start Dosing</button>
     </div>
 
+
+    <h2>Schedule</h2>
+    <div id="scheduleFormsContainer"></div>
+
     <script>
         const numberOfPumps = 9; // Total number of pumps
+
+        let scheduleData = {};
+        for (let i = 1; i <= numberOfPumps; i++) {
+            scheduleData[`pump${i}`] = [];
+        }
 
         function checkInputs() {
             const amountInput = document.getElementById('amountInput').value;
@@ -88,7 +95,7 @@
             const time = document.getElementById('timeInput').value;
             const direction = document.getElementById('directionInput').value;
 
-            // Replace <address> with your server's address
+            // use API to start dosing
             const url = `/dose?volume=${amount}&time=${time}&direction=${direction}&id=${pumpNumber}`;
 
             fetch(url)
@@ -98,6 +105,140 @@
         });
 
         checkInputs(); // Run once on page load to set initial button state
+
+
+        // Add Schedule
+        function addSchedule(pumpNumber) {
+
+            console.log("Add schedule for ", pumpNumber)
+            var cronInput = document.getElementById(`myCronInput${pumpNumber}`);
+            console.log(cronInput)
+
+            // Use querySelector on cronInput to find the nested input element
+            var nestedInput = cronInput.querySelector('div > div:nth-child(1) > input');
+            console.log(nestedInput)
+            // Check if the nested input element was found
+            if (nestedInput) {
+                // Get the value of the nested input element
+                var inputValue = nestedInput.value;
+                console.log('Nested input value:', inputValue);
+            } else {
+                console.log('Nested input element not found');
+            }
+
+            var cronCheckStatus = cronInput.querySelector('div > small');
+            //cronexpressionError hiden
+            //cronexpressionError show
+            if (cronCheckStatus.className == 'cronexpressionError hiden'){
+                console.log(`Add ${nestedInput.value} to Pump${pumpNumber} schedule`)
+                scheduleData['pump' + pumpNumber].push(nestedInput.value);
+                console.log(scheduleData['pump' + pumpNumber])
+                updateScheduleList(pumpNumber);
+            }
+        }
+
+        function updateScheduleList(pumpNumber) {
+            const listContainer = document.getElementById('scheduleList' + pumpNumber);
+            listContainer.innerHTML = '';
+
+            const table = document.createElement('table');
+            listContainer.appendChild(table);
+
+            scheduleData['pump' + pumpNumber].forEach((point, index) => {
+                const row = table.insertRow(-1); // Insert a new row at the end of the table
+
+                // Point cell
+                const pointCell = row.insertCell(0);
+                pointCell.textContent = `Dose ${index + 1}`;
+
+                // RPM cell
+                const rpmCell = row.insertCell(1);
+                rpmCell.textContent = `${point}`;
+
+                // Delete button cell
+                const deleteCell = row.insertCell(2);
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Delete';
+                deleteButton.onclick = function() {
+                    deleteSchedulePoint(pumpNumber, index);
+                };
+                deleteCell.appendChild(deleteButton);
+            });
+        }
+
+        function deleteSchedulePoint(pumpNumber, pointIndex) {
+            scheduleData['pump' + pumpNumber].splice(pointIndex, 1);
+            updateScheduleList(pumpNumber);
+        }
+
+
+        // Cookie event
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("Cookie update event")
+            const numberOfPumps = 9;
+            var pumpOptions = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
+            // Dynamically add pump selectors
+            const pumpSelector = document.getElementById('pumpSelector');
+
+            for (let i = 1; i <= numberOfPumps; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.text = 'Pump ' + i;
+                pumpSelector.appendChild(option);
+            }
+
+            console.log(numberOfPumps)
+            // Dynamically add form for Pumps chart
+            const container = document.getElementById('scheduleFormsContainer');
+            for (let i = 1; i <= numberOfPumps; i++) {
+                // Create the form element
+                const form = document.createElement('form');
+                form.id = `calibrationForm${i}`;
+                form.className = 'calibrationForm';
+                form.setAttribute('onsubmit', 'return false;');
+
+                // Add the form content
+                form.innerHTML = `
+                    <div class="form-border">
+                    <h2>Add dosing schedule</h2>
+                    <div class="form-row">
+                    <cron-expression-input id="myCronInput${i}" height="34px" width="80%" color="d58512" required="false" hotValidate="true" value="* * * * *"></cron-expression-input>
+                    <button type="button" onclick="addSchedule(${i})">Add schedule dosing</button>
+                    </div>
+                `;
+
+
+                // Append the form to the container
+                container.appendChild(form);
+
+
+                // Create and append the list for calibration points
+                const listDiv = document.createElement('div');
+                listDiv.id = `scheduleList${i}`;
+                container.appendChild(listDiv);
+            }
+
+            console.log("Selected pump ", pumpSelector.value)
+            pumpOptions = pumpOptions.filter(option => option !== pumpSelector.value);
+            pumpOptions.forEach(pumpNumber => {
+                // If the pump is the selected one, show its calibration points list and update the chart
+                if (pumpNumber === pumpSelector.value) {
+                    document.getElementById('calibrationForm' + pumpNumber).style.display = 'block';
+
+                    updateChart(pumpNumber);
+                } else {
+                    // If the pump is not selected, hide its calibration points list
+                    document.getElementById('calibrationForm' + pumpNumber).style.display = 'none';
+
+                }
+            });
+
+
+
+        });
+
+
     </script>
 </body>
 </html>

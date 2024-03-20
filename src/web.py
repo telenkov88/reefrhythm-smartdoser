@@ -353,6 +353,17 @@ async def ota_upgrade(request):
     return response
 
 
+@app.route('/cron', methods=['GET', 'POST'])
+async def cron(request):
+    if request.method == 'GET':
+        response = send_file('./static/cron.html')
+    else:
+        data = request.json
+        print("Got POST", data)
+        response = redirect('/cron')
+    return response
+
+
 @app.route('/calibration', methods=['GET', 'POST'])
 async def calibration(request):
     if request.method == 'GET':
