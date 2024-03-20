@@ -27,8 +27,18 @@ jobs:
         run: ./scripts/install_arm.sh
 
       # Install the ESP-IDF toolchain
-      - name: Install ESP-IDF toolchain
-        run: ./scripts/install_espidf.sh
+      - name: Conditionally Install ESP-IDF Toolchain
+        run: |
+          set +e  # Disable immediate exit on error to allow conditional logic
+          source esp-idf/export.sh
+          EXPORT_RESULT=$?
+          set -e  # Re-enable immediate exit on error for subsequent commands
+          if [ $EXPORT_RESULT -ne 0 ]; then
+            echo "Sourcing esp-idf/export.sh failed. Installing ESP-IDF toolchain..."
+            ./scripts/install_espidf.sh
+          else
+            echo "esp-idf/export.sh sourced successfully."
+          fi
 
       # Checkout necessary submodules or projects
       - name: Checkout ulab/micropython
@@ -36,7 +46,9 @@ jobs:
 
       # Create a directory for artifacts
       - name: Create artifacts directory
-        run: mkdir ./artifacts
+        run: |
+          rm -rf ./artifacts
+          mkdir ./artifacts
 
       # Ensure all relevant scripts are executable
       - name: Give execution permissions
