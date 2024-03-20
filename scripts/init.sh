@@ -36,15 +36,23 @@ mkdir -p ../micropython/ports/esp32/modules/ota/
 cp -r mip/ota/*.py ../micropython/ports/esp32/modules/ota/
 cd ..
 
-# Copy APP as frozen module
+# Prepare App source code
+pip3 install numpy
 cd src
+# Precalculate RPM table for Stepper motor
+rm -rf *.npy; rm -rf *.npy.crc; rm -rf constants.crc
+python3 -c 'from lib.stepper_doser_math import *;make_rpm_table()'
+
+# Copy APP as frozen module
 rm -rf frozen_app.py
 python3 -m freezefs ./ frozen_app.py --on-import=extract --overwrite always --compress
 mv frozen_app.py ../micropython/ports/esp32/modules
 cd ..
 
 # copy ESP32 custom board to micropython
+rm -rfp micropython/ports/esp32/boards/ESP32_GENERIC_S3_16MiB_OTA
 cp -rf ./boards/ESP32_GENERIC_S3_16MiB_OTA micropython/ports/esp32/boards/ESP32_GENERIC_S3_16MiB_OTA
+cp -rf ./boards/ESP32_GENERIC_S3_16MiB_OTA/partitions-16MiB-4MiB_ota.csv micropython/ports/esp32/
 VERSION_NAME=$(cat version.txt)
 sed -i "/MICROPY_HW_BOARD_NAME/c\        MICROPY_HW_BOARD_NAME=\"$VERSION_NAME\"" micropython/ports/esp32/boards/ESP32_GENERIC_S3_16MiB_OTA/mpconfigboard.cmake
 

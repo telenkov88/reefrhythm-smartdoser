@@ -22,7 +22,8 @@ try:
         ssid = wifi_settings["ssid"]
         password = wifi_settings["password"]
     ap.active(False)
-except OSError:
+except OSError as e:
+    print(e)
     print("Wifi network are not defined, starting AP mode")
     ap.active(False)
     nic.active(False)
@@ -74,7 +75,10 @@ async def maintain_wifi(wifi):
             print(f'ERROR: WIFI disconnected')
             wifi.active(True)
             print("set wifi Active")
-            wifi.connect(ssid, password)
+            try:
+                wifi.connect(ssid, password)
+            except OSError as wifi_error:
+                print(f"wi-fi {ssid} connection failed: ", wifi_error)
             print(f"Try to connect wifi {ssid}")
             await asyncio.sleep(60)
 
@@ -113,8 +117,6 @@ def wait_connection(nic):
         if count >= 40:
             raise OSError("Failed to connecto to wifi")
         time.sleep(1)
-
-
 
 
 asyncio.create_task(maintain_wifi(nic))
