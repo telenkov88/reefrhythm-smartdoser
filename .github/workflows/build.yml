@@ -79,14 +79,13 @@ jobs:
 
       # Extract the branch name and set a dynamic tag for the build
       - name: Extract Branch Name and Set Tag
-        if: github.event_name == 'push'
         run: |
           BRANCH_NAME=${GITHUB_REF#refs/heads/}
           DATE=$(date +'%Y%m%d')
           SHORT_SHA=$(git rev-parse --short HEAD)
-          echo "RELEASE_TAG=${BRANCH_NAME}-${DATE}-${SHORT_SHA}" >> $GITHUB_ENV
+          echo "RELEASE_TAG=${RELEASE_VER}-${BRANCH_NAME}-${DATE}-${SHORT_SHA}" >> $GITHUB_ENV
           RELEASE_VER=$(cat version.txt)
-          echo "RELEASE_VER=${RELEASE_VER}-${DATE}-${SHORT_SHA}" >> $GITHUB_ENV
+          echo "RELEASE_VER=${RELEASE_VER}-${BRANCH_NAME}-${DATE}" >> $GITHUB_ENV
 
       # Create a GitHub release with the artifacts
       - name: Create GitHub Release
@@ -95,6 +94,6 @@ jobs:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: true
           automatic_release_tag: "${{ env.RELEASE_TAG }}"
-          title: "Release ${{ env.RELEASE_TAG }}"
+          title: "Release ${{ env.RELEASE_VER }}"
           files: ./artifacts/*
         if: env.RELEASE_TAG != ''

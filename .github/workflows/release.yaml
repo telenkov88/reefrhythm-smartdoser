@@ -61,11 +61,15 @@ jobs:
       - name: Compile for ESP32-S3 8MB SPIRAM/16MB Flash
         run: ./scripts/esp32/generic-s3-spiram-16mb-ota.sh
 
-      # Extract the release version
-      - name: Extract release version
+      # Extract the branch name and set a dynamic tag for the build
+      - name: Extract Branch Name and Set Tag
         run: |
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          DATE=$(date +'%Y%m%d')
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "RELEASE_TAG=${RELEASE_VER}-${BRANCH_NAME}-${DATE}-${SHORT_SHA}" >> $GITHUB_ENV
           RELEASE_VER=$(cat version.txt)
-          echo "RELEASE_VER=${RELEASE_VER}" >> $GITHUB_ENV
+          echo "RELEASE_VER=${RELEASE_VER}-${BRANCH_NAME}-${DATE}" >> $GITHUB_ENV
           
       # Conditionally update the latest_stable tag if on a specified branch
       - name: Update latest tag
