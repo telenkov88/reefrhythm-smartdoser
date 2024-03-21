@@ -97,8 +97,10 @@
                 <input type="number" id="schDurationInput"  placeholder="Enter sec" style="width: 100px">
             </div>
             <div class="form-add-sch">
-                <br>
                 <button type="button" onclick="addSchedule()" style="height: 20px;">Add</button>
+            </div>
+            <div class="form-add-sch">
+                <button type="button" onclick="uploadSchedule()" style="height: 20px;">Upload</button>
             </div>
         </div>
     </div>
@@ -114,6 +116,35 @@
         let scheduleData = {};
         for (let i = 1; i <= numberOfPumps; i++) {
             scheduleData[`pump${i}`] = [];
+        }
+
+        //Upload schedule to controller
+         function uploadSchedule() {
+            const url = window.location.href;
+            const data = {};
+
+            for (const [pumpKey, pumpData] of Object.entries(scheduleData)) {
+                data[pumpKey] = pumpData;
+            }
+
+            console.log("upload data", data)
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            })
+            .then(response => {
+                console.log("Response:", response)
+            })
+            .then(data => {
+                console.log('Success:', data);
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
         }
 
         function checkInputs() {
