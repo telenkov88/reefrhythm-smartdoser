@@ -1,6 +1,5 @@
 from .sub_modules.part import Part
 from .sub_modules.units import units
-from .sub_modules.seeker import Seeker
 
 class Cron:
     """Creates an instance of Cron.
@@ -109,15 +108,3 @@ class Cron:
         for part in self.parts:
             schedule_list.append(part.to_list())
         return schedule_list
-
-    def schedule(self, start_date=None, timezone_str=None):
-        """Returns the time the schedule would run next.
-
-        :param start_date: Optional. A datetime object. If not provided, the date will be now in UTC.
-                                     This parameter excludes 'timezone_str'.
-        :param timezone_str: Optional. A timezone string ('Europe/Rome', 'America/New_York', ...). The date will be now, but localized.
-                                       If not provided, the date will be now in UTC. This parameter excludes 'start_date'.
-        :return: A schedule iterator.
-        """
-        return Seeker(self, start_date, timezone_str)
-
