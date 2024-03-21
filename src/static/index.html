@@ -47,6 +47,7 @@
     <link rel="stylesheet" href="https://unpkg.com/cron-expression-input@1.2.7/lib/cron-expression-input.min.css">
     <script src="https://unpkg.com/cronstrue@1.48.0/dist/cronstrue.min.js" async></script>
     <script src="https://unpkg.com/cron-expression-input@1.2.7/lib/cron-expression-input.min.js"></script>
+    <script src="javascript/cron-converter.js"></script>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
 </head>
 <body>
@@ -66,8 +67,8 @@
         <label for="amountInput">Amount (ml) to Dose:</label>
         <input type="number" id="amountInput" placeholder="Enter amount in ml">
 
-        <label for="timeInput">Time to Dose (minutes):</label>
-        <input type="number" id="timeInput" placeholder="Enter time in minutes">
+        <label for="timeInput">Duration sec:</label>
+        <input type="number" id="timeInput" placeholder="Enter time in seconds">
 
         <label for="directionInput">Direction:</label>
         <select id="directionInput">
@@ -223,6 +224,10 @@
                         console.log("Already in list")
                         }
                     else {
+                        const arr = stringToArray("*/5 * * * *");
+
+                        print(arr)
+
                         console.log(`Add ${nestedInput.value} to Pump${pumpNumber} schedule`)
                         scheduleData['pump' + pumpNumber].push(data);
                         console.log(scheduleData['pump' + pumpNumber])
