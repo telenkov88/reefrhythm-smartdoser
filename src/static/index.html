@@ -154,11 +154,6 @@
             const schVolumeInput = document.getElementById('schVolumeInput');
             const schDurationInput = document.getElementById('schDurationInput');
             if (schVolumeInput.value && schDurationInput.value){
-                console.log("check")
-
-
-
-
                 console.log("Add schedule for ", pumpNumber)
                 var cronInput = document.getElementById(`myCronInput`);
 
@@ -177,15 +172,32 @@
                 var cronCheckStatus = cronInput.querySelector('div > small');
 
                 if (cronCheckStatus.className == 'cronexpressionError hiden'){
-
-                    console.log(`Add ${nestedInput.value} to Pump${pumpNumber} schedule`)
-                    scheduleData['pump' + pumpNumber].push({
+                    data = {
                         cron: nestedInput.value,
                         volume: schVolumeInput.value,
                         time: schDurationInput.value
-                    });
-                    console.log(scheduleData['pump' + pumpNumber])
-                    updateScheduleList(pumpNumber);
+                    }
+
+                    // Check if schedule list already contains same settings
+                    function containsObject(array, obj) {
+                        return array.some(element =>
+                            Object.keys(obj).every(key =>
+                                element.hasOwnProperty(key) && element[key] === obj[key]
+                            )
+                        );
+                    }
+
+
+                    if (containsObject(scheduleData['pump' + pumpNumber], data)) {
+                        console.log("Already in list")
+                        }
+                    else {
+                        console.log(`Add ${nestedInput.value} to Pump${pumpNumber} schedule`)
+                        scheduleData['pump' + pumpNumber].push(data);
+                        console.log(scheduleData['pump' + pumpNumber])
+                        updateScheduleList(pumpNumber);
+
+                    }
                 }
             }
             else {
