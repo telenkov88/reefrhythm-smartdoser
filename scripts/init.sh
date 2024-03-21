@@ -40,8 +40,8 @@ cd ..
 pip3 install numpy
 cd src
 # Precalculate RPM table for Stepper motor
-rm -rf *.npy; rm -rf *.npy.crc; rm -rf constants.crc
-python3 -c 'from lib.stepper_doser_math import *;make_rpm_table()'
+#rm -rf *.npy; rm -rf *.npy.crc; rm -rf constants.crc
+#python3 -c 'from lib.stepper_doser_math import *;make_rpm_table()'
 
 # Copy APP as frozen module
 rm -rf frozen_app.py
