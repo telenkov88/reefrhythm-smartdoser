@@ -75,7 +75,7 @@ cd reefrhythm-smartdoser
 and there run
 
 ```bash
-./scripts/esp32/generic-s3-spiram-16mb-ota.sh
+./styles/esp32/generic-s3-spiram-16mb-ota.sh
 ```
 
 The rest is taken care of.

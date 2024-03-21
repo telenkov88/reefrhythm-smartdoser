@@ -20,7 +20,7 @@ jobs:
 
       # Install the ARM toolchain
       - name: Install arm toolchain
-        run: ./scripts/install_arm.sh
+        run: ./styles/install_arm.sh
 
       # Install the ESP-IDF toolchain
       - name: Conditionally Install ESP-IDF Toolchain
@@ -38,7 +38,7 @@ jobs:
 
       # Checkout necessary submodules or projects
       - name: Checkout ulab/micropython
-        run: ./scripts/init.sh
+        run: ./styles/init.sh
 
       # Create a directory for artifacts
       - name: Create artifacts directory
@@ -46,9 +46,9 @@ jobs:
           rm -rf ./artifacts
           mkdir ./artifacts
 
-      # Ensure all relevant scripts are executable
+      # Ensure all relevant styles are executable
       - name: Give execution permissions
-        run: chmod +x ./scripts/esp32/generic-s3-spiram-16mb-ota.sh
+        run: chmod +x ./styles/esp32/generic-s3-spiram-16mb-ota.sh
 
       # Check the hostname and set environment variables accordingly
       - name: Check hostname and set MAKEOPTS
@@ -59,7 +59,7 @@ jobs:
 
       # Compile the project for ESP32-S3 with specific configuration
       - name: Compile for ESP32-S3 8MB SPIRAM/16MB Flash
-        run: ./scripts/esp32/generic-s3-spiram-16mb-ota.sh
+        run: ./styles/esp32/generic-s3-spiram-16mb-ota.sh
 
       # Conditionally update the latest_stable tag if on a specified branch
       - name: Update latest_stable tag

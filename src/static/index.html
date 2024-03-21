@@ -17,19 +17,35 @@
             padding: 5px 10px;
         }
         .container {
-            padding: 20px;
         }
         .form-row {
             display: flex;
             align-items: center;
             margin-bottom: 1px;
         }
+        .form-vert {
+            margin: 5px;
+            align-items: center;
+
+        }
+        .form-add-sch {
+            margin-bottom: 6px;
+            margin-left: 10px;
+            align-self: end;
+        }
         label, select, input, button {
             display: block;
             margin-bottom: 10px;
         }
+        body {
+            min-width: 950px;
+        }
+
+
     </style>
+
     <link rel="stylesheet" href="https://unpkg.com/cron-expression-input@1.2.7/lib/cron-expression-input.min.css">
+    <script src="https://unpkg.com/cronstrue@1.48.0/dist/cronstrue.min.js" async></script>
     <script src="https://unpkg.com/cron-expression-input@1.2.7/lib/cron-expression-input.min.js"></script>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
 </head>
@@ -40,7 +56,6 @@
         <a href="/settings">Settings</a>
         <a href="/ota-upgrade">OTA</a>
     </header>
-
     <div class="container">
         <h2>Dosing Control</h2>
 
@@ -64,8 +79,34 @@
     </div>
 
 
-    <h2>Schedule</h2>
+
+    <div class="form-border">
+        <h2>Add dosing schedule</h2>
+        <div class="form-row">
+            <div class="form-vert">
+                <label for="myCronInput">Schedule</label>
+                <cron-expression-input id="myCronInput" height="30px" width="120px" color="d58512" required="false" hotValidate="true" value="* * * * *"></cron-expression-input>
+            </div>
+            <div class="form-vert">
+                <label for="schVolumeInput">Dose ml</label>
+                <input type="number" id="schVolumeInput" placeholder="Enter ml"  style="width: 100px">
+            </div>
+
+            <div class="form-vert">
+                <label for="schDurationInput" >Duration Sec</label>
+                <input type="number" id="schDurationInput"  placeholder="Enter sec" style="width: 100px">
+            </div>
+            <div class="form-add-sch">
+                <br>
+                <button type="button" onclick="addSchedule()" style="height: 20px;">Add</button>
+            </div>
+        </div>
+    </div>
+
     <div id="scheduleFormsContainer"></div>
+
+
+
 
     <script>
         const numberOfPumps = 9; // Total number of pumps
@@ -108,56 +149,90 @@
 
 
         // Add Schedule
-        function addSchedule(pumpNumber) {
+        function addSchedule() {
+            const pumpNumber = document.getElementById('pumpSelector').value
+            const schVolumeInput = document.getElementById('schVolumeInput');
+            const schDurationInput = document.getElementById('schDurationInput');
+            if (schVolumeInput.value && schDurationInput.value){
+                console.log("check")
 
-            console.log("Add schedule for ", pumpNumber)
-            var cronInput = document.getElementById(`myCronInput${pumpNumber}`);
-            console.log(cronInput)
 
-            // Use querySelector on cronInput to find the nested input element
-            var nestedInput = cronInput.querySelector('div > div:nth-child(1) > input');
-            console.log(nestedInput)
-            // Check if the nested input element was found
-            if (nestedInput) {
-                // Get the value of the nested input element
-                var inputValue = nestedInput.value;
-                console.log('Nested input value:', inputValue);
-            } else {
-                console.log('Nested input element not found');
+
+
+                console.log("Add schedule for ", pumpNumber)
+                var cronInput = document.getElementById(`myCronInput`);
+
+                // Use querySelector on cronInput to find the nested input element
+                var nestedInput = cronInput.querySelector('div > div:nth-child(1) > input');
+                // Check if the nested input element was found
+                if (nestedInput) {
+                    // Get the value of the nested input element
+                    var inputValue = nestedInput.value;
+                    var cronstrue = window.cronstrue;
+                    console.log("cronstrue", cronstrue.toString(inputValue))
+                } else {
+                    console.log('Nested input element not found');
+                }
+
+                var cronCheckStatus = cronInput.querySelector('div > small');
+
+                if (cronCheckStatus.className == 'cronexpressionError hiden'){
+
+                    console.log(`Add ${nestedInput.value} to Pump${pumpNumber} schedule`)
+                    scheduleData['pump' + pumpNumber].push({
+                        cron: nestedInput.value,
+                        volume: schVolumeInput.value,
+                        time: schDurationInput.value
+                    });
+                    console.log(scheduleData['pump' + pumpNumber])
+                    updateScheduleList(pumpNumber);
+                }
             }
-
-            var cronCheckStatus = cronInput.querySelector('div > small');
-            //cronexpressionError hiden
-            //cronexpressionError show
-            if (cronCheckStatus.className == 'cronexpressionError hiden'){
-                console.log(`Add ${nestedInput.value} to Pump${pumpNumber} schedule`)
-                scheduleData['pump' + pumpNumber].push(nestedInput.value);
-                console.log(scheduleData['pump' + pumpNumber])
-                updateScheduleList(pumpNumber);
+            else {
+                console.log("Volume and Duration empy")
             }
         }
 
         function updateScheduleList(pumpNumber) {
             const listContainer = document.getElementById('scheduleList' + pumpNumber);
             listContainer.innerHTML = '';
+            console.log("Update list fro pump", pumpNumber)
 
             const table = document.createElement('table');
+            table.style.width="500px"
             listContainer.appendChild(table);
 
             scheduleData['pump' + pumpNumber].forEach((point, index) => {
+                console.log(point)
                 const row = table.insertRow(-1); // Insert a new row at the end of the table
-
+                                row.setAttribute('style', 'text-align: left');
                 // Point cell
                 const pointCell = row.insertCell(0);
-                pointCell.textContent = `Dose ${index + 1}`;
+                pointCell.textContent = `${index + 1}`;
 
-                // RPM cell
-                const rpmCell = row.insertCell(1);
-                rpmCell.textContent = `${point}`;
+
+                // Schedule cell
+                const schCell = row.insertCell(1);
+                var cronstrue = window.cronstrue;
+                schCell.setAttribute('style', 'white-space: pre;');
+                schCell.textContent = `${point["cron"]}`+'\r\n';
+
+                var differentFontSpan = document.createElement('span');
+                differentFontSpan.style = 'font-family: Arial, sans-serif;font-size: smaller;font-style: italic;font-stretch: condensed;'; // Specify the font family
+                differentFontSpan.textContent = cronstrue.toString(point["cron"]);
+                schCell.appendChild(differentFontSpan);
+
+                const volumeCell = row.insertCell(2);
+                volumeCell.textContent = `${point["volume"]} ml`;
+
+
+                const durationCell = row.insertCell(3);
+                durationCell.textContent = `${point["time"]} sec`;
 
                 // Delete button cell
-                const deleteCell = row.insertCell(2);
+                const deleteCell = row.insertCell(4);
                 const deleteButton = document.createElement('button');
+                deleteButton.style.height = "100%";
                 deleteButton.textContent = 'Delete';
                 deleteButton.onclick = function() {
                     deleteSchedulePoint(pumpNumber, index);
@@ -188,31 +263,9 @@
                 pumpSelector.appendChild(option);
             }
 
-            console.log(numberOfPumps)
             // Dynamically add form for Pumps chart
             const container = document.getElementById('scheduleFormsContainer');
             for (let i = 1; i <= numberOfPumps; i++) {
-                // Create the form element
-                const form = document.createElement('form');
-                form.id = `calibrationForm${i}`;
-                form.className = 'calibrationForm';
-                form.setAttribute('onsubmit', 'return false;');
-
-                // Add the form content
-                form.innerHTML = `
-                    <div class="form-border">
-                    <h2>Add dosing schedule</h2>
-                    <div class="form-row">
-                    <cron-expression-input id="myCronInput${i}" height="34px" width="80%" color="d58512" required="false" hotValidate="true" value="* * * * *"></cron-expression-input>
-                    <button type="button" onclick="addSchedule(${i})">Add schedule dosing</button>
-                    </div>
-                `;
-
-
-                // Append the form to the container
-                container.appendChild(form);
-
-
                 // Create and append the list for calibration points
                 const listDiv = document.createElement('div');
                 listDiv.id = `scheduleList${i}`;
@@ -224,12 +277,12 @@
             pumpOptions.forEach(pumpNumber => {
                 // If the pump is the selected one, show its calibration points list and update the chart
                 if (pumpNumber === pumpSelector.value) {
-                    document.getElementById('calibrationForm' + pumpNumber).style.display = 'block';
+                    document.getElementById('scheduleList' + pumpNumber).style.display = 'block';
 
                     updateChart(pumpNumber);
                 } else {
                     // If the pump is not selected, hide its calibration points list
-                    document.getElementById('calibrationForm' + pumpNumber).style.display = 'none';
+                    document.getElementById('scheduleList' + pumpNumber).style.display = 'none';
 
                 }
             });
@@ -238,6 +291,17 @@
 
         });
 
+        document.getElementById('pumpSelector').addEventListener('change', function() {
+            const pumpNumber = this.value;
+            // Show the relevant form and hide the other
+            document.querySelectorAll('.scheduleFormsContainer').forEach(form => form.style.display = 'none');
+            document.getElementById('scheduleList' + pumpNumber).style.display = 'block';
+
+            // Show the relevant list of calibration points and hide the others
+            document.querySelectorAll('[id^="scheduleList"]').forEach(list => list.style.display = 'none');
+            document.getElementById('scheduleList' + pumpNumber).style.display = 'block';
+
+        });
 
     </script>
 </body>
