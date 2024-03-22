@@ -7,7 +7,13 @@ import time
 from lib.servo42c import *
 from lib.stepper_doser_math import *
 from config.pin_config import *
+from lib.asyncscheduler import *
+from time import localtime
+from lib.cron_converter import Cron
+from lib.sched.sched import schedule
+
 import requests
+
 try:
     # Micropython
     import gc
@@ -15,6 +21,7 @@ try:
     import ota.update
     import ota.rollback
     from machine import UART
+
     uart = UART(1)
     uart.init(baudrate=38400, rx=rx_pin, tx=tx_pin, timeout=100)
 except ImportError:
@@ -28,11 +35,11 @@ except ImportError:
     ota.status = Mock()
     ota.rollback.cancel = Mock(return_value=True)
     ota.status.current_ota = "<Partition type=0, subtype=16, address=65536, size=2555904, label=ota_0, encrypted=0>"
-    ota.status.boot_ota = Mock(return_value= "<Partition type=0, subtype=17, address=2621440, size=2555904, label=ota_1, encrypted=0>")
-
+    ota.status.boot_ota = Mock(
+        return_value="<Partition type=0, subtype=17, address=2621440, size=2555904, label=ota_1, encrypted=0>")
 
     gc = Mock()
-    gc.mem_free = Mock(return_value=8000*1024)
+    gc.mem_free = Mock(return_value=8000 * 1024)
 
     uart = Mock()
     uart.read = Mock(return_value=b"\xe0\x01\xe1")
@@ -41,6 +48,7 @@ except ImportError:
 
 app = Microdot()
 command_buffer = CommandBuffer()
+task_manage = TaskManager(command_buffer)
 
 PUMP_NUM = 9
 EXTRAPOLATE_ANGLE = 4
@@ -54,13 +62,10 @@ firmware_size = None
 with open("config/calibration_points.json", 'r') as read_file:
     calibration_points = json.load(read_file)
 
-
-
 mks_dict = {}
-for stepper in range(1, PUMP_NUM+1):
-    mks_dict[f"mks{stepper}"] = Servo42c(uart, addr=stepper-1, speed=1, mstep=50)
+for stepper in range(1, PUMP_NUM + 1):
+    mks_dict[f"mks{stepper}"] = Servo42c(uart, addr=stepper - 1, speed=1, mstep=50)
     mks_dict[f"mks{stepper}"].set_current(1000)
-
 
 print(f"free memory: {gc.mem_free() // 1024}Kb")
 
@@ -120,19 +125,40 @@ for _ in range(1, PUMP_NUM + 1):
         chart_points[f"pump{_}"] = ([], [])
 
 
-# Implementation of missed asyncio.Future
-class CustomFuture:
-    def __init__(self):
-        self._result = None
-        self._event = asyncio.Event()
+def do_work(msg):
+    print(localtime(), f" {msg}")
 
-    def set_result(self, result):
-        self._result = result
-        self._event.set()
 
-    async def wait(self):
-        await self._event.wait()
-        return self._result
+def schedule_work(manager, cron_expression, addr, volume, duration, direction):
+    cron_instance = Cron()
+    cron_instance.from_string(cron_expression)
+    mins, hrs, mday, month, wday = cron_instance.to_list()
+
+    desired_flow = volume * (60 / duration)
+    desired_rpm_rate = np.interp(desired_flow, chart_points[f"pump{addr}"][1], chart_points[f"pump{addr}"][0])
+    callback_result_future = CustomFuture()
+
+    def callback(result):
+        print(f"Callback received result: {result}")
+        callback_result_future.set_result({"flow": desired_flow, "rpm": desired_rpm_rate[0], "time": result[0]})
+
+    msg = f"Doser{addr} dose {volume} in {duration}sec"
+    asyncio.create_task(schedule(do_work, msg,
+                                 mins=mins,
+                                 hrs=hrs,
+                                 mday=mday,
+                                 month=None,
+                                 wday=wday
+                                 ))
+    """task = asyncio.create_task(schedule(command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{addr}"],
+                                                               desired_rpm_rate, duration, direction,
+                                                               rpm_table), name,
+                                         mins=mins,
+                                         hrs=hrs,
+                                         mday=mday,
+                                         month=None,
+                                         wday=wday),
+                           name)"""
 
 
 @app.before_request
@@ -217,7 +243,8 @@ async def run_with_rpm(request):
         callback_result_future.set_result({"time": result[0]})
 
     task = asyncio.create_task(
-        command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], rpm, execution_time, direction, rpm_table))
+        command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], rpm, execution_time, direction,
+                                   rpm_table))
     await task
 
     await callback_result_future.wait()
@@ -249,7 +276,8 @@ async def dose(request):
         callback_result_future.set_result({"flow": desired_flow, "rpm": desired_rpm_rate[0], "time": result[0]})
 
     task = asyncio.create_task(
-        command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], desired_rpm_rate, execution_time, direction, rpm_table))
+        command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], desired_rpm_rate, execution_time,
+                                   direction, rpm_table))
     # await uart_buffer.process_commands()
     await task
 
@@ -279,7 +307,7 @@ async def ota_events(request, sse):
 
     while ota_lock:
         print(f"Downloaded:{ota_progress}/{num_chunks}")
-        progress = round(ota_progress/num_chunks*100, 1)
+        progress = round(ota_progress / num_chunks * 100, 1)
         print(f"progress {progress}%")
         event = {"progress": progress, "size": ota_progress * 4, "status": ota_lock}
         await sse.send(event)  # unnamed event
@@ -291,7 +319,6 @@ async def ota_upgrade(request):
     if request.method == 'GET':
         global ota_lock
         response = send_file('./static/ota-upgrade.html')
-
 
         # Define a regular expression pattern to find "ota_" followed by digits
         pattern = r"ota_(\d+)"
@@ -353,6 +380,13 @@ async def ota_upgrade(request):
     return response
 
 
+@app.route('/schedule', methods=['GET', 'POST'])
+async def cron(request):
+    if request.method == 'GET':
+        schedule_work(task_manage, '*/3 * * * *', 1, 10, 60, 1)
+    return 200
+
+
 @app.route('/cron', methods=['GET', 'POST'])
 async def cron(request):
     if request.method == 'GET':
@@ -368,8 +402,9 @@ async def cron(request):
 async def calibration(request):
     if request.method == 'GET':
         response = send_file('./static/calibration.html')
-        for pump in range(1, PUMP_NUM+1):
-            response.set_cookie(f'calibrationDataPump{pump}', json.dumps(calibration_points[f"calibrationDataPump{pump}"]))
+        for pump in range(1, PUMP_NUM + 1):
+            response.set_cookie(f'calibrationDataPump{pump}',
+                                json.dumps(calibration_points[f"calibrationDataPump{pump}"]))
     else:
         response = redirect('/')
         data = request.json
@@ -438,5 +473,5 @@ async def wifi_settings(request):
 import os
 
 print(os.listdir('./static/'))
-asyncio.create_task((app.run(port=80)))
 
+asyncio.create_task((app.run(port=80)))

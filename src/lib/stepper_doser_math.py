@@ -1,5 +1,4 @@
 import os
-import asyncio
 try:
     # Micropython Ulab
     from ulab import numpy as np
@@ -195,27 +194,6 @@ def move_with_rpm(mks, rpm, runtime, rpm_table, direction=0):
         return mks.make_steps(steps, speed=speed, direction=direction)
     else:
         return False
-
-
-class CommandBuffer:
-    def __init__(self):
-        self.buffer = []
-        self.lock = asyncio.Lock()
-
-    async def add_command(self, func, callback, *args, **kwargs):
-        async with self.lock:
-            self.buffer.append((func, callback, args, kwargs))
-            if len(self.buffer) == 1:
-                await self.process_commands()
-
-    async def process_commands(self):
-        while self.buffer:
-            func, callback, args, kwargs = self.buffer[0]
-            result = await func(*args, **kwargs)
-            if callback:
-                callback(result)
-            print("remove task from buffer")
-            del self.buffer[0]
 
 
 async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_table):

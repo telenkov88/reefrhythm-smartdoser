@@ -3,18 +3,21 @@
 # Copyright (c) 2020-2023 Peter Hinch
 # Released under the MIT License (MIT) - see LICENSE file
 
-import uasyncio as asyncio
-from sched.primitives import launch
+try:
+    import uasyncio as asyncio
+except ImportError:
+    import asyncio as asyncio
+from lib.sched.primitives import launch
 from time import time, mktime, localtime
-from sched.cron import cron
+from lib.sched.cron import cron
 
 
 # uasyncio can't handle long delays so split into 1000s (1e6 ms) segments
-_MAXT = const(1000)
 # Wait prior to a sequence start: see
 # https://github.com/peterhinch/micropython-async/blob/master/v3/docs/SCHEDULE.md#71-initialisation
-_PAUSE = const(2)
 
+_MAXT = 1000
+_PAUSE = 2
 
 class Sequence:  # Enable asynchronous iterator interface
     def __init__(self):
