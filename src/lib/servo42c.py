@@ -1,10 +1,4 @@
 import struct
-try:
-    # Micropython Ulab
-    from ulab import numpy as np
-except ImportError:
-    import numpy as np
-    np.float = float
 
 
 def calc_crc(*args):
