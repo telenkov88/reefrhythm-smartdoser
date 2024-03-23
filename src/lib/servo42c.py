@@ -151,12 +151,13 @@ class Servo42c:
         return (self.dir << 7) | self.speed
 
     def stop(self,):
+        self.flush()
         crc = calc_crc(self.addr, 247)
         cmd = bytes([self.addr, 247, crc])
         self.uart.write(cmd)
         status = self.read_raw()
         print("[STOP] got status :", status)
-        if status and self.reply_pattern in self.read_raw():
+        if status and self.reply_pattern in status:
             return True
         else:
             return False
