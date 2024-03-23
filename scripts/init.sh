@@ -45,7 +45,7 @@ cd src
 
 # Copy APP as frozen module
 rm -rf frozen_app.py
-python3 -m freezefs ./ frozen_app.py --on-import=extract --overwrite always --compress
+python3 -m freezefs ./ frozen_app.py --on-import=extract --overwrite never --compress
 mv frozen_app.py ../micropython/ports/esp32/modules
 cd ..
 

@@ -155,6 +155,7 @@ class Servo42c:
         cmd = bytes([self.addr, 247, crc])
         self.uart.write(cmd)
         status = self.read_raw()
+        print("[STOP] got status :", status)
         if status and self.reply_pattern in self.read_raw():
             return True
         else:
