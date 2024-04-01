@@ -224,9 +224,10 @@
                         console.log("Already in list")
                         }
                     else {
-                        const arr = stringToArray("*/5 * * * *");
+                        console.log(123)
+                       // const arr = stringToArray("*/5 * * * *");
 
-                        print(arr)
+                        //print(arr)
 
                         console.log(`Add ${nestedInput.value} to Pump${pumpNumber} schedule`)
                         scheduleData['pump' + pumpNumber].push(data);
@@ -256,7 +257,7 @@
                                 row.setAttribute('style', 'text-align: left');
                 // Point cell
                 const pointCell = row.insertCell(0);
-                pointCell.textContent = `${index + 1}`;
+                pointCell.textContent = `${pumpNumber + 1}`;
 
 
                 // Schedule cell
@@ -283,7 +284,7 @@
                 deleteButton.style.height = "100%";
                 deleteButton.textContent = 'Delete';
                 deleteButton.onclick = function() {
-                    deleteSchedulePoint(pumpNumber, index);
+                    deleteSchedulePoint(pumpNumber, doser);
                 };
                 deleteCell.appendChild(deleteButton);
             });

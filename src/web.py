@@ -290,7 +290,7 @@ async def dose(request):
 
 @app.route('/', methods=['GET'])
 async def index(request):
-    response = send_file('./static/index.html')
+    response = send_file('./static/doser.html')
     return response
 
 
