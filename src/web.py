@@ -227,6 +227,28 @@ async def favicon_16(request):
     return response
 
 
+@app.route('/styles/<path:path>')
+async def styles(request, path):
+    if '..' in path:
+        # directory traversal is not allowed
+        return 'Not found', 404
+    return send_file('static/styles/' + path)
+
+@app.route('/javascript/<path:path>')
+async def javascript(request, path):
+    if '..' in path:
+        # directory traversal is not allowed
+        return 'Not found', 404
+    return send_file('static/javascript/' + path)
+
+@app.route('/static/<path:path>')
+async def static(request, path):
+    if '..' in path:
+        # directory traversal is not allowed
+        return 'Not found', 404
+    return send_file('static/' + path)
+
+
 @app.route('/run_with_rpm')
 async def run_with_rpm(request):
     id = request.args.get('id', default=1, type=int)
@@ -293,6 +315,10 @@ async def index(request):
     response = send_file('./static/doser.html')
     return response
 
+@app.route('/debug', methods=['GET'])
+async def debug(request):
+    response = send_file('./static/debug.html')
+    return response
 
 @app.route('/ota-sse')
 @with_sse
