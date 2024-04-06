@@ -1,9 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dosing Control</title>
+    <link rel="stylesheet" href="styles/bootstrap.min.css">
+    <script src="javascript/bootstrap.bundle.min.js"></script>
+
+    <link rel="stylesheet" href="https://unpkg.com/cron-expression-input@1.2.7/lib/cron-expression-input.min.css">
+    <script src="https://unpkg.com/cronstrue@1.48.0/dist/cronstrue.min.js" async></script>
+    <script src="https://unpkg.com/cron-expression-input@1.2.7/lib/cron-expression-input.min.js"></script>
+    <script src="javascript/cron-converter.js"></script>
+    <link rel="icon" type="image/x-icon" href="favicon/favicon.ico">
+
     <style>
         header {
             display: flex;
@@ -38,32 +47,57 @@
             margin-bottom: 10px;
         }
         body {
-            min-width: 950px;
         }
 
 
     </style>
 
-    <link rel="stylesheet" href="https://unpkg.com/cron-expression-input@1.2.7/lib/cron-expression-input.min.css">
-    <script src="https://unpkg.com/cronstrue@1.48.0/dist/cronstrue.min.js" async></script>
-    <script src="https://unpkg.com/cron-expression-input@1.2.7/lib/cron-expression-input.min.js"></script>
-    <script src="javascript/cron-converter.js"></script>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+
 </head>
 <body>
-    <header>
-        <a href="/">Home</a>
-        <a href="/calibration">Calibration</a>
-        <a href="/settings">Settings</a>
-        <a href="/ota-upgrade">OTA</a>
-    </header>
-    <div class="container">
+    <nav class="navbar navbar-expand-lg bg-primary" data-bs-theme="dark">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="/">Dosing</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01" aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarColor01">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="/calibration">Calibration</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/settings">Settings</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/ota-upgrade">OTA</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+
+    <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item dropdown">
+            <select id="pumpSelector" class="dropdown-toggle bg-body"  style="border: transparent; padding: 8px 16px; margin: 2px 0 -1px">
+            </select>
+        </li>
+
+      <li class="nav-item" role="presentation">
+        <a class="nav-link active" data-bs-toggle="tab" href="#dosetab" aria-selected="true" role="tab">Dose</a>
+      </li>
+      <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#schedtab" aria-selected="false" role="tab" tabindex="-1">Schedule</a>
+      </li>
+      <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#limittab" aria-selected="false" tabindex="-1" role="tab">Limits</a>
+      </li>
+    </ul>
+
+    <div id="dosetab" class="tab-content">
+      <div class="tab-pane fade active show" id="home" role="tabpanel">
         <h2>Dosing Control</h2>
-
-        <label for="pumpSelector">Select Pump:</label>
-        <select id="pumpSelector">
-        </select>
-
         <label for="amountInput">Amount (ml) to Dose:</label>
         <input type="number" id="amountInput" placeholder="Enter amount in ml">
 
@@ -77,11 +111,21 @@
         </select>
 
         <button id="doseButton" disabled>Start Dosing</button>
+      </div>
+
+      <div class="tab-pane fade" id="schedtab" role="tabpanel">
+        <p>Dosing pump schedule.</p>
+      </div>
+
+      <div class="tab-pane fade" id="limittab">
+        <p>Dosing pump limits.</p>
+      </div>
+
     </div>
 
 
-
-    <div class="form-border">
+    <button id="schedShowbtn" onclick="showSchedule()">Schedule program</button>
+    <div class="form-border" id="scheduleDiv" style="display: none">
         <h2>Add dosing schedule</h2>
         <div class="form-row">
             <div class="form-vert">
@@ -104,9 +148,10 @@
                 <button type="button" onclick="uploadSchedule()" style="height: 20px;">Upload</button>
             </div>
         </div>
+        <div id="scheduleFormsContainer"></div>
     </div>
 
-    <div id="scheduleFormsContainer"></div>
+
 
 
 
@@ -117,6 +162,10 @@
         let scheduleData = {};
         for (let i = 1; i <= numberOfPumps; i++) {
             scheduleData[`pump${i}`] = [];
+        }
+
+        function showSchedule(){
+            document.getElementById("scheduleDiv").style.display="block"
         }
 
         //Upload schedule to controller
@@ -224,9 +273,10 @@
                         console.log("Already in list")
                         }
                     else {
-                        const arr = stringToArray("*/5 * * * *");
+                        console.log(123)
+                       // const arr = stringToArray("*/5 * * * *");
 
-                        print(arr)
+                        //print(arr)
 
                         console.log(`Add ${nestedInput.value} to Pump${pumpNumber} schedule`)
                         scheduleData['pump' + pumpNumber].push(data);
@@ -256,7 +306,7 @@
                                 row.setAttribute('style', 'text-align: left');
                 // Point cell
                 const pointCell = row.insertCell(0);
-                pointCell.textContent = `${index + 1}`;
+                pointCell.textContent = `${pumpNumber + 1}`;
 
 
                 // Schedule cell
@@ -283,7 +333,7 @@
                 deleteButton.style.height = "100%";
                 deleteButton.textContent = 'Delete';
                 deleteButton.onclick = function() {
-                    deleteSchedulePoint(pumpNumber, index);
+                    deleteSchedulePoint(pumpNumber, doser);
                 };
                 deleteCell.appendChild(deleteButton);
             });
@@ -303,12 +353,12 @@
 
             // Dynamically add pump selectors
             const pumpSelector = document.getElementById('pumpSelector');
-
             for (let i = 1; i <= numberOfPumps; i++) {
                 const option = document.createElement('option');
                 option.value = i;
                 option.text = 'Pump ' + i;
                 pumpSelector.appendChild(option);
+
             }
 
             // Dynamically add form for Pumps chart
@@ -340,7 +390,8 @@
         });
 
         document.getElementById('pumpSelector').addEventListener('change', function() {
-            const pumpNumber = this.value;
+            const pumpNumber = this.value
+            console.log("pump selector change ",this.value)
             // Show the relevant form and hide the other
             document.querySelectorAll('.scheduleFormsContainer').forEach(form => form.style.display = 'none');
             document.getElementById('scheduleList' + pumpNumber).style.display = 'block';
@@ -350,6 +401,7 @@
             document.getElementById('scheduleList' + pumpNumber).style.display = 'block';
 
         });
+
 
     </script>
 </body>

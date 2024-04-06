@@ -45,7 +45,7 @@ def pyboard(request):
                  "./lib/microdot/microdot.py",
                  "./lib/microdot/sse.py",
                  "./static/calibration.html,"
-                 "./static/index.html",
+                 "./static/doser.html",
                  "./static/ota-upgrade.html",
                  "./static/captive_portal.html",
                  "./static/favicon/android-chrome-192x192.png",
@@ -91,7 +91,7 @@ def pyboard(request):
         pyb.fs_put("../connect_wifi.py", "./connect_wifi.py")
         pyb.fs_put("../static/calibration.html", "./static/calibration.html")
         pyb.fs_put("../static/captive_portal.html", "./static/captive_portal.html")
-        pyb.fs_put("../static/index.html", "./static/index.html")
+        pyb.fs_put("../static/doser.html", "./static/doser.html")
         pyb.fs_put("../static/ota-upgrade.html", "./static/ota-upgrade.html")
         pyb.fs_put("../static/favicon/android-chrome-192x192.png", "./static/favicon/android-chrome-192x192.png")
         pyb.fs_put("../static/favicon/android-chrome-512x512.png", "./static/favicon/android-chrome-512x512.png")
