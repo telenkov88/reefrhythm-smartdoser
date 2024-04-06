@@ -352,6 +352,11 @@ async def dose(request):
 async def index(request):
     if request.method == 'GET':
         response = send_file('./static/doser.html')
+        for _ in range(1, PUMP_NUM + 1):
+            print(json.dumps(analog_settings[f"pump{_}"]))
+            response.set_cookie(f'AnalogInputDataPump{_}', json.dumps(analog_settings[f"pump{_}"]))
+            response.set_cookie(f'AnalogChartDataPump{_}', json.dumps(analog_chart_points[f"pump{_}"]))
+
         return response
     else:
         response = redirect('/')
@@ -366,9 +371,15 @@ async def index(request):
                     points = [(d['analogInput'], d['flowRate']) for d in data[f"pump{_}"]]
                     analog_chart_points[f"pump{_}"] = linear_interpolation(points)
                     print(analog_chart_points[f"pump{_}"])
+
+                    # Save new settings
+                    analog_settings[f"pump{_}"]["points"] = data[f"pump{_}"]
+
                 else:
                     print(f"Pump{_} Not enough Analog Input points")
                     response.set_cookie(f'AnalogInputDataPump{_}', json.dumps(analog_chart_points[f"pump{_}"]))
+        with open("config/analog_settings.json", 'w') as write_file:
+            write_file.write(json.dumps(analog_settings))
         return response
 
 

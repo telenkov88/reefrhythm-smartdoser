@@ -189,9 +189,9 @@
         let analog_chart_points = {}
         let analogInpData = {}
         for (let i = 1; i <= numberOfPumps; i++) {
-            analog_chart_points[`pump${i}`] = [];
             scheduleData[`pump${i}`] = [];
 
+            analog_chart_points[`pump${i}`] = [];
             analogInpData[`pump${i}`] = [];
         }
 
@@ -342,24 +342,9 @@
         }
 
         function updateAnalogInpChart(pumpNumber) {
-            const data = analogInpData['pump' + pumpNumber];
+            const data = analogInpData['pump' + pumpNumber]["points"];
 
-            //const extrapolatedPoints = rpmData['pump' + pumpNumber]
-            //const extrapolatedFlowPoints = flowData['pump' + pumpNumber]
             console.log("Chart points:", analog_chart_points["pump" + pumpNumber])
-
-            // Find the maximum flow rate from both calibration and extrapolated points
-            //const maxFlowCalibration = Math.max(...data.map(point => point.flowRate));
-            //const maxFlowExtrapolated = Math.max(...flowData['pump' + pumpNumber]);
-            //const maxFlow = Math.max(maxFlowCalibration, maxFlowExtrapolated);
-            //console.log("Max flow:", maxFlow)
-
-
-            //const extrapolatedDataset = extrapolatedPoints.map((rpm, index) => ({
-            //    x: rpm,
-            //    y: extrapolatedFlowPoints[index]
-            //}));
-            //console.log("dataset", extrapolatedDataset)
 
             const calibrationPoints = data.map(point => ({ x: point.analogInput, y: point.flowRate }));
 
@@ -374,7 +359,7 @@
                         backgroundColor: 'rgba(255, 99, 132, 1)'
                     }
                     , {
-                        label: `Extrapolated Curve for Pump ${pumpNumber}`,
+                        label: `Interpolated Curve for Pump ${pumpNumber}`,
                         data: analog_chart_points["pump" + pumpNumber],
                         backgroundColor: 'rgba(54, 162, 235, 1)',
                         showLine: true,
@@ -560,20 +545,23 @@
         function loadAnalogInputPointsFromCookie(pumpNumber){
             const AnalogInputDataPump = getCookie('AnalogInputDataPump'+ pumpNumber);
             if (AnalogInputDataPump) {
+                console.log(AnalogInputDataPump)
                 const validJsonString = AnalogInputDataPump.replace(/'/g, '"');
                 const data = JSON.parse(validJsonString);
 
-                let analog_inputs = [];
-                let flow_rates = [];
-
-                data.forEach(item => {
-                    analog_inputs.push(item.analogInput);
-                    flow_rates.push(item.flowRate);
-                });
-
                 analogInpData[`pump${pumpNumber}`] = data;
 
-                console.log('Load pump'+pumpNumber+' data from Cookie:', analogInpData[`pump${pumpNumber}`]);
+                console.log('Load pump'+pumpNumber+' settings from Cookie:', analogInpData[`pump${pumpNumber}`]);
+            }
+            const AnalogChartDataPump = getCookie('AnalogChartDataPump'+ pumpNumber);
+            if (AnalogChartDataPump) {
+                console.log(AnalogChartDataPump)
+                const validJsonString = AnalogChartDataPump.replace(/'/g, '"');
+                const data = JSON.parse(validJsonString);
+
+                analog_chart_points[`pump${pumpNumber}`] = data;
+
+                console.log('Load pump'+pumpNumber+' chart points from Cookie:', analogInpData[`pump${pumpNumber}`]);
             }
         }
 
@@ -620,6 +608,11 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log("Cookie update event")
             const numberOfPumps = 9;
+
+            for (let i = 1; i <= numberOfPumps; i++) {
+                loadAnalogInputPointsFromCookie(i)
+            }
+
             var pumpOptions = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
             // Dynamically add pump selectors
