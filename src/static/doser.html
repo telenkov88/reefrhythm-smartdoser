@@ -98,7 +98,7 @@
         <a class="nav-link" data-bs-toggle="tab" href="#limittab" aria-selected="false" tabindex="-1" role="tab">Limits</a>
       </li>
       <li class="nav-item" role="presentation">
-        <a class="nav-link" data-bs-toggle="tab" href="#analoginputtab" aria-selected="false" tabindex="-1" role="tab">Analog interface</a>
+        <a class="nav-link" data-bs-toggle="tab" href="#analoginputtab" aria-selected="false" tabindex="-1" role="tab">Analog control</a>
       </li>
     </ul>
 
@@ -165,7 +165,6 @@
         </div>
 
         <div class="tab-pane fade container" id="analoginputtab">
-            <p>Analog input control</p>
             <div id="analogControlFormsContainer"></div>
             <div id="chart-container" style="width: 98%; aspect-ratio : 2 / 1;border:1px solid red; align-content: center ">
                 <canvas id="analogInpChart" style="width: 100%;"></canvas>
@@ -188,6 +187,7 @@
 
         let analog_chart_points = {}
         let analogInpData = {}
+        let AnalogPins = {} // Allowed ADC pins
         for (let i = 1; i <= numberOfPumps; i++) {
             scheduleData[`pump${i}`] = [];
 
@@ -254,7 +254,7 @@
                     console.log("add point for pump" + pumpNumber);
 
                     // Push data to analogInpData if conditions are met
-                    analogInpData['pump' + pumpNumber].push({
+                    analogInpData['pump' + pumpNumber]["points"].push({
                         analogInput: analogInputValue,
                         flowRate: flowRateInputValue
                     });
@@ -287,12 +287,13 @@
 
         function updateAnalogInpPointsList(pumpNumber) {
             const listContainer = document.getElementById('analogInpPointsList' + pumpNumber);
+            console.log("update list")
             listContainer.innerHTML = '';
 
             const table = document.createElement('table');
             listContainer.appendChild(table);
 
-            analogInpData['pump' + pumpNumber].forEach((point, index) => {
+            analogInpData['pump' + pumpNumber]["points"].forEach((point, index) => {
                 const row = table.insertRow(-1); // Insert a new row at the end of the table
 
                 // Point cell
@@ -515,16 +516,20 @@
 
         function toggleAnalogEnBtn(buttonId) {
             const button = document.getElementById(buttonId);
+            console.log(buttonId)
+            console.log(analogInpData)
             if (button.textContent === 'Disabled') {
                 button.textContent = 'Enabled';
                 button.classList.remove('btn-secondary');
                 button.classList.add('btn-success');
                 button.value = 1
+                analogInpData[`pump${buttonId.match(/\d+/)[0]}`]["enable"] = true
             } else {
                 button.textContent = 'Disabled';
                 button.classList.remove('btn-success');
                 button.classList.add('btn-secondary');
                 button.value = 0
+                analogInpData[`pump${buttonId.match(/\d+/)[0]}`]["enable"] = false
             }
         }
         function getCookie(name) {
@@ -545,23 +550,23 @@
         function loadAnalogInputPointsFromCookie(pumpNumber){
             const AnalogInputDataPump = getCookie('AnalogInputDataPump'+ pumpNumber);
             if (AnalogInputDataPump) {
-                console.log(AnalogInputDataPump)
+                //console.log(AnalogInputDataPump)
                 const validJsonString = AnalogInputDataPump.replace(/'/g, '"');
                 const data = JSON.parse(validJsonString);
 
                 analogInpData[`pump${pumpNumber}`] = data;
 
-                console.log('Load pump'+pumpNumber+' settings from Cookie:', analogInpData[`pump${pumpNumber}`]);
+                //console.log('Load pump'+pumpNumber+' settings from Cookie:', analogInpData[`pump${pumpNumber}`]);
             }
             const AnalogChartDataPump = getCookie('AnalogChartDataPump'+ pumpNumber);
             if (AnalogChartDataPump) {
-                console.log(AnalogChartDataPump)
+                //console.log(AnalogChartDataPump)
                 const validJsonString = AnalogChartDataPump.replace(/'/g, '"');
                 const data = JSON.parse(validJsonString);
 
                 analog_chart_points[`pump${pumpNumber}`] = data;
 
-                console.log('Load pump'+pumpNumber+' chart points from Cookie:', analogInpData[`pump${pumpNumber}`]);
+                //console.log('Load pump'+pumpNumber+' chart points from Cookie:', analogInpData[`pump${pumpNumber}`]);
             }
         }
 
@@ -569,6 +574,8 @@
         function applyAnalogEnBtn(buttonId) {
             const url = window.location.href;
             const data = {};
+            const selected_pump = document.getElementById('pumpSelector').value
+            analogInpData[`pump${buttonId.match(/\d+/)[0]}`]["pin"] = document.getElementById("AnalogPin"+selected_pump).value
 
             for (const [pumpKey, pumpData] of Object.entries(analogInpData)) {
                 data[pumpKey] = pumpData;
@@ -591,10 +598,8 @@
                 //const numberOfPumps = 9;
                 for (let i = 1; i <= numberOfPumps; i++) {
                     loadAnalogInputPointsFromCookie(i)
-                    //updateCalibrationPointsList(i);
                 }
 
-                const selected_pump = document.getElementById('pumpSelector').value
                 fetchDataAndUpdateChart(selected_pump);
 
             })
@@ -607,6 +612,7 @@
         // Cookie event
         document.addEventListener('DOMContentLoaded', function() {
             console.log("Cookie update event")
+            AnalogPins = JSON.parse(getCookie('AnalogPins'));
             const numberOfPumps = 9;
 
             for (let i = 1; i <= numberOfPumps; i++) {
@@ -624,6 +630,7 @@
                 pumpSelector.appendChild(option);
 
             }
+
 
             // Dynamically add form for Pumps schedule
             const sched_container = document.getElementById('scheduleFormsContainer');
@@ -650,7 +657,10 @@
                         <h2>Analog Control Interface</h2>
                         <br>
                         <div class="form-row">
-                            <button id="analogEnBtn${i}" onclick="toggleAnalogEnBtn('analogEnBtn${i}')" value=false type="button" class="btn btn-secondary">Disabled</button>
+                            <button id="analogEnBtn${i}" onclick="toggleAnalogEnBtn('analogEnBtn${i}')" value=0 type="button" class="btn btn-secondary">Disabled</button>
+                            <select class="form-select" id="AnalogPin${i}" style="width: auto">
+                            </select>
+
                             <button id="analogApplyBtn${i}" onclick="applyAnalogEnBtn('analogEnBtn${i}')" type="button" class="btn btn-outline-success">Apply</button>
 
                         </div>
@@ -685,11 +695,29 @@
                 listDiv.id = `analogInpPointsList${i}`;
                 form.appendChild(listDiv);
 
+
+                // Dynamically add GPIO choice for pumps
+                const AnalogPinSelect = document.getElementById(`AnalogPin${i}`);
+                for (let i = 0; i < AnalogPins.length; i++){
+                    const option = document.createElement('option');
+                    option.text = 'GPIO ' + AnalogPins[i];
+                    option.value = AnalogPins[i]
+                    AnalogPinSelect.appendChild(option);
                 }
+                AnalogPinSelect.value = analogInpData[`pump${i}`]["pin"]
+
+                const analogEnBtn = document.getElementById(`analogEnBtn${i}`)
+                if (analogEnBtn.value != analogInpData[`pump${i}`]["enable"]){
+                    toggleAnalogEnBtn(`analogEnBtn${i}`)
+                }
+            }
 
 
             console.log("Selected pump ", pumpSelector.value)
             updateAnalogInpChart(pumpSelector.value);
+            updateAnalogInpPointsList(pumpSelector.value);
+
+
             pumpOptions = pumpOptions.filter(option => option !== pumpSelector.value);
             pumpOptions.forEach(pumpNumber => {
                 // If the pump is the selected one, show its calibration points list and update the chart

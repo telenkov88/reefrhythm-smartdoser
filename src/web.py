@@ -116,6 +116,7 @@ def get_analog_settings(from_json):
     if len(from_json) >= 2:
         _analog_points = []
         for point in from_json:
+            print(point)
             _analog_points.append((point["analogInput"], point["flowRate"]))
         return _analog_points
     else:
@@ -356,7 +357,7 @@ async def index(request):
             print(json.dumps(analog_settings[f"pump{_}"]))
             response.set_cookie(f'AnalogInputDataPump{_}', json.dumps(analog_settings[f"pump{_}"]))
             response.set_cookie(f'AnalogChartDataPump{_}', json.dumps(analog_chart_points[f"pump{_}"]))
-
+            response.set_cookie(f'AnalogPins', json.dumps(analog_pins))
         return response
     else:
         response = redirect('/')
@@ -364,16 +365,17 @@ async def index(request):
         print(data)
         for _ in range(1, PUMP_NUM + 1):
             if f"pump{_}" in data:
-                new_analog_settings = get_analog_settings(data[f"pump{_}"])
-                if len(new_analog_settings) >= 2:
+                #new_analog_settings = get_analog_settings(data[f"pump{_}"])
+                #if len(new_analog_settings["points"]) >= 2:
+                if len(data[f"pump{_}"]["points"]) >= 2:
                     response.set_cookie(f'AnalogInputDataPump{_}', json.dumps(data[f"pump{_}"]))
 
-                    points = [(d['analogInput'], d['flowRate']) for d in data[f"pump{_}"]]
+                    points = [(d['analogInput'], d['flowRate']) for d in data[f"pump{_}"]["points"]]
                     analog_chart_points[f"pump{_}"] = linear_interpolation(points)
                     print(analog_chart_points[f"pump{_}"])
 
                     # Save new settings
-                    analog_settings[f"pump{_}"]["points"] = data[f"pump{_}"]
+                    analog_settings[f"pump{_}"] = data[f"pump{_}"]
 
                 else:
                     print(f"Pump{_} Not enough Analog Input points")
