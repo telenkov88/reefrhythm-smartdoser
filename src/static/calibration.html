@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles/bootstrap.min.css">
+    <script src="javascript/bootstrap.bundle.min.js"></script>
     <title>Multi-Pump Calibration</title>
     <style>
         header {
@@ -47,42 +49,59 @@
     <script src="https://cdn.jsdelivr.net/npm/regression@2.0.1/dist/regression.min.js"></script>
 </head>
 <body>
-    <header>
-        <a href="/">Home</a>
-        <a href="/calibration">Calibration</a>
-        <a href="/settings">Settings</a>
-        <a href="/ota-upgrade">OTA</a>
-    </header>
+    <nav class="navbar navbar-expand-lg bg-primary" data-bs-theme="dark">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="/">Dosing</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01" aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarColor01">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="/calibration">Calibration</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/settings">Settings</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/ota-upgrade">OTA</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
 
-<h2>Pump Calibration</h2>
-    <!-- Pump selection dropdown -->
-<label for="pumpSelector">Select Pump:</label>
-<select id="pumpSelector"></select>
+    <div class="container">
 
-<button id="uploadDataBtn">Upload Calibration Data</button>
+    <h2>Pump Calibration</h2>
+        <!-- Pump selection dropdown -->
+    <label for="pumpSelector">Select Pump:</label>
+    <select id="pumpSelector"></select>
 
-<div class="form-border">
-    <div class="form-row">
-        <label for="RpmTestInput">Run with RPM</label>
-        <input type="number" id="RpmTestInput" placeholder="Enter RPM">
-    </div>
+    <button id="uploadDataBtn">Upload Calibration Data</button>
 
-    <div class="form-row">
-        <label for="timeInput">Runtime</label>
-        <input type="number" id="timeInput" placeholder="Enter time in sec">
-    </div>
+    <div class="form-border">
+        <div class="form-row">
+            <label for="RpmTestInput">Run with RPM</label>
+            <input type="number" id="RpmTestInput" placeholder="Enter RPM">
+        </div>
 
-    <div class="form-row">
-        <label for="directionInput">Direction:</label>
-        <select id="directionInput">
-            <option value="1">Clockwise</option>
-            <option value="0">Counterclockwise</option>
-        </select>
-    </div>
+        <div class="form-row">
+            <label for="timeInput">Runtime</label>
+            <input type="number" id="timeInput" placeholder="Enter time in sec">
+        </div>
 
-    <div class="form-row">
-        <button id="runButton" disabled>Run with rpm</button>
-    </div>
+        <div class="form-row">
+            <label for="directionInput">Direction:</label>
+            <select id="directionInput">
+                <option value="1">Clockwise</option>
+                <option value="0">Counterclockwise</option>
+            </select>
+        </div>
+
+        <div class="form-row">
+            <button id="runButton" disabled>Run with rpm</button>
+        </div>
 </div>
 
 
@@ -94,7 +113,7 @@
 <div id="chart-container" style="width: 98%; aspect-ratio : 2 / 1;border:1px solid red; align-content: center ">
     <canvas id="calibrationChart" style="width: 100%;"></canvas>
 </div>
-
+</div>
 <script>
 
 let calibrationData = {};

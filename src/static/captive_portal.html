@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles/bootstrap.min.css">
+    <script src="javascript/bootstrap.bundle.min.js"></script>
     <title>wifi settings</title>
     <style>
         header {
@@ -30,23 +32,40 @@
     <script src="https://cdn.jsdelivr.net/npm/regression@2.0.1/dist/regression.min.js"></script>
 </head>
 <body>
-    <header>
-        <a href="/">Home</a>
-        <a href="/calibration">Calibration</a>
-        <a href="/settings">Settings</a>
-        <a href="/ota-upgrade">OTA</a>
-    </header>
+    <nav class="navbar navbar-expand-lg bg-primary" data-bs-theme="dark">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="/">Dosing</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01" aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarColor01">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="/calibration">Calibration</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/settings">Settings</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/ota-upgrade">OTA</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
 
-<h1>Wifi settings</h1>
+    <div class="container">
+        <h1>Wifi settings</h1>
 
-<!-- Form for wi-fi settings -->
-<form id="wifisettingsForm1" class="wifisettingsForm" onsubmit="return false;">
-    <label for="ssidInput1">SSID Name:</label>
-    <input type="text" id="ssidInput1" placeholder="Enter SSID name">
-    <label for="pswInput1">WIFI password:</label>
-    <input type="text" id="pswInput1" placeholder="Enter Wifi password">
-    <button type="button" id="uploadDataBtn">Apply wifi settings</button>
-</form>
+        <!-- Form for wi-fi settings -->
+        <form id="wifisettingsForm1" class="wifisettingsForm" onsubmit="return false;">
+            <label for="ssidInput1">SSID Name:</label>
+            <input type="text" id="ssidInput1" placeholder="Enter SSID name">
+            <label for="pswInput1">WIFI password:</label>
+            <input type="text" id="pswInput1" placeholder="Enter Wifi password">
+            <button type="button" id="uploadDataBtn">Apply wifi settings</button>
+        </form>
+    </div>
 
 
 <script>

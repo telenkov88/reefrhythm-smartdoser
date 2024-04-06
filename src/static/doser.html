@@ -95,7 +95,7 @@
       </li>
     </ul>
     <div id="myTabContent" class="tab-content">
-      <div class="tab-pane fade active show" id="dosetab" role="tabpanel">
+      <div class="tab-pane fade container active show" id="dosetab" role="tabpanel">
         <h2>Dosing Control</h2>
         <label for="amountInput">Amount (ml) to Dose:</label>
         <input type="number" id="amountInput" placeholder="Enter amount in ml">
@@ -112,42 +112,53 @@
         <button id="doseButton" disabled>Start Dosing</button>
       </div>
 
-      <div class="tab-pane fade" id="schedtab" role="tabpanel">
+
+
+
+
+      <div class="tab-pane fade container" id="schedtab" role="tabpanel">
         <p>Dosing pump schedule.</p>
+          <button id="schedShowbtn" onclick="showSchedule()">Schedule program</button>
+        <div class="form-border" id="scheduleDiv" style="display: none">
+            <h2>Add dosing schedule</h2>
+            <div class="form-row">
+                <div class="form-vert">
+                    <label for="myCronInput">Schedule</label>
+                    <cron-expression-input id="myCronInput" height="30px" width="120px" color="d58512" required="false" hotValidate="true" value="* * * * *"></cron-expression-input>
+                </div>
+                <div class="form-vert">
+                    <label for="schVolumeInput">Dose ml</label>
+                    <input type="number" id="schVolumeInput" placeholder="Enter ml"  style="width: 100px">
+                </div>
+
+                <div class="form-vert">
+                    <label for="schDurationInput" >Duration Sec</label>
+                    <input type="number" id="schDurationInput"  placeholder="Enter sec" style="width: 100px">
+                </div>
+                <div class="form-add-sch">
+                    <button type="button" onclick="addSchedule()" style="height: 20px;">Add</button>
+                </div>
+                <div class="form-add-sch">
+                    <button type="button" onclick="uploadSchedule()" style="height: 20px;">Upload</button>
+                </div>
+            </div>
+            <div id="scheduleFormsContainer"></div>
+        </div>
       </div>
 
-      <div class="tab-pane fade" id="limittab">
+
+
+
+
+
+
+      <div class="tab-pane fade container" id="limittab">
         <p>Dosing pump limits.</p>
       </div>
     </div>
 
 
-    <button id="schedShowbtn" onclick="showSchedule()">Schedule program</button>
-    <div class="form-border" id="scheduleDiv" style="display: none">
-        <h2>Add dosing schedule</h2>
-        <div class="form-row">
-            <div class="form-vert">
-                <label for="myCronInput">Schedule</label>
-                <cron-expression-input id="myCronInput" height="30px" width="120px" color="d58512" required="false" hotValidate="true" value="* * * * *"></cron-expression-input>
-            </div>
-            <div class="form-vert">
-                <label for="schVolumeInput">Dose ml</label>
-                <input type="number" id="schVolumeInput" placeholder="Enter ml"  style="width: 100px">
-            </div>
 
-            <div class="form-vert">
-                <label for="schDurationInput" >Duration Sec</label>
-                <input type="number" id="schDurationInput"  placeholder="Enter sec" style="width: 100px">
-            </div>
-            <div class="form-add-sch">
-                <button type="button" onclick="addSchedule()" style="height: 20px;">Add</button>
-            </div>
-            <div class="form-add-sch">
-                <button type="button" onclick="uploadSchedule()" style="height: 20px;">Upload</button>
-            </div>
-        </div>
-        <div id="scheduleFormsContainer"></div>
-    </div>
 
 
 
