@@ -1,0 +1,99 @@
+name: Build release binaries
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  build:
+    runs-on: self-hosted
+    steps:
+      # Checkout the repository
+      - name: Checkout builder
+        uses: actions/checkout@v2
+
+      # Get the current date
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+
+      # Install the ARM toolchain
+      - name: Install arm toolchain
+        run: ./scripts/install_arm.sh
+
+      # Install the ESP-IDF toolchain
+      - name: Conditionally Install ESP-IDF Toolchain
+        run: |
+          set +e  # Disable immediate exit on error to allow conditional logic
+          source esp-idf/export.sh
+          EXPORT_RESULT=$?
+          set -e  # Re-enable immediate exit on error for subsequent commands
+          if [ $EXPORT_RESULT -ne 0 ]; then
+            echo "Sourcing esp-idf/export.sh failed. Installing ESP-IDF toolchain..."
+            ./scripts/install_espidf.sh
+          else
+            echo "esp-idf/export.sh sourced successfully."
+          fi
+
+      # Checkout necessary submodules or projects
+      - name: Checkout ulab/micropython
+        run: ./scripts/init.sh
+
+      # Create a directory for artifacts
+      - name: Create artifacts directory
+        run: |
+          rm -rf ./artifacts
+          mkdir ./artifacts
+
+      # Ensure all relevant scripts are executable
+      - name: Give execution permissions
+        run: chmod +x ./scripts/esp32/generic-s3-spiram-16mb-ota.sh
+
+      # Check the hostname and set environment variables accordingly
+      - name: Check hostname and set MAKEOPTS
+        run: |
+          if [ "$(hostname)" = "reefpi" ]; then
+            echo "MAKEOPTS=-j2" >> $GITHUB_ENV
+          fi
+
+      # Compile the project for ESP32-S3 with specific configuration
+      - name: Compile for ESP32-S3 8MB SPIRAM/16MB Flash
+        run: ./scripts/esp32/generic-s3-spiram-16mb-ota.sh
+
+      # Conditionally update the latest_stable tag if on a specified branch
+      - name: Update latest_stable tag
+        if: steps.check_branch.outputs.is_matched
+        run: |
+          # Delete the local and remote 'latest_stable' tag
+          git tag -d latest_stable || true  # Ignore errors if tag doesn't exist
+          git push origin :refs/tags/latest_stable || true  # Ignore errors if tag doesn't exist remotely
+
+          # Create the 'latest_stable' tag pointing to the current commit
+          git tag latest_stable
+
+          # Push the 'latest_stable' tag to remote
+          git push origin latest_stable
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Extract the branch name and set a dynamic tag for the build
+      - name: Extract Branch Name and Set Tag
+        run: |
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          DATE=$(date +'%Y%m%d')
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          RELEASE_VER=$(cat version.txt)
+          echo "RELEASE_TAG=${RELEASE_VER}-${BRANCH_NAME}-${DATE}-${SHORT_SHA}" >> $GITHUB_ENV
+          echo "RELEASE_VER=${RELEASE_VER}-${BRANCH_NAME}-${DATE}" >> $GITHUB_ENV
+
+      # Create a GitHub release with the artifacts
+      - name: Create GitHub Release
+        uses: marvinpinto/action-automatic-releases@latest
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          prerelease: true
+          automatic_release_tag: "${{ env.RELEASE_TAG }}"
+          title: "Release ${{ env.RELEASE_VER }}"
+          files: ./artifacts/*
+        if: env.RELEASE_TAG != ''
