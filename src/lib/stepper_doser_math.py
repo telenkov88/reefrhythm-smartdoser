@@ -185,6 +185,20 @@ def extrapolate_flow_rate(calibration_points, degree=1):
     return extrapolated_rpm_values, extrapolated_flow_rate_values
 
 
+def linear_interpolation(data):
+    merged = []
+    print(data)
+    data.sort(key=lambda x: x[0])
+    for i in range(len(data) - 1):
+        x_start, y_start = data[i]
+        x_end, y_end = data[i + 1]
+
+        x_range = np.linspace(x_start, x_end, num=10)
+        y_range = np.linspace(y_start, y_end, num=10)
+        merged.extend(list(zip(x_range, y_range)))
+    return merged
+
+
 def move_with_rpm(mks, rpm, runtime, rpm_table, direction=0):
     rpm, mstep, speed = find_combination(rpm, rpm_table)
     mks.stop()

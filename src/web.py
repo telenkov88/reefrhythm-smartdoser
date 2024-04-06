@@ -62,6 +62,9 @@ firmware_size = None
 with open("config/calibration_points.json", 'r') as read_file:
     calibration_points = json.load(read_file)
 
+with open("config/analog_settings.json", 'r') as read_file:
+    analog_settings = json.load(read_file)
+
 mks_dict = {}
 for stepper in range(1, PUMP_NUM + 1):
     mks_dict[f"mks{stepper}"] = Servo42c(uart, addr=stepper - 1, speed=1, mstep=50)
@@ -109,6 +112,16 @@ def get_points(from_json):
         return []
 
 
+def get_analog_settings(from_json):
+    if len(from_json) >= 2:
+        _analog_points = []
+        for point in from_json:
+            _analog_points.append((point["analogInput"], point["flowRate"]))
+        return _analog_points
+    else:
+        return []
+
+
 chart_points = {}
 for _ in range(1, PUMP_NUM + 1):
     cal_points = get_points(calibration_points[f"calibrationDataPump{_}"])
@@ -123,6 +136,20 @@ for _ in range(1, PUMP_NUM + 1):
 
     else:
         chart_points[f"pump{_}"] = ([], [])
+
+analog_chart_points = {}
+analog_en = []
+analog_pin = []
+for _ in range(1, PUMP_NUM + 1):
+    analog_en.append(analog_settings[f"pump{_}"]["enable"])
+    analog_pin.append(analog_settings[f"pump{_}"]["pin"])
+    analog_points = get_analog_settings(analog_settings[f"pump{_}"]["points"])
+    print(analog_points)
+
+    if analog_points and len(analog_points) >= 2:
+        analog_chart_points[f"pump{_}"] = linear_interpolation(analog_points)
+    else:
+        analog_chart_points[f"pump{_}"] = ([], [])
 
 
 def do_work(msg):
@@ -189,6 +216,15 @@ async def get_flow_points(request):
     return json.dumps(points)
 
 
+@app.route('/get_analog_chart_points')
+async def get_analog_chart_points(request):
+    pump_number = request.args.get('pump', default=1, type=int)
+    print(f"return analog input points for pump{pump_number}")
+    points = analog_chart_points[f"pump{pump_number}"]
+    print(points)
+    return json.dumps(points)
+
+
 @app.route('/memfree')
 async def get_free_mem(request):
     ret = gc.mem_free() // 1024
@@ -234,12 +270,14 @@ async def styles(request, path):
         return 'Not found', 404
     return send_file('static/styles/' + path)
 
+
 @app.route('/javascript/<path:path>')
 async def javascript(request, path):
     if '..' in path:
         # directory traversal is not allowed
         return 'Not found', 404
     return send_file('static/javascript/' + path)
+
 
 @app.route('/static/<path:path>')
 async def static(request, path):
@@ -310,15 +348,35 @@ async def dose(request):
     return callback_result
 
 
-@app.route('/', methods=['GET'])
+@app.route('/', methods=['GET', 'POST'])
 async def index(request):
-    response = send_file('./static/doser.html')
-    return response
+    if request.method == 'GET':
+        response = send_file('./static/doser.html')
+        return response
+    else:
+        response = redirect('/')
+        data = request.json
+        print(data)
+        for _ in range(1, PUMP_NUM + 1):
+            if f"pump{_}" in data:
+                new_analog_settings = get_analog_settings(data[f"pump{_}"])
+                if len(new_analog_settings) >= 2:
+                    response.set_cookie(f'AnalogInputDataPump{_}', json.dumps(data[f"pump{_}"]))
+
+                    points = [(d['analogInput'], d['flowRate']) for d in data[f"pump{_}"]]
+                    analog_chart_points[f"pump{_}"] = linear_interpolation(points)
+                    print(analog_chart_points[f"pump{_}"])
+                else:
+                    print(f"Pump{_} Not enough Analog Input points")
+                    response.set_cookie(f'AnalogInputDataPump{_}', json.dumps(analog_chart_points[f"pump{_}"]))
+        return response
+
 
 @app.route('/debug', methods=['GET'])
 async def debug(request):
     response = send_file('./static/debug.html')
     return response
+
 
 @app.route('/ota-sse')
 @with_sse
@@ -452,7 +510,7 @@ async def calibration(request):
                     response.set_cookie(f'calibrationDataPump{_}', json.dumps(data[f"pump{_}"]))
                     calibration_points[f'calibrationDataPump{_}'] = data[f"pump{_}"]
                 else:
-                    print("Not enought cal points")
+                    print("Not enough cal points")
                     response.set_cookie(f'calibrationDataPump{_}',
                                         json.dumps(calibration_points[f"calibrationDataPump{_}"]))
         with open("config/calibration_points.json", 'w') as write_file:
