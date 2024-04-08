@@ -11,7 +11,6 @@ from lib.asyncscheduler import *
 from time import localtime
 from lib.cron_converter import Cron
 from lib.sched.sched import schedule
-
 import requests
 
 try:
@@ -58,6 +57,8 @@ gc.collect()
 ota_lock = False
 ota_progress = 0
 firmware_size = None
+
+should_continue = True  # Flag for shutdown
 
 with open("config/calibration_points.json", 'r') as read_file:
     calibration_points = json.load(read_file)
@@ -356,7 +357,7 @@ async def index(request):
         for _ in range(1, PUMP_NUM + 1):
             print(json.dumps(analog_settings[f"pump{_}"]))
             response.set_cookie(f'AnalogInputDataPump{_}', json.dumps(analog_settings[f"pump{_}"]))
-            response.set_cookie(f'AnalogChartDataPump{_}', json.dumps(analog_chart_points[f"pump{_}"]))
+            #response.set_cookie(f'AnalogChartDataPump{_}', json.dumps(analog_chart_points[f"pump{_}"]))
             response.set_cookie(f'AnalogPins', json.dumps(analog_pins))
         return response
     else:
@@ -383,6 +384,26 @@ async def index(request):
         with open("config/analog_settings.json", 'w') as write_file:
             write_file.write(json.dumps(analog_settings))
         return response
+
+
+@app.route('/dose-chart-sse')
+@with_sse
+async def dose(request, sse):
+    print("Got connection")
+    old_chart_list = None
+    try:
+        while not request.sock[0]._eof:
+            if old_chart_list != analog_chart_points:
+                old_chart_list = analog_chart_points
+                event = json.dumps(old_chart_list)
+                print("send new chart point list")
+                await sse.send(event)  # unnamed event
+            else:
+                #print("No updates, skip")
+                await asyncio.sleep(1)
+    except Exception as e:
+        print(f"Error in SSE loop: {e}")
+    print("SSE closed")
 
 
 @app.route('/debug', methods=['GET'])

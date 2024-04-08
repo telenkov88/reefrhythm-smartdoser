@@ -195,6 +195,17 @@
             analogInpData[`pump${i}`] = [];
         }
 
+
+        const eventSource = new EventSource("/dose-chart-sse");
+        eventSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            console.log("got sse data: ", data)
+            const pumpNumber = document.getElementById('pumpSelector').value
+            analog_chart_points = data;
+            updateAnalogInpChart(pumpNumber);
+        }
+
+
         function showSchedule(){
             document.getElementById("scheduleDiv").style.display="block"
         }
@@ -559,16 +570,16 @@
 
                 //console.log('Load pump'+pumpNumber+' settings from Cookie:', analogInpData[`pump${pumpNumber}`]);
             }
-            const AnalogChartDataPump = getCookie('AnalogChartDataPump'+ pumpNumber);
-            if (AnalogChartDataPump) {
+            //const AnalogChartDataPump = getCookie('AnalogChartDataPump'+ pumpNumber);
+            //if (AnalogChartDataPump) {
                 //console.log(AnalogChartDataPump)
-                const validJsonString = AnalogChartDataPump.replace(/'/g, '"');
-                const data = JSON.parse(validJsonString);
+            //    const validJsonString = AnalogChartDataPump.replace(/'/g, '"');
+            //    const data = JSON.parse(validJsonString);
 
-                analog_chart_points[`pump${pumpNumber}`] = data;
+            //    analog_chart_points[`pump${pumpNumber}`] = data;
 
                 //console.log('Load pump'+pumpNumber+' chart points from Cookie:', analogInpData[`pump${pumpNumber}`]);
-            }
+            //}
         }
 
 
