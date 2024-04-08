@@ -280,7 +280,8 @@
             }
         }
         function deleteAnalogPoint(pumpNumber, pointIndex) {
-            analogInpData['pump' + pumpNumber].splice(pointIndex, 1);
+            console.log(analogInpData['pump' + pumpNumber])
+            analogInpData['pump' + pumpNumber]["points"].splice(pointIndex, 1);
             updateAnalogInpPointsList(pumpNumber);
             updateAnalogInpChart(pumpNumber);
         }
