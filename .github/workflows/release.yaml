@@ -57,6 +57,10 @@ jobs:
             echo "MAKEOPTS=-j2" >> $GITHUB_ENV
           fi
 
+      # Compress web for better performance
+      - name: Compress web resources
+        run: python3 ./scripts/compress_web.py
+
       # Compile the project for ESP32-S3 with specific configuration
       - name: Compile for ESP32-S3 8MB SPIRAM/16MB Flash
         run: ./scripts/esp32/generic-s3-spiram-16mb-ota.sh
