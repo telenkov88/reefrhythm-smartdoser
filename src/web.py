@@ -25,6 +25,10 @@ try:
     uart.init(baudrate=38400, rx=rx_pin, tx=tx_pin, timeout=100)
 except ImportError:
     # Mocking on PC:
+    import os
+
+    os.system("python ../scripts/compress_web.py --path ./")
+
     from unittest.mock import Mock
 
     sys.implementation = Mock
@@ -235,33 +239,17 @@ async def get_free_mem(request):
     return {"free_mem": ret}
 
 
-@app.route('/favicon.ico')
-async def apple_touch_icon(request):
-    response = send_file('./static/favicon//favicon.ico')
-    return response
-
-
-@app.route('/apple-touch-icon.png')
-async def apple_touch_icon(request):
-    response = send_file('./static/favicon/apple-touch-icon.png')
-    return response
-
-
-@app.route('/favicon-16x16.png')
-async def favicon_16(request):
-    response = send_file('./static/favicon/favicon-16x16.png')
-    return response
-
-
-@app.route('/favicon-32x32.png')
-async def favicon_32(request):
-    response = send_file('./static/favicon/favicon-32x32.png')
-    return response
+@app.route('/favicon/<path:path>')
+async def favicon(request, path):
+    if '..' in path:
+        # directory traversal is not allowed
+        return 'Not found', 404
+    return send_file('static/favicon/' + path)
 
 
 @app.route('/site.webmanifest')
-async def favicon_16(request):
-    response = send_file('./static/favicon/site.webmanifest')
+async def manifest(request):
+    response = send_file('static/favicon/site.webmanifest')
     return response
 
 
@@ -270,7 +258,8 @@ async def styles(request, path):
     if '..' in path:
         # directory traversal is not allowed
         return 'Not found', 404
-    return send_file('static/styles/' + path)
+    return send_file('static/styles/' + path, compressed=True,
+                     file_extension='.gz')
 
 
 @app.route('/javascript/<path:path>')
@@ -278,7 +267,8 @@ async def javascript(request, path):
     if '..' in path:
         # directory traversal is not allowed
         return 'Not found', 404
-    return send_file('static/javascript/' + path)
+    return send_file('static/javascript/' + path, compressed=True,
+                     file_extension='.gz')
 
 
 @app.route('/static/<path:path>')
@@ -353,11 +343,9 @@ async def dose(request):
 @app.route('/', methods=['GET', 'POST'])
 async def index(request):
     if request.method == 'GET':
-        response = send_file('./static/doser.html')
-        for _ in range(1, PUMP_NUM + 1):
-            print(json.dumps(analog_settings[f"pump{_}"]))
-            #response.set_cookie(f'AnalogInputDataPump{_}', json.dumps(analog_settings[f"pump{_}"]))
-            response.set_cookie(f'AnalogPins', json.dumps(analog_pins))
+        response = send_file('./static/doser.html', compressed=True,
+                             file_extension='.gz')
+        response.set_cookie(f'AnalogPins', json.dumps(analog_pins))
         return response
     else:
         response = redirect('/')
@@ -366,7 +354,7 @@ async def index(request):
         for _ in range(1, PUMP_NUM + 1):
             if f"pump{_}" in data:
                 if len(data[f"pump{_}"]["points"]) >= 2:
-                    #response.set_cookie(f'AnalogInputDataPump{_}', json.dumps(data[f"pump{_}"]))
+                    # response.set_cookie(f'AnalogInputDataPump{_}', json.dumps(data[f"pump{_}"]))
 
                     points = [(d['analogInput'], d['flowRate']) for d in data[f"pump{_}"]["points"]]
                     analog_chart_points[f"pump{_}"] = linear_interpolation(points)
@@ -400,7 +388,7 @@ async def dose(request, sse):
                 await sse.send(event)  # unnamed event
                 await asyncio.sleep(1)
             else:
-                #print("No updates, skip")
+                # print("No updates, skip")
                 await asyncio.sleep(1)
     except Exception as e:
         print(f"Error in SSE loop: {e}")
@@ -437,7 +425,8 @@ async def ota_events(request, sse):
 async def ota_upgrade(request):
     if request.method == 'GET':
         global ota_lock
-        response = send_file('./static/ota-upgrade.html')
+        response = send_file('./static/ota-upgrade.html', compressed=True,
+                             file_extension='.gz')
 
         # Define a regular expression pattern to find "ota_" followed by digits
         pattern = r"ota_(\d+)"
@@ -499,28 +488,12 @@ async def ota_upgrade(request):
     return response
 
 
-@app.route('/schedule', methods=['GET', 'POST'])
-async def cron(request):
-    if request.method == 'GET':
-        schedule_work(task_manage, '*/3 * * * *', 1, 10, 60, 1)
-    return 200
-
-
-@app.route('/cron', methods=['GET', 'POST'])
-async def cron(request):
-    if request.method == 'GET':
-        response = send_file('./static/cron.html')
-    else:
-        data = request.json
-        print("Got POST", data)
-        response = redirect('/cron')
-    return response
-
-
 @app.route('/calibration', methods=['GET', 'POST'])
 async def calibration(request):
     if request.method == 'GET':
-        response = send_file('./static/calibration.html')
+        response = send_file('./static/calibration.html', compressed=True,
+                             file_extension='.gz')
+
         for pump in range(1, PUMP_NUM + 1):
             response.set_cookie(f'calibrationDataPump{pump}',
                                 json.dumps(calibration_points[f"calibrationDataPump{pump}"]))
@@ -556,7 +529,9 @@ async def calibration(request):
 @app.route('/settings', methods=['GET', 'POST'])
 async def settings(request):
     if request.method == 'GET':
-        response = send_file('./static/captive_portal.html')
+        response = send_file('./static/captive_portal.html', compressed=True,
+                             file_extension='.gz')
+
         if 'ssid' in globals():
             response.set_cookie(f'current_ssid', ssid)
         else:
@@ -576,7 +551,9 @@ async def settings(request):
 async def wifi_settings(request):
     print("Got connection")
     if request.method == 'GET':
-        response = send_file('./static/captive_portal.html')
+        response = send_file('./static/captive_portal.html', compressed=True,
+                             file_extension='.gz')
+
         response.set_cookie(f'current_ssid', ssid)
 
     else:

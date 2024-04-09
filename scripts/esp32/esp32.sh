@@ -9,6 +9,9 @@
 source ./scripts/init.sh
 
 build_esp32() {
+    # Compress web content for better performance
+    python3 ./scripts/compress_web.py
+
     source esp-idf/export.sh
     VERSION_NAME=$(cat version.txt)
     make ${MAKEOPTS} -C micropython/ports/esp32 BOARD=$1  BOARD_VARIANT=SPIRAM_OCT USER_C_MODULES=../../../../ulab/code/micropython.cmake CFLAGS_EXTRA=-DULAB_HASH=$ulab_hash
