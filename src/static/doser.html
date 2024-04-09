@@ -197,11 +197,15 @@
 
 
         const eventSource = new EventSource("/dose-chart-sse");
+        console.log("test")
         eventSource.onmessage = function(event) {
             const data = JSON.parse(event.data);
             console.log("got sse data: ", data)
             const pumpNumber = document.getElementById('pumpSelector').value
-            analog_chart_points = data;
+            analog_chart_points = data["AnalogChartPoints"];
+            analogInpData = data["Settings"]
+
+            updateAnalogInpPointsList(pumpNumber)
             updateAnalogInpChart(pumpNumber);
         }
 
@@ -355,7 +359,11 @@
         }
 
         function updateAnalogInpChart(pumpNumber) {
-            const data = analogInpData['pump' + pumpNumber]["points"];
+            console.log("analogInpData:", analogInpData)
+
+            data = analogInpData['pump' + pumpNumber]["points"];
+
+
 
             console.log("Chart points:", analog_chart_points["pump" + pumpNumber])
 
@@ -570,16 +578,6 @@
 
                 //console.log('Load pump'+pumpNumber+' settings from Cookie:', analogInpData[`pump${pumpNumber}`]);
             }
-            //const AnalogChartDataPump = getCookie('AnalogChartDataPump'+ pumpNumber);
-            //if (AnalogChartDataPump) {
-                //console.log(AnalogChartDataPump)
-            //    const validJsonString = AnalogChartDataPump.replace(/'/g, '"');
-            //    const data = JSON.parse(validJsonString);
-
-            //    analog_chart_points[`pump${pumpNumber}`] = data;
-
-                //console.log('Load pump'+pumpNumber+' chart points from Cookie:', analogInpData[`pump${pumpNumber}`]);
-            //}
         }
 
 
@@ -608,11 +606,11 @@
             .then(data => {
                 console.log('Success:', data);
                 //const numberOfPumps = 9;
-                for (let i = 1; i <= numberOfPumps; i++) {
-                    loadAnalogInputPointsFromCookie(i)
-                }
+                //for (let i = 1; i <= numberOfPumps; i++) {
+                //    loadAnalogInputPointsFromCookie(i)
+                //}
 
-                fetchDataAndUpdateChart(selected_pump);
+                //fetchDataAndUpdateChart(selected_pump);
 
             })
             .catch((error) => {
@@ -627,9 +625,9 @@
             AnalogPins = JSON.parse(getCookie('AnalogPins'));
             const numberOfPumps = 9;
 
-            for (let i = 1; i <= numberOfPumps; i++) {
-                loadAnalogInputPointsFromCookie(i)
-            }
+            //for (let i = 1; i <= numberOfPumps; i++) {
+            //    loadAnalogInputPointsFromCookie(i)
+            //}
 
             var pumpOptions = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
@@ -726,8 +724,8 @@
 
 
             console.log("Selected pump ", pumpSelector.value)
-            updateAnalogInpChart(pumpSelector.value);
-            updateAnalogInpPointsList(pumpSelector.value);
+            //updateAnalogInpChart(pumpSelector.value);
+            //updateAnalogInpPointsList(pumpSelector.value);
 
 
             pumpOptions = pumpOptions.filter(option => option !== pumpSelector.value);

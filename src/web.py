@@ -356,8 +356,7 @@ async def index(request):
         response = send_file('./static/doser.html')
         for _ in range(1, PUMP_NUM + 1):
             print(json.dumps(analog_settings[f"pump{_}"]))
-            response.set_cookie(f'AnalogInputDataPump{_}', json.dumps(analog_settings[f"pump{_}"]))
-            #response.set_cookie(f'AnalogChartDataPump{_}', json.dumps(analog_chart_points[f"pump{_}"]))
+            #response.set_cookie(f'AnalogInputDataPump{_}', json.dumps(analog_settings[f"pump{_}"]))
             response.set_cookie(f'AnalogPins', json.dumps(analog_pins))
         return response
     else:
@@ -366,21 +365,17 @@ async def index(request):
         print(data)
         for _ in range(1, PUMP_NUM + 1):
             if f"pump{_}" in data:
-                #new_analog_settings = get_analog_settings(data[f"pump{_}"])
-                #if len(new_analog_settings["points"]) >= 2:
                 if len(data[f"pump{_}"]["points"]) >= 2:
-                    response.set_cookie(f'AnalogInputDataPump{_}', json.dumps(data[f"pump{_}"]))
+                    #response.set_cookie(f'AnalogInputDataPump{_}', json.dumps(data[f"pump{_}"]))
 
                     points = [(d['analogInput'], d['flowRate']) for d in data[f"pump{_}"]["points"]]
                     analog_chart_points[f"pump{_}"] = linear_interpolation(points)
                     print(analog_chart_points[f"pump{_}"])
-
                     # Save new settings
                     analog_settings[f"pump{_}"] = data[f"pump{_}"]
 
                 else:
                     print(f"Pump{_} Not enough Analog Input points")
-                    response.set_cookie(f'AnalogInputDataPump{_}', json.dumps(analog_chart_points[f"pump{_}"]))
         with open("config/analog_settings.json", 'w') as write_file:
             write_file.write(json.dumps(analog_settings))
         return response
@@ -393,11 +388,17 @@ async def dose(request, sse):
     old_chart_list = None
     try:
         while "eof" not in str(request.sock[0]):
-            if old_chart_list != analog_chart_points:
+            if old_chart_list != analog_chart_points or old_settings != analog_settings:
                 old_chart_list = analog_chart_points
-                event = json.dumps(old_chart_list)
-                print("send new chart point list")
+                old_settings = analog_settings
+                event = json.dumps({
+                    "AnalogChartPoints": old_chart_list,
+                    "Settings": analog_settings,
+                })
+
+                print("send Analog Control settigs")
                 await sse.send(event)  # unnamed event
+                await asyncio.sleep(1)
             else:
                 #print("No updates, skip")
                 await asyncio.sleep(1)
