@@ -392,7 +392,7 @@ async def dose(request, sse):
     print("Got connection")
     old_chart_list = None
     try:
-        while not request.sock[0]._eof:
+        while "eof" not in str(request.sock[0]):
             if old_chart_list != analog_chart_points:
                 old_chart_list = analog_chart_points
                 event = json.dumps(old_chart_list)
