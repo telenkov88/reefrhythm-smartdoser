@@ -66,13 +66,12 @@ print(f"Connectiong to {ssid}")
 try:
     nic.active(True)
     nic.connect(ssid, password)
-    time.sleep(5)
-    print(nic.ifconfig())
 except Exception as e:
     print(f"Failed to connect to wifi {e}")
 
 
 async def maintain_wifi(wifi):
+    await asyncio.sleep(5)
     while True:
         if not wifi.isconnected():
             print(f'ERROR: WIFI disconnected')

@@ -50,7 +50,7 @@ mv frozen_app.py ../micropython/ports/esp32/modules
 cd ..
 
 # Add SHA for frozen module
-echo 'RELEASE_TAG="${RELEASE_VER}-${BRANCH_NAME}-${DATE}-${SHORT_SHA}"' > micropython/ports/esp32/modules/release_tag.py
+echo "RELEASE_TAG='${RELEASE_VER}-${BRANCH_NAME}-${DATE}-${SHORT_SHA}'" > micropython/ports/esp32/modules/release_tag.py
 
 # copy ESP32 custom board to micropython
 rm -rf micropython/ports/esp32/boards/ESP32_GENERIC_S3_16MiB_OTA
