@@ -1,4 +1,4 @@
-name: Build release binaries
+name: Build develop binaries
 
 on:
   push:
