@@ -10,10 +10,12 @@ from release_tag import *  # dinamically created in init.sh
 # For startup optimization we're rewriting app only if it's different from current version.
 with open("version.txt", "a+") as release:
     release_ver = release.read().rstrip()
-    print(f"Current app version: {release_ver}, frozen app version: {RELEASE_TAG}")
-    if RELEASE_TAG != release_ver:
-        print("Rewrite app")
-        import frozen_app
+print(f"Current app version: {release_ver}, frozen app version: {RELEASE_TAG}")
+if RELEASE_TAG != release_ver:
+    print("Rewrite app")
+    import frozen_app
+
+    with open("version.txt", "w") as release:
         release.write(RELEASE_TAG)
 
 print(f"Finished in {time.time()-extart_start}sec")
