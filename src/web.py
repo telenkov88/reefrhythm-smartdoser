@@ -21,6 +21,8 @@ try:
     import ota.rollback
     from machine import UART
 
+    from release_tag import *
+
     uart = UART(1)
     uart.init(baudrate=38400, rx=rx_pin, tx=tx_pin, timeout=100)
     web_compress = True
@@ -29,6 +31,7 @@ except ImportError:
     # Mocking on PC:
     import os
 
+    RELEASE_TAG = "local_debug"
     os.system("python ../scripts/compress_web.py --path ./")
 
     from unittest.mock import Mock
