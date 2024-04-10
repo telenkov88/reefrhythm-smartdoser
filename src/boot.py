@@ -9,7 +9,7 @@ from release_tag import *  # dinamically created in init.sh
 # Application can be loaded from frozen module and written to flash.
 # For startup optimization we're rewriting app only if it's different from current version.
 with open("version.txt", "a+") as release:
-    release_ver = release.read().rsplit()
+    release_ver = release.read().rstrip()
     print(f"Current app version: {release_ver}, frozen app version: {RELEASE_TAG}")
     if RELEASE_TAG != release_ver:
         print("Rewrite app")
