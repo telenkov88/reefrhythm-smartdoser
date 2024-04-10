@@ -1,1 +1,47 @@
-{"pump1": {"enable": true, "pin": "", "points": [{"analogInput": 0, "flowRate": 0}, {"analogInput": 100, "flowRate": 33}]}, "pump2": {"enable": false, "pin": 5, "points": []}, "pump3": {"enable": false, "pin": 5, "points": []}, "pump4": {"enable": false, "pin": "", "points": [{"analogInput": 2, "flowRate": 2}, {"analogInput": 3, "flowRate": 3}]}, "pump5": {"enable": false, "pin": 5, "points": []}, "pump6": {"enable": false, "pin": 5, "points": []}, "pump7": {"enable": false, "pin": 5, "points": []}, "pump8": {"enable": false, "pin": 5, "points": []}, "pump9": {"enable": false, "pin": 5, "points": []}}
+{
+    "pump1": {
+        "enable": true,
+        "pin": 3,
+        "points": [{"analogInput": 0, "flowRate": 0},{"analogInput": 100, "flowRate": 33}]
+    },
+    "pump2": {
+        "enable": false,
+        "pin": 5,
+        "points": []
+    },
+    "pump3": {
+        "enable": false,
+        "pin": 5,
+        "points": []
+    },
+    "pump4": {
+        "enable": false,
+        "pin": 5,
+        "points": []
+    },
+    "pump5": {
+        "enable": false,
+        "pin": 5,
+        "points": []
+    },
+    "pump6": {
+        "enable": false,
+        "pin": 5,
+        "points": []
+    },
+    "pump7": {
+        "enable": false,
+        "pin": 5,
+        "points": []
+    },
+    "pump8": {
+        "enable": false,
+        "pin": 5,
+        "points": []
+    },
+    "pump9": {
+        "enable": false,
+        "pin": 5,
+        "points": []
+    }
+}

@@ -23,6 +23,8 @@ try:
 
     uart = UART(1)
     uart.init(baudrate=38400, rx=rx_pin, tx=tx_pin, timeout=100)
+    web_compress = True
+    web_file_extension = ".gz"
 except ImportError:
     # Mocking on PC:
     import os
@@ -48,6 +50,8 @@ except ImportError:
     uart.read = Mock(return_value=b"\xe0\x01\xe1")
     machine = Microdot
     machine.reset = Mock(return_value=True)
+    web_compress = False
+    web_file_extension = ""
 
 app = Microdot()
 command_buffer = CommandBuffer()
@@ -258,8 +262,8 @@ async def styles(request, path):
     if '..' in path:
         # directory traversal is not allowed
         return 'Not found', 404
-    return send_file('static/styles/' + path, compressed=True,
-                     file_extension='.gz')
+    return send_file('static/styles/' + path, compressed=web_compress,
+                     file_extension= web_file_extension)
 
 
 @app.route('/javascript/<path:path>')
@@ -267,8 +271,8 @@ async def javascript(request, path):
     if '..' in path:
         # directory traversal is not allowed
         return 'Not found', 404
-    return send_file('static/javascript/' + path, compressed=True,
-                     file_extension='.gz')
+    return send_file('static/javascript/' + path, compressed=web_compress,
+                     file_extension= web_file_extension)
 
 
 @app.route('/static/<path:path>')
@@ -343,8 +347,8 @@ async def dose(request):
 @app.route('/', methods=['GET', 'POST'])
 async def index(request):
     if request.method == 'GET':
-        response = send_file('./static/doser.html', compressed=True,
-                             file_extension='.gz')
+        response = send_file('./static/doser.html', compressed=web_compress,
+                             file_extension=web_file_extension)
         response.set_cookie(f'AnalogPins', json.dumps(analog_pins))
         return response
     else:
@@ -425,8 +429,8 @@ async def ota_events(request, sse):
 async def ota_upgrade(request):
     if request.method == 'GET':
         global ota_lock
-        response = send_file('./static/ota-upgrade.html', compressed=True,
-                             file_extension='.gz')
+        response = send_file('./static/ota-upgrade.html', compressed=web_compress,
+                             file_extension= web_file_extension)
 
         # Define a regular expression pattern to find "ota_" followed by digits
         pattern = r"ota_(\d+)"
@@ -491,8 +495,8 @@ async def ota_upgrade(request):
 @app.route('/calibration', methods=['GET', 'POST'])
 async def calibration(request):
     if request.method == 'GET':
-        response = send_file('./static/calibration.html', compressed=True,
-                             file_extension='.gz')
+        response = send_file('./static/calibration.html', compressed=web_compress,
+                             file_extension=web_file_extension)
 
         for pump in range(1, PUMP_NUM + 1):
             response.set_cookie(f'calibrationDataPump{pump}',
@@ -529,8 +533,8 @@ async def calibration(request):
 @app.route('/settings', methods=['GET', 'POST'])
 async def settings(request):
     if request.method == 'GET':
-        response = send_file('./static/captive_portal.html', compressed=True,
-                             file_extension='.gz')
+        response = send_file('./static/captive_portal.html', compressed=web_compress,
+                             file_extension= web_file_extension)
 
         if 'ssid' in globals():
             response.set_cookie(f'current_ssid', ssid)
@@ -551,8 +555,8 @@ async def settings(request):
 async def wifi_settings(request):
     print("Got connection")
     if request.method == 'GET':
-        response = send_file('./static/captive_portal.html', compressed=True,
-                             file_extension='.gz')
+        response = send_file('./static/captive_portal.html', compressed=web_compress,
+                             file_extension=web_file_extension)
 
         response.set_cookie(f'current_ssid', ssid)
 

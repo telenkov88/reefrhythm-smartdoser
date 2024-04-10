@@ -173,6 +173,13 @@
             const pumpNumber = document.getElementById('pumpSelector').value
             analog_chart_points = data["AnalogChartPoints"];
             analogInpData = data["Settings"]
+            i = 1
+            for (const key in analogInpData) {
+                const AnalogPinSelect = document.getElementById(`AnalogPin${i}`);
+                //console.log("Set value of ", `AnalogPin${i}`, " to ", analogInpData[key]["pin"])
+                AnalogPinSelect.value =  analogInpData[key]["pin"]
+                i++
+            }
 
             updateAnalogInpPointsList(pumpNumber)
             updateAnalogInpChart(pumpNumber);
@@ -553,7 +560,7 @@
             const url = window.location.href;
             const data = {};
             const selected_pump = document.getElementById('pumpSelector').value
-            analogInpData[`pump${buttonId.match(/\d+/)[0]}`]["pin"] = document.getElementById("AnalogPin"+selected_pump).value
+            analogInpData[`pump${buttonId.match(/\d+/)[0]}`]["pin"] = parseInt(document.getElementById("AnalogPin"+selected_pump).value, 10);
 
             for (const [pumpKey, pumpData] of Object.entries(analogInpData)) {
                 data[pumpKey] = pumpData;
@@ -674,7 +681,6 @@
                     option.value = AnalogPins[i]
                     AnalogPinSelect.appendChild(option);
                 }
-                AnalogPinSelect.value = analogInpData[`pump${i}`]["pin"]
 
                 const analogEnBtn = document.getElementById(`analogEnBtn${i}`)
                 if (analogEnBtn.value != analogInpData[`pump${i}`]["enable"]){
