@@ -36,6 +36,16 @@ jobs:
             echo "esp-idf/export.sh sourced successfully."
           fi
 
+      # Extract the branch name and set a dynamic tag for the build
+      - name: Extract Branch Name and Set Tag
+        run: |
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          DATE=$(date +'%Y%m%d')
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          RELEASE_VER=$(cat version.txt)
+          echo "RELEASE_TAG=${RELEASE_VER}-${BRANCH_NAME}-${DATE}-${SHORT_SHA}" >> $GITHUB_ENV
+          echo "RELEASE_VER=${RELEASE_VER}-${BRANCH_NAME}-${DATE}" >> $GITHUB_ENV
+
       # Checkout necessary submodules or projects
       - name: Checkout ulab/micropython
         run: ./scripts/init.sh
@@ -80,16 +90,6 @@ jobs:
           git push origin latest_stable
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # Extract the branch name and set a dynamic tag for the build
-      - name: Extract Branch Name and Set Tag
-        run: |
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          DATE=$(date +'%Y%m%d')
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          RELEASE_VER=$(cat version.txt)
-          echo "RELEASE_TAG=${RELEASE_VER}-${BRANCH_NAME}-${DATE}-${SHORT_SHA}" >> $GITHUB_ENV
-          echo "RELEASE_VER=${RELEASE_VER}-${BRANCH_NAME}-${DATE}" >> $GITHUB_ENV
 
       # Create a GitHub release with the artifacts
       - name: Create GitHub Release

@@ -3,7 +3,15 @@ import time
 import asyncio
 print("Extract app to flash")
 extart_start = time.time()
-import frozen_app
+import RELEASE_TAG from release_tag  # dinamically created in init.sh
+with open("version.txt", "a+") as release:
+    release_ver = release.read().rsplit()
+    print(f"Current app version: {release_ver}, frozen app version: {RELEASE_TAG}")
+    if RELEASE_TAG != release_ver:
+        print("Rewrite app")
+        import frozen_app
+        release.write(RELEASE_TAG)
+
 print(f"Finished in {time.time()-extart_start}sec")
 
 from lib.servo42c import *
