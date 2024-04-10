@@ -62,11 +62,14 @@ except OSError as e:
     print("Start captive portal")
     captive_portal.run(port=80)
 
-nic.active(True)
 print(f"Connectiong to {ssid}")
-nic.connect(ssid, password)
-time.sleep(5)
-print(nic.ifconfig())
+try:
+    nic.active(True)
+    nic.connect(ssid, password)
+    time.sleep(5)
+    print(nic.ifconfig())
+except Exception as e:
+    print(f"Failed to connect to wifi {e}")
 
 
 async def maintain_wifi(wifi):
