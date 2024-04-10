@@ -21,12 +21,14 @@ try:
     import ota.rollback
     from machine import UART
 
-    from release_tag import *
-
     uart = UART(1)
     uart.init(baudrate=38400, rx=rx_pin, tx=tx_pin, timeout=100)
     web_compress = True
     web_file_extension = ".gz"
+
+    from release_tag import *
+    print("Release:", RELEASE_TAG)
+
 except ImportError:
     # Mocking on PC:
     import os
@@ -266,7 +268,7 @@ async def styles(request, path):
         # directory traversal is not allowed
         return 'Not found', 404
     return send_file('static/styles/' + path, compressed=web_compress,
-                     file_extension= web_file_extension)
+                     file_extension=web_file_extension)
 
 
 @app.route('/javascript/<path:path>')
@@ -275,7 +277,7 @@ async def javascript(request, path):
         # directory traversal is not allowed
         return 'Not found', 404
     return send_file('static/javascript/' + path, compressed=web_compress,
-                     file_extension= web_file_extension)
+                     file_extension=web_file_extension)
 
 
 @app.route('/static/<path:path>')
@@ -433,7 +435,7 @@ async def ota_upgrade(request):
     if request.method == 'GET':
         global ota_lock
         response = send_file('./static/ota-upgrade.html', compressed=web_compress,
-                             file_extension= web_file_extension)
+                             file_extension=web_file_extension)
 
         # Define a regular expression pattern to find "ota_" followed by digits
         pattern = r"ota_(\d+)"
@@ -536,7 +538,7 @@ async def calibration(request):
 async def settings(request):
     if request.method == 'GET':
         response = send_file('./static/captive_portal.html', compressed=web_compress,
-                             file_extension= web_file_extension)
+                             file_extension=web_file_extension)
 
         if 'ssid' in globals():
             response.set_cookie(f'current_ssid', ssid)
@@ -577,3 +579,4 @@ import os
 print(os.listdir('./static/'))
 
 asyncio.create_task((app.run(port=80)))
+
