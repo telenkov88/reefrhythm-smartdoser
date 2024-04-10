@@ -447,8 +447,7 @@ async def ota_upgrade(request):
 
         response.set_cookie(f'otaPartition', boot_partition)
         response.set_cookie(f'OtaStarted', ota_lock)
-        version = sys.implementation._machine
-        response.set_cookie(f'firmware', version)
+        response.set_cookie(f'firmware', RELEASE_TAG)
 
     if request.method == 'POST':
         print("process post request")
