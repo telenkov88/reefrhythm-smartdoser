@@ -53,7 +53,7 @@ cd ..
 echo "RELEASE_TAG=${RELEASE_VER}-${BRANCH_NAME}-${DATE}-${SHORT_SHA}" >> micropython/ports/esp32/modules/release_tag.py
 
 # copy ESP32 custom board to micropython
-rm -rfp micropython/ports/esp32/boards/ESP32_GENERIC_S3_16MiB_OTA
+rm -rf micropython/ports/esp32/boards/ESP32_GENERIC_S3_16MiB_OTA
 cp -rf ./boards/ESP32_GENERIC_S3_16MiB_OTA micropython/ports/esp32/boards/ESP32_GENERIC_S3_16MiB_OTA
 cp -rf ./boards/ESP32_GENERIC_S3_16MiB_OTA/partitions-16MiB-4MiB_ota.csv micropython/ports/esp32/
 VERSION_NAME=$(cat version.txt)
