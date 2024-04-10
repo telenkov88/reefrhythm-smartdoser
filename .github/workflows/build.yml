@@ -43,6 +43,7 @@ jobs:
           BRANCH_NAME=${GITHUB_REF#refs/heads/}
           DATE=$(date +'%Y%m%d')
           SHORT_SHA=$(git rev-parse --short HEAD)
+          RELEASE_TAG=${RELEASE_VER}-${BRANCH_NAME}-${DATE}-${SHORT_SHA}
           echo "RELEASE_TAG=${RELEASE_VER}-${BRANCH_NAME}-${DATE}-${SHORT_SHA}" >> $GITHUB_ENV
           echo "RELEASE_VER=${RELEASE_VER}-${BRANCH_NAME}-${DATE}" >> $GITHUB_ENV
 

@@ -1,9 +1,10 @@
 import gc
 import time
 import asyncio
+
 print("Extract app to flash")
 extart_start = time.time()
-import release_tag  # dinamically created in init.sh
+from release_tag import *  # dinamically created in init.sh
 
 # Application can be loaded from frozen module and written to flash.
 # For startup optimization we're rewriting app only if it's different from current version.
