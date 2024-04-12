@@ -40,6 +40,10 @@ class Servo42c:
     def set_mstep(self, mstep, force=False, retry=5):
         print(f"Old mstep: {self.mstep} New mstep: {mstep}")
         if self.mstep != mstep or force:
+            for _ in range(5):
+                if self.stop():
+                    break
+
             print(f"\nWrite new mstep: {mstep}")
             crc = calc_crc(self.addr, 132, mstep)
             cmd = bytes([self.addr, 132, mstep, crc])
@@ -168,13 +172,14 @@ class Servo42c:
         cmd = bytes([self.addr, 246, self.speed_reg, crc])  # b'\xf6' -move forward
         self.uart.write(cmd)
 
-    def make_steps(self, steps, speed, direction):
+    def make_steps(self, steps, speed, direction, stop=True):
         self.set_speed(speed, direction)
         print(f"Make {steps} steps on speed {speed}, rpm {self.rpm}")
 
         pulses_reg = [x for x in steps.to_bytes(4, 'big')]
         crc = calc_crc(self.addr, 253, self.speed_reg, *pulses_reg)
-        self.stop()
+        if stop:
+            self.stop()
 
         # Create a list of bytes to be sent
         bytes_to_send = [self.addr, 253, self.speed_reg] + pulses_reg + [crc]

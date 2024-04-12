@@ -201,11 +201,10 @@ def linear_interpolation(data):
 
 def move_with_rpm(mks, rpm, runtime, rpm_table, direction=0):
     rpm, mstep, speed = find_combination(rpm, rpm_table)
-    mks.stop()
     steps = calc_steps(mks, rpm, mstep, runtime)
 
     if mks.set_mstep(mstep):
-        return mks.make_steps(steps, speed=speed, direction=direction)
+        return mks.make_steps(steps, speed=speed, direction=direction, stop=False)
     else:
         return False
 

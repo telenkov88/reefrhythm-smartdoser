@@ -1,3 +1,5 @@
+import asyncio
+
 from lib.microdot.microdot import Microdot, redirect, send_file
 from lib.microdot.sse import with_sse
 import re
@@ -22,7 +24,8 @@ try:
     from machine import UART
 
     uart = UART(1)
-    uart.init(baudrate=38400, rx=rx_pin, tx=tx_pin, timeout=100)
+    #uart.init(baudrate=38400, rx=rx_pin, tx=tx_pin, timeout=100)
+    uart.init(baudrate=115200, rx=rx_pin, tx=tx_pin, timeout=100)
     web_compress = True
     web_file_extension = ".gz"
 
@@ -382,14 +385,13 @@ async def index(request):
 @with_sse
 async def dose(request, sse):
     print("Got connection")
-    old_chart_list = None
+    old_settings = None
     try:
         while "eof" not in str(request.sock[0]):
-            if old_chart_list != analog_chart_points or old_settings != analog_settings:
-                old_chart_list = analog_chart_points
-                old_settings = analog_settings
+            if old_settings != analog_settings:
+                old_settings = analog_settings.copy()
                 event = json.dumps({
-                    "AnalogChartPoints": old_chart_list,
+                    "AnalogChartPoints": analog_chart_points,
                     "Settings": analog_settings,
                 })
 
@@ -397,7 +399,7 @@ async def dose(request, sse):
                 await sse.send(event)  # unnamed event
                 await asyncio.sleep(1)
             else:
-                # print("No updates, skip")
+                #print("No updates, skip")
                 await asyncio.sleep(1)
     except Exception as e:
         print(f"Error in SSE loop: {e}")
@@ -577,6 +579,42 @@ async def wifi_settings(request):
 import os
 
 print(os.listdir('./static/'))
+
+async def spin_motor():
+    await asyncio.sleep(5)
+    from machine import Pin, ADC
+    from time import sleep
+
+    pot = ADC(Pin(5))
+    pot.read()
+    while True:
+        print("spin motor")
+
+        direction = 1
+        desired_rpm_rate = pot.read()/4095*30
+        execution_time = 5+4
+        callback_result_future = CustomFuture()
+        desired_flow = 1
+
+        def callback(result):
+            print(f"Callback received result: {result}")
+            callback_result_future.set_result({"flow": desired_flow, "rpm": desired_rpm_rate, "time": result[0]})
+
+        task = asyncio.create_task(
+            command_buffer.add_command(stepper_run, callback, mks_dict[f"mks1"], desired_rpm_rate, execution_time,
+                                       direction, rpm_table))
+        # await uart_buffer.process_commands()
+        await task
+
+        await callback_result_future.wait()
+        callback_result = await callback_result_future.wait()
+        print("Result of callback:", callback_result)
+
+        await asyncio.sleep(5)
+
+
+#asyncio.create_task(spin_motor())
+
 
 asyncio.create_task((app.run(port=80)))
 
