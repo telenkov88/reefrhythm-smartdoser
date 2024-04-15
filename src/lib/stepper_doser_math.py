@@ -2,12 +2,12 @@ import os
 try:
     # Micropython Ulab
     from ulab import numpy as np
+    from lib.servo42c import calc_steps
 except ImportError:
+    from src.lib.servo42c import calc_steps
     import numpy as np
-    #np.float = float
     np.float = np.float32
 
-from lib.servo42c import calc_steps
 
 MIN_MSTEP = 1
 MSTEP_MAX = 255

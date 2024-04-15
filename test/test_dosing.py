@@ -1,8 +1,8 @@
 import time
 from numpy import int64
-
-from lib.servo42c import *
-from lib.stepper_doser_math import *
+import os
+from src.lib.servo42c import *
+from src.lib.stepper_doser_math import *
 import pytest
 
 test_number = 100
