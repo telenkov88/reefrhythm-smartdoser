@@ -185,6 +185,7 @@ async def javascript(request, path):
     if '..' in path:
         # directory traversal is not allowed
         return 'Not found', 404
+    print(f"Send file static/javascript/{path}")
     return send_file('static/javascript/' + path, compressed=web_compress,
                      file_extension=web_file_extension)
 
