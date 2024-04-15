@@ -120,9 +120,10 @@ let calibrationData = {};
 let rpmData = {};
 let flowData = {};
 
-const numberOfPumps = 9; // Total number of pumps
+const maxNumberOfPumps = 9; // Total number of pumps
+let numberOfPumps;
 
-for (let i = 1; i <= numberOfPumps; i++) {
+for (let i = 1; i <= maxNumberOfPumps; i++) {
     calibrationData[`pump${i}`] = [];
     rpmData[`pump${i}`] = [];
     flowData[`pump${i}`] = [];
@@ -180,8 +181,10 @@ document.getElementById('uploadDataBtn').addEventListener('click', function() {
     .then(data => {
         console.log('Success:', data);
         //const numberOfPumps = 9;
-        for (let i = 1; i <= numberOfPumps; i++) {
+        for (let i = 1; i <= maxNumberOfPumps; i++) {
             loadCalibrationPointsFromCookie(i)
+        }
+        for (let i = 1; i <= numberOfPumps; i++) {
             updateCalibrationPointsList(i);
         }
 
@@ -235,7 +238,14 @@ function loadCalibrationPointsFromCookie(pumpNumber){
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log("Cookie update event")
-    //const numberOfPumps = 9;
+    PumpNumber = JSON.parse(getCookie('PumpNumber'));
+    console.log(PumpNumber)
+    numberOfPumps = parseInt(PumpNumber["pump_num"]);
+    console.log("Number of pumps ", numberOfPumps)
+    var pumpOptions = [];
+    for (let i = 1; i <= numberOfPumps; i++) {
+        pumpOptions.push(i.toString());
+    }
 
     // Dynamically add pump selectors
     const pumpSelector = document.getElementById('pumpSelector');
@@ -282,10 +292,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Load calibration data for Pumps
-    for (let i = 1; i <= numberOfPumps; i++) {
+    for (let i = 1; i <= maxNumberOfPumps; i++) {
         loadCalibrationPointsFromCookie(i)
     }
-    var pumpOptions = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
     var selected_pump = document.getElementById('pumpSelector').value
 
     // Update the list and chart for pumps
