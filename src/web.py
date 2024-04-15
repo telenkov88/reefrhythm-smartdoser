@@ -264,6 +264,7 @@ async def index(request):
         response = send_file('./static/doser.html', compressed=web_compress,
                              file_extension=web_file_extension)
         response.set_cookie(f'AnalogPins', json.dumps(analog_pins))
+        response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
         return response
     else:
         response = redirect('/')
@@ -414,6 +415,8 @@ async def calibration(request):
         for pump in range(1, PUMP_NUM + 1):
             response.set_cookie(f'calibrationDataPump{pump}',
                                 json.dumps(calibration_points[f"calibrationDataPump{pump}"]))
+            response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
+
     else:
         response = redirect('/')
         data = request.json
@@ -453,7 +456,7 @@ async def settings(request):
             response.set_cookie(f'current_ssid', ssid)
         else:
             response.set_cookie(f'current_ssid', "")
-
+        response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
     else:
         new_ssid = request.json[f"ssid"]
         new_psw = request.json[f"psw"]

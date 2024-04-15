@@ -141,14 +141,15 @@
 
 
     <script>
-        const numberOfPumps = 9; // Total number of pumps
+        const maxNumberOfPumps = 9; // Total number of pumps
+        let numberOfPumps;
 
         let scheduleData = {};
 
         let analog_chart_points = {}
         let analogInpData = {}
         let AnalogPins = {} // Allowed ADC pins
-        for (let i = 1; i <= numberOfPumps; i++) {
+        for (let i = 1; i <= maxNumberOfPumps; i++) {
             scheduleData[`pump${i}`] = [];
             analog_chart_points[`pump${i}`] = [];
             analogInpData[`pump${i}`] = [];
@@ -174,9 +175,9 @@
             const pumpNumber = document.getElementById('pumpSelector').value
             analog_chart_points = data["AnalogChartPoints"];
             analogInpData = data["Settings"]
-            //i = 1
+            let count = 1;
             for (const key in analogInpData) {
-                const i = `${key.match(/\d+/)[0]}`
+                let i = `${key.match(/\d+/)[0]}`
                 const AnalogPinSelect = document.getElementById(`AnalogPin${i}`);
                 //console.log("Set value of ", `AnalogPin${i}`, " to ", analogInpData[key]["pin"])
                 AnalogPinSelect.value =  analogInpData[key]["pin"]
@@ -189,7 +190,10 @@
                     toggleAnalogEnBtn(`analogEnBtn${i}`)
                 }
 
-                //i++
+                count++
+                if (count > numberOfPumps) {
+                    break
+                }
             }
 
             updateAnalogInpPointsList(pumpNumber)
@@ -592,13 +596,6 @@
             })
             .then(data => {
                 console.log('Success:', data);
-                //const numberOfPumps = 9;
-                //for (let i = 1; i <= numberOfPumps; i++) {
-                //    loadAnalogInputPointsFromCookie(i)
-                //}
-
-                //fetchDataAndUpdateChart(selected_pump);
-
             })
             .catch((error) => {
                 console.error('Error:', error);
@@ -610,14 +607,15 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log("Cookie update event")
             AnalogPins = JSON.parse(getCookie('AnalogPins'));
-            const numberOfPumps = 9;
-
-            //for (let i = 1; i <= numberOfPumps; i++) {
-            //    loadAnalogInputPointsFromCookie(i)
-            //}
-
-            var pumpOptions = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
-
+            PumpNumber = JSON.parse(getCookie('PumpNumber'));
+            console.log(PumpNumber)
+            numberOfPumps = parseInt(PumpNumber["pump_num"]);
+            console.log("Number of pumps ", numberOfPumps)
+            var pumpOptions = [];
+            for (let i = 1; i <= numberOfPumps; i++) {
+                pumpOptions.push(i.toString());
+            }
+            console.log(pumpOptions)
             // Dynamically add pump selectors
             const pumpSelector = document.getElementById('pumpSelector');
             for (let i = 1; i <= numberOfPumps; i++) {
