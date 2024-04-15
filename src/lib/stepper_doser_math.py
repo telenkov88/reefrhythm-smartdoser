@@ -3,8 +3,8 @@ try:
     # Micropython Ulab
     from ulab import numpy as np
     from lib.servo42c import calc_steps
-except ImportError:
-    from src.lib.servo42c import calc_steps
+except:
+    from lib.servo42c import calc_steps
     import numpy as np
     np.float = np.float32
 
