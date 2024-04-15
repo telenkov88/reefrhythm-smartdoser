@@ -16,6 +16,6 @@ if(MICROPY_BOARD_VARIANT STREQUAL "SPIRAM_OCT")
     )
 
     list(APPEND MICROPY_DEF_BOARD
-        MICROPY_HW_BOARD_NAME="ReefRhythm Doser v0.5 dev"
+        MICROPY_HW_BOARD_NAME="ReefRhythm Doser v0.6"
     )
 endif()

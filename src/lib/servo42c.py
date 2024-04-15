@@ -1,20 +1,14 @@
 import struct
-try:
-    # Micropython Ulab
-    from ulab import numpy as np
-except ImportError:
-    import numpy as np
-    np.float = float
 
 
 def calc_crc(*args):
     summ = 0
     print(args)
     for register in args:
-        print(register.to_bytes(1, 'big'), end=' ')
+        print(int(register).to_bytes(1, 'big'), end=' ')
         summ += register
     crc = summ & 0xFF
-    print(f"{crc.to_bytes(1, 'big')}")
+    print(f"{int(crc).to_bytes(1, 'big')}")
     return crc
 
 
@@ -46,6 +40,10 @@ class Servo42c:
     def set_mstep(self, mstep, force=False, retry=5):
         print(f"Old mstep: {self.mstep} New mstep: {mstep}")
         if self.mstep != mstep or force:
+            for _ in range(5):
+                if self.stop():
+                    break
+
             print(f"\nWrite new mstep: {mstep}")
             crc = calc_crc(self.addr, 132, mstep)
             cmd = bytes([self.addr, 132, mstep, crc])
@@ -157,11 +155,13 @@ class Servo42c:
         return (self.dir << 7) | self.speed
 
     def stop(self,):
+        self.flush()
         crc = calc_crc(self.addr, 247)
         cmd = bytes([self.addr, 247, crc])
         self.uart.write(cmd)
         status = self.read_raw()
-        if status and self.reply_pattern in self.read_raw():
+        print("[STOP] got status :", status)
+        if status and self.reply_pattern in status:
             return True
         else:
             return False
@@ -172,13 +172,14 @@ class Servo42c:
         cmd = bytes([self.addr, 246, self.speed_reg, crc])  # b'\xf6' -move forward
         self.uart.write(cmd)
 
-    def make_steps(self, steps, speed, direction):
+    def make_steps(self, steps, speed, direction, stop=True):
         self.set_speed(speed, direction)
         print(f"Make {steps} steps on speed {speed}, rpm {self.rpm}")
 
         pulses_reg = [x for x in steps.to_bytes(4, 'big')]
         crc = calc_crc(self.addr, 253, self.speed_reg, *pulses_reg)
-        self.stop()
+        if stop:
+            self.stop()
 
         # Create a list of bytes to be sent
         bytes_to_send = [self.addr, 253, self.speed_reg] + pulses_reg + [crc]

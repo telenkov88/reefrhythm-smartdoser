@@ -28,7 +28,7 @@ build_esp32() {
     # Calculate the length of the file in bytes
     LENGTH=$(wc -c < "$FILENAME")
     # Create the artifacts.json file with the calculated values
-    echo "{\"firmware\": \"$FILENAME\", \"version\": \"$VERSION_NAME\", \"sha\": \"$SHA\", \"length\": $LENGTH}" > micropython.json
+    echo "{\"firmware\": \"$FILENAME\", \"version\": \"$RELEASE_TAG\", \"sha\": \"$SHA\", \"length\": $LENGTH}" > micropython.json
     cd ..
 
     clean_up esp32 build-ESP32_GENERIC_S3_16MiB_OTA-SPIRAM_OCT

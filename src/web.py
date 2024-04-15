@@ -1,3 +1,5 @@
+import asyncio
+
 from lib.microdot.microdot import Microdot, redirect, send_file
 from lib.microdot.sse import with_sse
 import re
@@ -7,67 +9,44 @@ import time
 from lib.servo42c import *
 from lib.stepper_doser_math import *
 from config.pin_config import *
+from lib.asyncscheduler import *
+from time import localtime
+from lib.cron_converter import Cron
+#from lib.sched.sched import schedule
 import requests
+
+from load_configs import *
+
 try:
     # Micropython
     import gc
     import ota.status
     import ota.update
     import ota.rollback
-    from machine import UART
-    uart = UART(1)
-    uart.init(baudrate=38400, rx=rx_pin, tx=tx_pin, timeout=100)
+
+    web_compress = True
+    web_file_extension = ".gz"
+
+    from release_tag import *
+    print("Release:", RELEASE_TAG)
+
 except ImportError:
-    # Mocking on PC:
-    from unittest.mock import Mock
+    print("Mocking on PC")
+    import os
 
-    sys.implementation = Mock
-    sys.implementation._machine = None
+    RELEASE_TAG = "local_debug"
+    os.system("python ../scripts/compress_web.py --path ./")
 
-    ota = Mock()
-    ota.status = Mock()
-    ota.rollback.cancel = Mock(return_value=True)
-    ota.status.current_ota = "<Partition type=0, subtype=16, address=65536, size=2555904, label=ota_0, encrypted=0>"
-    ota.status.boot_ota = Mock(return_value= "<Partition type=0, subtype=17, address=2621440, size=2555904, label=ota_1, encrypted=0>")
-
-
-    gc = Mock()
-    gc.mem_free = Mock(return_value=8000*1024)
-
-    uart = Mock()
-    uart.read = Mock(return_value=b"\xe0\x01\xe1")
-    machine = Microdot
-    machine.reset = Mock(return_value=True)
 
 app = Microdot()
-command_buffer = CommandBuffer()
 
-PUMP_NUM = 9
-EXTRAPOLATE_ANGLE = 4
-
-rpm_table = make_rpm_table()
 gc.collect()
 ota_lock = False
 ota_progress = 0
 firmware_size = None
 
-with open("config/calibration_points.json", 'r') as read_file:
-    calibration_points = json.load(read_file)
-
-
-
-mks_dict = {}
-for stepper in range(1, PUMP_NUM+1):
-    mks_dict[f"mks{stepper}"] = Servo42c(uart, addr=stepper-1, speed=1, mstep=50)
-    mks_dict[f"mks{stepper}"].set_current(1000)
-
-
-print(f"free memory: {gc.mem_free() // 1024}Kb")
-
-with open("./config/wifi.json", 'r') as wifi_config:
-    wifi_settings = json.load(wifi_config)
-    ssid = wifi_settings["ssid"]
-    password = wifi_settings["password"]
+should_continue = True  # Flag for shutdown
+DURATION = 60  # Duration on pump for analog control
 
 
 async def download_file_async(url, filename, progress=False):
@@ -94,45 +73,43 @@ async def download_file_async(url, filename, progress=False):
     response.close()
 
 
-def get_points(from_json):
-    if len(from_json) >= 2:
-        _cal_points = []
-        for point in from_json:
-            _cal_points.append((point["rpm"], point["flowRate"]))
-        return _cal_points
-    else:
-        return []
+async def analog_control_worker():
+    print("debug spin motor")
+    # Init ADC pins
+    adc = []
+    adc_buffer_values = []
+    for _ in range(len(analog_en)):
+        adc.append(ADC(Pin(analog_settings[f"pump{_+1}"]["pin"])))
+        adc_buffer_values.append([])
+    while True:
+        for _ in range(len(analog_en)):
+            adc_buffer_values[_] = []
+        for x in range(0, DURATION):
+            for _ in range(len(analog_en)):
+                adc_buffer_values[_].append(adc[_].read())
+            await asyncio.sleep(1)
+        for i, en in enumerate(analog_en):
+            if en and len(analog_settings[f"pump{i+1}"]["points"]) >= 2:
+                print(f"\r\n================\r\nRun pump{i+1}")
 
+                def to_float(arr):
+                    if isinstance(arr, np.ndarray):
+                        # If it's a single-item NumPy array, extract the item and return
+                        return arr[0]
+                    else:
+                        return arr
 
-chart_points = {}
-for _ in range(1, PUMP_NUM + 1):
-    cal_points = get_points(calibration_points[f"calibrationDataPump{_}"])
-    if cal_points:
-        print("----------------------")
+                adc_average = sum(adc_buffer_values[i]) / len(adc_buffer_values[i])
+                print("ADC value: ", adc_average)
+                adc_signal = adc_average/4095*100
+                print(f"Signal: {adc_signal}")
+                signals, flow_rates = zip(*analog_chart_points[f"pump{i+1}"])
+                desired_flow = to_float(np.interp(adc_signal, signals, flow_rates))
+                print("Desired flow", desired_flow)
+                desired_rpm_rate = to_float(np.interp(desired_flow, chart_points[f"pump{i+1}"][1], chart_points[f"pump{i+1}"][0]))
 
-        new_rpm_values, new_flow_rate_values = extrapolate_flow_rate(cal_points, degree=EXTRAPOLATE_ANGLE)
-        print(new_flow_rate_values)
-        print(new_flow_rate_values[-1])
-        chart_points[f"pump{_}"] = (new_rpm_values, new_flow_rate_values)
-        print("----------------------")
-
-    else:
-        chart_points[f"pump{_}"] = ([], [])
-
-
-# Implementation of missed asyncio.Future
-class CustomFuture:
-    def __init__(self):
-        self._result = None
-        self._event = asyncio.Event()
-
-    def set_result(self, result):
-        self._result = result
-        self._event.set()
-
-    async def wait(self):
-        await self._event.wait()
-        return self._result
+                await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{i+1}"], desired_rpm_rate, DURATION*2,
+                                                 analog_settings[f"pump{i+1}"]["dir"], rpm_table)
 
 
 @app.before_request
@@ -163,6 +140,15 @@ async def get_flow_points(request):
     return json.dumps(points)
 
 
+@app.route('/get_analog_chart_points')
+async def get_analog_chart_points(request):
+    pump_number = request.args.get('pump', default=1, type=int)
+    print(f"return analog input points for pump{pump_number}")
+    points = analog_chart_points[f"pump{pump_number}"]
+    print(points)
+    return json.dumps(points)
+
+
 @app.route('/memfree')
 async def get_free_mem(request):
     ret = gc.mem_free() // 1024
@@ -171,34 +157,45 @@ async def get_free_mem(request):
     return {"free_mem": ret}
 
 
-@app.route('/favicon.ico')
-async def apple_touch_icon(request):
-    response = send_file('./static/favicon//favicon.ico')
-    return response
-
-
-@app.route('/apple-touch-icon.png')
-async def apple_touch_icon(request):
-    response = send_file('./static/favicon/apple-touch-icon.png')
-    return response
-
-
-@app.route('/favicon-16x16.png')
-async def favicon_16(request):
-    response = send_file('./static/favicon/favicon-16x16.png')
-    return response
-
-
-@app.route('/favicon-32x32.png')
-async def favicon_32(request):
-    response = send_file('./static/favicon/favicon-32x32.png')
-    return response
+@app.route('/favicon/<path:path>')
+async def favicon(request, path):
+    if '..' in path:
+        # directory traversal is not allowed
+        return 'Not found', 404
+    return send_file('static/favicon/' + path)
 
 
 @app.route('/site.webmanifest')
-async def favicon_16(request):
-    response = send_file('./static/favicon/site.webmanifest')
+async def manifest(request):
+    response = send_file('static/favicon/site.webmanifest')
     return response
+
+
+@app.route('/styles/<path:path>')
+async def styles(request, path):
+    if '..' in path:
+        # directory traversal is not allowed
+        return 'Not found', 404
+    return send_file('static/styles/' + path, compressed=web_compress,
+                     file_extension=web_file_extension)
+
+
+@app.route('/javascript/<path:path>')
+async def javascript(request, path):
+    if '..' in path:
+        # directory traversal is not allowed
+        return 'Not found', 404
+    print(f"Send file static/javascript/{path}")
+    return send_file('static/javascript/' + path, compressed=web_compress,
+                     file_extension=web_file_extension)
+
+
+@app.route('/static/<path:path>')
+async def static(request, path):
+    if '..' in path:
+        # directory traversal is not allowed
+        return 'Not found', 404
+    return send_file('static/' + path)
 
 
 @app.route('/run_with_rpm')
@@ -217,7 +214,8 @@ async def run_with_rpm(request):
         callback_result_future.set_result({"time": result[0]})
 
     task = asyncio.create_task(
-        command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], rpm, execution_time, direction, rpm_table))
+        command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], rpm, execution_time, direction,
+                                   rpm_table))
     await task
 
     await callback_result_future.wait()
@@ -246,10 +244,11 @@ async def dose(request):
 
     def callback(result):
         print(f"Callback received result: {result}")
-        callback_result_future.set_result({"flow": desired_flow, "rpm": desired_rpm_rate[0], "time": result[0]})
+        callback_result_future.set_result({"flow": desired_flow, "rpm": desired_rpm_rate, "time": result[0]})
 
     task = asyncio.create_task(
-        command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], desired_rpm_rate, execution_time, direction, rpm_table))
+        command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], desired_rpm_rate, execution_time,
+                                   direction, rpm_table))
     # await uart_buffer.process_commands()
     await task
 
@@ -260,9 +259,65 @@ async def dose(request):
     return callback_result
 
 
-@app.route('/', methods=['GET'])
+@app.route('/', methods=['GET', 'POST'])
 async def index(request):
-    response = send_file('./static/index.html')
+    if request.method == 'GET':
+        response = send_file('./static/doser.html', compressed=web_compress,
+                             file_extension=web_file_extension)
+        response.set_cookie(f'AnalogPins', json.dumps(analog_pins))
+        response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
+        return response
+    else:
+        response = redirect('/')
+        data = request.json
+        print(data)
+        for _ in range(1, PUMP_NUM + 1):
+            if f"pump{_}" in data:
+                if len(data[f"pump{_}"]["points"]) >= 2:
+                    # response.set_cookie(f'AnalogInputDataPump{_}', json.dumps(data[f"pump{_}"]))
+
+                    points = [(d['analogInput'], d['flowRate']) for d in data[f"pump{_}"]["points"]]
+                    analog_chart_points[f"pump{_}"] = linear_interpolation(points)
+                    print(analog_chart_points[f"pump{_}"])
+                    # Save new settings
+                    analog_settings[f"pump{_}"] = data[f"pump{_}"]
+                    analog_en[_-1] = analog_settings[f"pump{_}"]["enable"]
+
+                else:
+                    print(f"Pump{_} Not enough Analog Input points")
+        with open("config/analog_settings.json", 'w') as write_file:
+            write_file.write(json.dumps(analog_settings))
+        return response
+
+
+@app.route('/dose-chart-sse')
+@with_sse
+async def dose(request, sse):
+    print("Got connection")
+    old_settings = None
+    try:
+        while "eof" not in str(request.sock[0]):
+            if old_settings != analog_settings:
+                old_settings = analog_settings.copy()
+                event = json.dumps({
+                    "AnalogChartPoints": analog_chart_points,
+                    "Settings": analog_settings,
+                })
+
+                print("send Analog Control settigs")
+                await sse.send(event)  # unnamed event
+                await asyncio.sleep(1)
+            else:
+                #print("No updates, skip")
+                await asyncio.sleep(1)
+    except Exception as e:
+        print(f"Error in SSE loop: {e}")
+    print("SSE closed")
+
+
+@app.route('/debug', methods=['GET'])
+async def debug(request):
+    response = send_file('./static/debug.html')
     return response
 
 
@@ -279,7 +334,7 @@ async def ota_events(request, sse):
 
     while ota_lock:
         print(f"Downloaded:{ota_progress}/{num_chunks}")
-        progress = round(ota_progress/num_chunks*100, 1)
+        progress = round(ota_progress / num_chunks * 100, 1)
         print(f"progress {progress}%")
         event = {"progress": progress, "size": ota_progress * 4, "status": ota_lock}
         await sse.send(event)  # unnamed event
@@ -290,8 +345,8 @@ async def ota_events(request, sse):
 async def ota_upgrade(request):
     if request.method == 'GET':
         global ota_lock
-        response = send_file('./static/ota-upgrade.html')
-
+        response = send_file('./static/ota-upgrade.html', compressed=web_compress,
+                             file_extension=web_file_extension)
 
         # Define a regular expression pattern to find "ota_" followed by digits
         pattern = r"ota_(\d+)"
@@ -308,8 +363,7 @@ async def ota_upgrade(request):
 
         response.set_cookie(f'otaPartition', boot_partition)
         response.set_cookie(f'OtaStarted', ota_lock)
-        version = sys.implementation._machine
-        response.set_cookie(f'firmware', version)
+        response.set_cookie(f'firmware', RELEASE_TAG)
 
     if request.method == 'POST':
         print("process post request")
@@ -356,9 +410,14 @@ async def ota_upgrade(request):
 @app.route('/calibration', methods=['GET', 'POST'])
 async def calibration(request):
     if request.method == 'GET':
-        response = send_file('./static/calibration.html')
-        for pump in range(1, PUMP_NUM+1):
-            response.set_cookie(f'calibrationDataPump{pump}', json.dumps(calibration_points[f"calibrationDataPump{pump}"]))
+        response = send_file('./static/calibration.html', compressed=web_compress,
+                             file_extension=web_file_extension)
+
+        for pump in range(1, PUMP_NUM + 1):
+            response.set_cookie(f'calibrationDataPump{pump}',
+                                json.dumps(calibration_points[f"calibrationDataPump{pump}"]))
+            response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
+
     else:
         response = redirect('/')
         data = request.json
@@ -380,7 +439,7 @@ async def calibration(request):
                     response.set_cookie(f'calibrationDataPump{_}', json.dumps(data[f"pump{_}"]))
                     calibration_points[f'calibrationDataPump{_}'] = data[f"pump{_}"]
                 else:
-                    print("Not enought cal points")
+                    print("Not enough cal points")
                     response.set_cookie(f'calibrationDataPump{_}',
                                         json.dumps(calibration_points[f"calibrationDataPump{_}"]))
         with open("config/calibration_points.json", 'w') as write_file:
@@ -391,17 +450,23 @@ async def calibration(request):
 @app.route('/settings', methods=['GET', 'POST'])
 async def settings(request):
     if request.method == 'GET':
-        response = send_file('./static/captive_portal.html')
+        response = send_file('static/settings.html', compressed=web_compress,
+                             file_extension=web_file_extension)
+
         if 'ssid' in globals():
             response.set_cookie(f'current_ssid', ssid)
         else:
             response.set_cookie(f'current_ssid', "")
-
+        response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
     else:
         new_ssid = request.json[f"ssid"]
         new_psw = request.json[f"psw"]
-        with open("./config/wifi.json", "w") as f:
-            f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
+        if new_ssid and new_psw:
+            with open("./config/wifi.json", "w") as f:
+                f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
+        new_pump_num = request.json[f"pumpNum"]
+        with open("./config/settings.json", "w") as f:
+            f.write(json.dumps({"pump_number": new_pump_num}))
         print(f"Setting up new wifi {new_ssid}, Reboot...")
         machine.reset()
     return response
@@ -411,7 +476,9 @@ async def settings(request):
 async def wifi_settings(request):
     print("Got connection")
     if request.method == 'GET':
-        response = send_file('./static/captive_portal.html')
+        response = send_file('static/settings.html', compressed=web_compress,
+                             file_extension=web_file_extension)
+
         response.set_cookie(f'current_ssid', ssid)
 
     else:
@@ -424,8 +491,22 @@ async def wifi_settings(request):
     return response
 
 
-import os
+async def do_work():
+    print("\r\n\r\n Do some work")
+    await asyncio.sleep(5)
 
-print(os.listdir('./static/'))
-asyncio.create_task((app.run(port=80)))
 
+async def main():
+    print("Start Web server")
+    task1 = asyncio.create_task(analog_control_worker())
+    task2 = asyncio.create_task(start_web_server())
+    # Iterate over the tasks and wait for them to complete one by one
+    #await asyncio.sleep(15)
+    await asyncio.gather(task1, task2)
+
+
+async def start_web_server():
+    await app.start_server(port=80)
+
+if __name__ == "__main__":
+    asyncio.run(main())

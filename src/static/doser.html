@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dosing Control</title>
+
+    <script>
+        function loadLocalCSS(local_css) {
+            console.log("Load local css ", local_css)
+            var link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = local_css; // URL to your local CSS file
+            document.head.appendChild(link);
+        }
+        function loadLocalScript(local_js) {
+            console.log("Load local js ", local_js)
+            var script = document.createElement('script');
+            script.src = local_js; // URL to your local script
+            document.head.appendChild(script);
+        }
+
+
+    </script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" onerror="loadLocalCSS('styles/bootstrap.min.css')">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" onerror="loadLocalScript('javascript/bootstrap.bundle.min.js')"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js" onerror="loadLocalScript('javascript/chart.min.js')"></script>
+
+
+
+
+    <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
+
+    <style>
+        header {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background-color: #f0f0f0;
+        }
+        header a {
+            text-decoration: none;
+            color: #333;
+            padding: 5px 10px;
+        }
+        .container {
+        }
+        .form-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1px;
+        }
+        label, select, input, button {
+            display: block;
+            margin-bottom: 10px;
+        }
+        body {
+        }
+
+
+    </style>
+
+
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg bg-primary" data-bs-theme="dark">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="/">Dosing</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01" aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarColor01">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="/calibration">Calibration</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/settings">Settings</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/ota-upgrade">OTA</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+
+    <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item dropdown">
+            <select id="pumpSelector" class="dropdown-toggle bg-body"  style="border: transparent; padding: 8px 16px; margin: 2px 0 -1px">
+            </select>
+        </li>
+
+      <li class="nav-item" role="presentation">
+        <a class="nav-link active" data-bs-toggle="tab" href="#dosetab" aria-selected="true" role="tab">Dose</a>
+      </li>
+      <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#schedtab" aria-selected="false" role="tab" tabindex="-1">Schedule</a>
+      </li>
+      <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#limittab" aria-selected="false" tabindex="-1" role="tab">Limits</a>
+      </li>
+      <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#analoginputtab" aria-selected="false" tabindex="-1" role="tab">Analog control</a>
+      </li>
+    </ul>
+
+    <div id="myTabContent" class="tab-content">
+          <div class="tab-pane fade container active show" id="dosetab" role="tabpanel">
+            <h2>Dosing Control</h2>
+            <label for="amountInput">Amount (ml) to Dose:</label>
+            <input type="number" id="amountInput" placeholder="Enter amount in ml">
+
+            <label for="timeInput">Duration sec:</label>
+            <input type="number" id="timeInput" value="60" placeholder="Enter time in seconds">
+
+            <label for="directionInput">Direction:</label>
+            <select id="directionInput">
+                <option value="1">Clockwise</option>
+                <option value="0">Counterclockwise</option>
+            </select>
+
+            <button id="doseButton" disabled>Start Dosing</button>
+          </div>
+
+
+
+
+
+          <div class="tab-pane fade container" id="schedtab" role="tabpanel">
+            <p>Dosing pump schedule.</p>
+              <button id="schedShowbtn" onclick="showSchedule()">Schedule program</button>
+          </div>
+
+
+
+
+
+
+
+        <div class="tab-pane fade container" id="limittab">
+          <p>Dosing pump limits.</p>
+        </div>
+
+        <div class="tab-pane fade container" id="analoginputtab">
+            <div id="analogControlFormsContainer"></div>
+            <div id="chart-container" style="width: 98%; aspect-ratio : 2 / 1;border:1px solid red; align-content: center ">
+                <canvas id="analogInpChart" style="width: 100%;"></canvas>
+            </div>
+        </div>
+    </div>
+
+
+
+
+
+
+
+
+
+    <script>
+        const maxNumberOfPumps = 9; // Total number of pumps
+        let numberOfPumps;
+
+        let scheduleData = {};
+
+        let analog_chart_points = {}
+        let analogInpData = {}
+        let AnalogPins = {} // Allowed ADC pins
+        for (let i = 1; i <= maxNumberOfPumps; i++) {
+            scheduleData[`pump${i}`] = [];
+            analog_chart_points[`pump${i}`] = [];
+            analogInpData[`pump${i}`] = [];
+        }
+
+
+        let eventSource = new EventSource("/dose-chart-sse");
+        eventSource.onopen = function(event) {
+            console.log("SSE connection to server opened.");
+        };
+
+        eventSource.onerror = function(event) {
+            if (event.currentTarget.readyState === EventSource.CLOSED) {
+                console.log("SSE connection was closed.");
+            } else {
+                console.log("SSE Error occurred: ", event);
+            }
+        };
+
+        eventSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            console.log("got sse data: ", data)
+            const pumpNumber = document.getElementById('pumpSelector').value
+            analog_chart_points = data["AnalogChartPoints"];
+            analogInpData = data["Settings"]
+            console.log("analogInpData", analogInpData)
+            for (const key in analogInpData) {
+                let i = `${key.match(/\d+/)[0]}`
+                if (i>numberOfPumps){
+                    continue
+                }
+                console.log("Set value of ", `AnalogPin${i}`, " to ", analogInpData[key]["pin"])
+
+                const AnalogPinSelect = document.getElementById(`AnalogPin${i}`);
+                AnalogPinSelect.value =  analogInpData[key]["pin"]
+
+                const AnalogDirSelect = document.getElementById(`AnalogDir${i}`);
+                AnalogDirSelect.value = analogInpData[key]["dir"]
+
+                const analogEnBtn = document.getElementById(`analogEnBtn${i}`)
+                if (analogEnBtn.value != analogInpData[key]["enable"]){
+                    toggleAnalogEnBtn(`analogEnBtn${i}`)
+                }
+
+            }
+
+            updateAnalogInpPointsList(pumpNumber)
+            waitForChartDefinition(function() {
+                // This code will be executed once Chart is defined
+                updateAnalogInpChart(pumpNumber);
+            });
+        }
+
+
+        //Upload schedule to controller
+        function uploadSchedule() {
+            const url = window.location.href;
+            const data = {};
+
+            for (const [pumpKey, pumpData] of Object.entries(scheduleData)) {
+                data[pumpKey] = pumpData;
+            }
+
+            console.log("upload data", data)
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            })
+            .then(response => {
+                console.log("Response:", response)
+            })
+            .then(data => {
+                console.log('Success:', data);
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+        }
+
+        function checkInputs() {
+            const amountInput = document.getElementById('amountInput').value;
+            const timeInput = document.getElementById('timeInput').value;
+            const doseButton = document.getElementById('doseButton');
+
+            const isAmountValid = parseFloat(amountInput) > 0;
+            const isTimeValid = parseFloat(timeInput) > 0;
+
+            doseButton.disabled = !(isAmountValid && isTimeValid);
+        }
+
+        function addAnalogInpPoint(pumpNumber) {
+            const analogInput = document.getElementById('analogInput' + pumpNumber);
+            const flowRateInput = document.getElementById('flowRateInput' + pumpNumber);
+
+            // Check if analogInput.value and flowRateInput.value are not empty
+            if (analogInput.value && flowRateInput.value) {
+                // Convert values to numbers
+                const analogInputValue = parseFloat(analogInput.value);
+                const flowRateInputValue = parseFloat(flowRateInput.value);
+
+                // Check if values are within the specified ranges
+                if (analogInputValue >= 0 && analogInputValue <= 100 && flowRateInputValue >= 0 && flowRateInputValue <= 1000) {
+                    console.log("add point for pump" + pumpNumber);
+
+                    // Push data to analogInpData if conditions are met
+                    analogInpData['pump' + pumpNumber]["points"].push({
+                        analogInput: analogInputValue,
+                        flowRate: flowRateInputValue
+                    });
+                    // Reset input values
+                    analogInput.value = '';
+                    flowRateInput.value = '';
+
+                    // Update analog input points list and chart
+                    updateAnalogInpPointsList(pumpNumber);
+                    updateAnalogInpChart(pumpNumber);
+                } else {
+                    // Create and show a Bootstrap toast for displaying the error message
+                        const toastContainer = document.getElementById('toastContainer');
+                        const toastElement = toastContainer.querySelector('.toast');
+                        const toastInstance = new bootstrap.Toast(toastElement);
+                        toastInstance.animation=true
+                        toastInstance.autohide=false
+                        toastInstance.delay=100
+                        toastInstance.show();
+
+
+                }
+            }
+        }
+        function deleteAnalogPoint(pumpNumber, pointIndex) {
+            console.log(analogInpData['pump' + pumpNumber])
+            analogInpData['pump' + pumpNumber]["points"].splice(pointIndex, 1);
+            updateAnalogInpPointsList(pumpNumber);
+            updateAnalogInpChart(pumpNumber);
+        }
+
+        function updateAnalogInpPointsList(pumpNumber) {
+            const listContainer = document.getElementById('analogInpPointsList' + pumpNumber);
+            console.log("update list")
+            listContainer.innerHTML = '';
+
+            const table = document.createElement('table');
+            listContainer.appendChild(table);
+
+            analogInpData['pump' + pumpNumber]["points"].forEach((point, index) => {
+                const row = table.insertRow(-1); // Insert a new row at the end of the table
+
+                // Point cell
+                const pointCell = row.insertCell(0);
+                pointCell.textContent = `Point ${index + 1}`;
+                pointCell.style="padding: 5px;"
+
+                // RPM cell
+                const rpmCell = row.insertCell(1);
+                rpmCell.textContent = `Signal: ${point['analogInput']}`;
+                rpmCell.style="padding: 5px;"
+
+                // Flow Rate cell
+                const flowRateCell = row.insertCell(2);
+                flowRateCell.textContent = `Flow Rate: ${point['flowRate']}`;
+                flowRateCell.style="padding: 5px;"
+
+                // Delete button cell
+                const deleteCell = row.insertCell(3);
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Delete';
+                deleteButton.onclick = function() {
+                    deleteAnalogPoint(pumpNumber, index);
+                };
+                deleteCell.appendChild(deleteButton);
+            });
+        }
+
+
+        function fetchAnalogInputPoints(pumpNumber) {
+            return fetch(`/get_analog_chart_points?pump=${pumpNumber}`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Loading Analog Input Signal Chart points for", pumpNumber);
+
+                    analog_chart_points['pump' + pumpNumber] = data
+                })
+                .catch(error => console.error('Error fetching Analog Input Signal Chart data:', error));
+        }
+
+
+        function waitForChartDefinition(callback) {
+            // Check if Chart is defined
+            if (typeof Chart !== 'undefined') {
+                callback(); // Chart is defined, execute the callback
+            } else {
+                // Chart is not yet defined, wait and check again
+                setTimeout(function() {
+                    waitForChartDefinition(callback);
+                }, 100); // Wait for 100 milliseconds before checking again
+            }
+        }
+
+
+        function updateAnalogInpChart(pumpNumber) {
+            console.log("Update chart for pump",pumpNumber)
+            console.log("analogInpData:", analogInpData)
+
+
+            data = analogInpData['pump' + pumpNumber]["points"];
+
+
+
+            console.log("Chart points:", analog_chart_points["pump" + pumpNumber])
+
+            const calibrationPoints = data.map(point => ({ x: point.analogInput, y: point.flowRate }));
+
+            const ctx = document.getElementById('analogInpChart').getContext('2d');
+            if (window.myChart) window.myChart.destroy();
+            window.myChart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: `Signal Points for Pump ${pumpNumber}`,
+                        data: calibrationPoints,
+                        backgroundColor: 'rgba(255, 99, 132, 1)'
+                    }
+                    , {
+                        label: `Interpolated Curve for Pump ${pumpNumber}`,
+                        data: analog_chart_points["pump" + pumpNumber],
+                        backgroundColor: 'rgba(54, 162, 235, 1)',
+                        showLine: true,
+                        fill: false
+                    }
+                    ]
+                },
+                options: {
+                    scales: {
+                        x: { title: { display: true, text: 'Flow Rate (ml/min)' } },
+                        y: { title: { display: true, text: 'Signal %' } }
+                    }
+                }
+            });
+        }
+
+
+        document.getElementById('amountInput').addEventListener('input', checkInputs);
+        document.getElementById('timeInput').addEventListener('input', checkInputs);
+
+        document.getElementById('doseButton').addEventListener('click', function() {
+            const pumpNumber = document.getElementById('pumpSelector').value;
+            const amount = document.getElementById('amountInput').value;
+            const time = document.getElementById('timeInput').value;
+            const direction = document.getElementById('directionInput').value;
+
+            // use API to start dosing
+            const url = `/dose?volume=${amount}&time=${time}&direction=${direction}&id=${pumpNumber}`;
+
+            fetch(url)
+            .then(response => response.json())
+            .then(data => console.log('Success:', data))
+            .catch((error) => console.error('Error:', error));
+        });
+
+        checkInputs(); // Run once on page load to set initial button state
+
+
+        // Add Schedule
+        function addSchedule() {
+            const pumpNumber = document.getElementById('pumpSelector').value
+            const schVolumeInput = document.getElementById('schVolumeInput');
+            const schDurationInput = document.getElementById('schDurationInput');
+            if (schVolumeInput.value && schDurationInput.value){
+                console.log("Add schedule for ", pumpNumber)
+                var cronInput = document.getElementById(`myCronInput`);
+
+                // Use querySelector on cronInput to find the nested input element
+                var nestedInput = cronInput.querySelector('div > div:nth-child(1) > input');
+                // Check if the nested input element was found
+                if (nestedInput) {
+                    // Get the value of the nested input element
+                    var inputValue = nestedInput.value;
+                    var cronstrue = window.cronstrue;
+                    console.log("cronstrue", cronstrue.toString(inputValue))
+                } else {
+                    console.log('Nested input element not found');
+                }
+
+                var cronCheckStatus = cronInput.querySelector('div > small');
+
+                if (cronCheckStatus.className == 'cronexpressionError hiden'){
+                    data = {
+                        cron: nestedInput.value,
+                        volume: schVolumeInput.value,
+                        time: schDurationInput.value
+                    }
+
+                    // Check if schedule list already contains same settings
+                    function containsObject(array, obj) {
+                        return array.some(element =>
+                            Object.keys(obj).every(key =>
+                                element.hasOwnProperty(key) && element[key] === obj[key]
+                            )
+                        );
+                    }
+
+
+                    if (containsObject(scheduleData['pump' + pumpNumber], data)) {
+                        console.log("Already in list")
+                        }
+                    else {
+                        console.log(123)
+                       // const arr = stringToArray("*/5 * * * *");
+
+                        //print(arr)
+
+                        console.log(`Add ${nestedInput.value} to Pump${pumpNumber} schedule`)
+                        scheduleData['pump' + pumpNumber].push(data);
+                        console.log(scheduleData['pump' + pumpNumber])
+                        //updateScheduleList(pumpNumber);
+
+                    }
+                }
+            }
+            else {
+                console.log("Volume and Duration empy")
+            }
+        }
+
+        function updateScheduleList(pumpNumber) {
+            const listContainer = document.getElementById('scheduleList' + pumpNumber);
+            listContainer.innerHTML = '';
+            console.log("Update list fro pump", pumpNumber)
+
+            const table = document.createElement('table');
+            table.style.width="500px"
+            listContainer.appendChild(table);
+
+            scheduleData['pump' + pumpNumber].forEach((point, index) => {
+                console.log(point)
+                const row = table.insertRow(-1); // Insert a new row at the end of the table
+                                row.setAttribute('style', 'text-align: left');
+                // Point cell
+                const pointCell = row.insertCell(0);
+                pointCell.textContent = `${pumpNumber + 1}`;
+
+
+                // Schedule cell
+                const schCell = row.insertCell(1);
+                var cronstrue = window.cronstrue;
+                schCell.setAttribute('style', 'white-space: pre;');
+                schCell.textContent = `${point["cron"]}`+'\r\n';
+
+                var differentFontSpan = document.createElement('span');
+                differentFontSpan.style = 'font-family: Arial, sans-serif;font-size: smaller;font-style: italic;font-stretch: condensed;'; // Specify the font family
+                differentFontSpan.textContent = cronstrue.toString(point["cron"]);
+                schCell.appendChild(differentFontSpan);
+
+                const volumeCell = row.insertCell(2);
+                volumeCell.textContent = `${point["volume"]} ml`;
+
+
+                const durationCell = row.insertCell(3);
+                durationCell.textContent = `${point["time"]} sec`;
+
+                // Delete button cell
+                const deleteCell = row.insertCell(4);
+                const deleteButton = document.createElement('button');
+                deleteButton.style.height = "100%";
+                deleteButton.textContent = 'Delete';
+                deleteButton.onclick = function() {
+                    deleteSchedulePoint(pumpNumber, doser);
+                };
+                deleteCell.appendChild(deleteButton);
+            });
+        }
+
+        function deleteSchedulePoint(pumpNumber, pointIndex) {
+            scheduleData['pump' + pumpNumber].splice(pointIndex, 1);
+            updateScheduleList(pumpNumber);
+        }
+
+        function toggleAnalogEnBtn(buttonId) {
+            const button = document.getElementById(buttonId);
+            console.log(buttonId)
+            console.log(analogInpData)
+            if (button.textContent === 'Off') {
+                button.textContent = 'On';
+                button.classList.remove('btn-secondary');
+                button.classList.add('btn-success');
+                button.value = 1
+                analogInpData[`pump${buttonId.match(/\d+/)[0]}`]["enable"] = true
+            } else {
+                button.textContent = 'Off';
+                button.classList.remove('btn-success');
+                button.classList.add('btn-secondary');
+                button.value = 0
+                analogInpData[`pump${buttonId.match(/\d+/)[0]}`]["enable"] = false
+            }
+        }
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        function loadAnalogInputPointsFromCookie(pumpNumber){
+            const AnalogInputDataPump = getCookie('AnalogInputDataPump'+ pumpNumber);
+            if (AnalogInputDataPump) {
+                //console.log(AnalogInputDataPump)
+                const validJsonString = AnalogInputDataPump.replace(/'/g, '"');
+                const data = JSON.parse(validJsonString);
+
+                analogInpData[`pump${pumpNumber}`] = data;
+
+                //console.log('Load pump'+pumpNumber+' settings from Cookie:', analogInpData[`pump${pumpNumber}`]);
+            }
+        }
+
+
+        function applyAnalogEnBtn(buttonId) {
+            const url = window.location.href;
+            const data = {};
+            const selected_pump = document.getElementById('pumpSelector').value
+            analogInpData[`pump${buttonId.match(/\d+/)[0]}`]["pin"] = parseInt(document.getElementById("AnalogPin"+selected_pump).value, 10);
+            analogInpData[`pump${buttonId.match(/\d+/)[0]}`]["dir"] = parseInt(document.getElementById("AnalogDir"+selected_pump).value, 10);
+
+            for (const [pumpKey, pumpData] of Object.entries(analogInpData)) {
+                data[pumpKey] = pumpData;
+            }
+
+            console.log("upload data", data)
+
+            fetch(url, {
+                method: 'POST', // or 'PUT'
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            })
+            .then(response => {
+                console.log("Response:", response)
+            })
+            .then(data => {
+                console.log('Success:', data);
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+        }
+
+
+        // Cookie event
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("Cookie update event")
+            AnalogPins = JSON.parse(getCookie('AnalogPins'));
+            PumpNumber = JSON.parse(getCookie('PumpNumber'));
+            console.log(PumpNumber)
+            numberOfPumps = parseInt(PumpNumber["pump_num"]);
+            console.log("Number of pumps ", numberOfPumps)
+            var pumpOptions = [];
+            for (let i = 1; i <= numberOfPumps; i++) {
+                pumpOptions.push(i.toString());
+            }
+            console.log(pumpOptions)
+            // Dynamically add pump selectors
+            const pumpSelector = document.getElementById('pumpSelector');
+            for (let i = 1; i <= numberOfPumps; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.text = 'Pump ' + i;
+                pumpSelector.appendChild(option);
+
+            }
+
+
+            // Dynamically add form for Pumps schedule
+
+            // Dynamically add form for Pumps Analog Input control
+            const analogInp_container = document.getElementById('analogControlFormsContainer');
+            for (let i = 1; i <= numberOfPumps; i++) {
+                // Create the form element
+                const form = document.createElement('form');
+                form.id = `analogControlForm${i}`;
+                form.className = 'analogControlForm';
+                form.setAttribute('onsubmit', 'return false;');
+
+                // Add the form content
+                form.innerHTML = `
+                    <div class="form-border">
+                        <h2>Analog Control Interface</h2>
+                        <br>
+                        <div class="form-row">
+                            <button id="analogEnBtn${i}" onclick="toggleAnalogEnBtn('analogEnBtn${i}')" value=0 type="button" class="btn btn-secondary">Off</button>
+                            <select class="form-select" id="AnalogPin${i}" style="width: auto">
+                            </select>
+                            <select class="form-select" id="AnalogDir${i}" style="width: auto">
+                            <option value="1">Clockwise</option>
+                            <option value="0">Counterclockwise</option>
+                            </select>
+
+
+                        </div>
+                        <br>
+                        <button id="analogApplyBtn${i}" onclick="applyAnalogEnBtn('analogEnBtn${i}')" type="button" class="btn btn-outline-success">Apply</button>
+                        <br>
+
+                        <h5>Add signal level point Pump${i}</h5>
+
+                        <div class="form-row">
+                        <label for="analogInput${i}">Signal</label>
+                        <input type="number" id="analogInput${i}" placeholder="Enter % signal">
+                        </div>
+                        <div class="form-row">
+                            <label for="flowRateInput${i}">Flow Rate (ml/min)</label>
+                            <input type="number" id="flowRateInput${i}" placeholder="Enter Flow Rate">
+                        </div>
+                        <button type="button" onclick="addAnalogInpPoint(${i})">Add Signal Level Point</button>
+
+                        <div id="toastContainer" aria-live="polite" aria-atomic="true">
+                            <div class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                                <div class="toast-body">
+                                    Input values are out of range.
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                `;
+
+                // Append the form to the container
+                analogInp_container.appendChild(form);
+                // Create and append the list for analog control points
+                const listDiv = document.createElement('div');
+                listDiv.id = `analogInpPointsList${i}`;
+                form.appendChild(listDiv);
+
+
+                // Dynamically add GPIO choice for pumps
+                const AnalogPinSelect = document.getElementById(`AnalogPin${i}`);
+                for (let i = 0; i < AnalogPins.length; i++){
+                    const option = document.createElement('option');
+                    option.text = 'GPIO ' + AnalogPins[i];
+                    option.value = AnalogPins[i]
+                    AnalogPinSelect.appendChild(option);
+                }
+
+
+            }
+
+
+            console.log("Selected pump ", pumpSelector.value)
+
+
+            pumpOptions = pumpOptions.filter(option => option !== pumpSelector.value);
+            pumpOptions.forEach(pumpNumber => {
+                // If the pump is the selected one, show its calibration points list and update the chart
+                if (pumpNumber === pumpSelector.value) {
+                    document.getElementById('scheduleList' + pumpNumber).style.display = 'block';
+
+                    updateChart(pumpNumber);
+
+                } else {
+                    //
+
+
+                }
+            });
+
+            document.querySelectorAll('.analogControlForm').forEach(form => form.style.display = 'none');
+            document.getElementById('analogControlForm' + pumpSelector.value).style.display = 'block';
+
+
+        });
+
+        document.getElementById('pumpSelector').addEventListener('change', function() {
+            const pumpNumber = this.value
+            console.log("pump selector change ",this.value)
+            // Show the relevant form and hide the other
+            //document.querySelectorAll('.scheduleFormsContainer').forEach(form => form.style.display = 'none');
+            //document.getElementById('scheduleList' + pumpNumber).style.display = 'block';
+
+            // Show the relevant list of calibration points and hide the others
+            //document.querySelectorAll('[id^="scheduleList"]').forEach(list => list.style.display = 'none');
+            //document.getElementById('scheduleList' + pumpNumber).style.display = 'block';
+
+            // Show the relevant form and hide the other
+            document.querySelectorAll('.analogControlForm').forEach(form => form.style.display = 'none');
+            document.getElementById('analogControlForm' + pumpNumber).style.display = 'block';
+
+            updateAnalogInpChart(pumpNumber);
+
+        });
+
+
+
+    </script>
+</body>
+</html>

@@ -1,13 +1,13 @@
 import os
-import asyncio
 try:
     # Micropython Ulab
     from ulab import numpy as np
+    from lib.servo42c import calc_steps
 except ImportError:
+    from src.lib.servo42c import calc_steps
     import numpy as np
-    np.float = float
+    np.float = np.float32
 
-from lib.servo42c import calc_steps
 
 MIN_MSTEP = 1
 MSTEP_MAX = 255
@@ -186,36 +186,28 @@ def extrapolate_flow_rate(calibration_points, degree=1):
     return extrapolated_rpm_values, extrapolated_flow_rate_values
 
 
+def linear_interpolation(data):
+    merged = []
+    print(data)
+    data.sort(key=lambda x: x[0])
+    for i in range(len(data) - 1):
+        x_start, y_start = data[i]
+        x_end, y_end = data[i + 1]
+
+        x_range = np.linspace(x_start, x_end, num=10)
+        y_range = np.linspace(y_start, y_end, num=10)
+        merged.extend(list(zip(x_range, y_range)))
+    return merged
+
+
 def move_with_rpm(mks, rpm, runtime, rpm_table, direction=0):
     rpm, mstep, speed = find_combination(rpm, rpm_table)
-    mks.stop()
     steps = calc_steps(mks, rpm, mstep, runtime)
 
     if mks.set_mstep(mstep):
-        return mks.make_steps(steps, speed=speed, direction=direction)
+        return mks.make_steps(steps, speed=speed, direction=direction, stop=False)
     else:
         return False
-
-
-class CommandBuffer:
-    def __init__(self):
-        self.buffer = []
-        self.lock = asyncio.Lock()
-
-    async def add_command(self, func, callback, *args, **kwargs):
-        async with self.lock:
-            self.buffer.append((func, callback, args, kwargs))
-            if len(self.buffer) == 1:
-                await self.process_commands()
-
-    async def process_commands(self):
-        while self.buffer:
-            func, callback, args, kwargs = self.buffer[0]
-            result = await func(*args, **kwargs)
-            if callback:
-                callback(result)
-            print("remove task from buffer")
-            del self.buffer[0]
 
 
 async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_table):

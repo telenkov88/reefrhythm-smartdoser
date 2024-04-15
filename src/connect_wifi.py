@@ -15,6 +15,9 @@ nic = network.WLAN(network.STA_IF)
 ap = network.WLAN(network.AP_IF)
 from lib.microdot.microdot import Microdot, redirect, send_file
 
+web_file_extension = ".gz"
+web_compress = True
+
 
 try:
     with open("./config/wifi.json", 'r') as wifi_config:
@@ -40,16 +43,39 @@ except OSError as e:
 
     captive_portal = Microdot()
 
+    @captive_portal.route('/styles/<path:path>')
+    async def styles(request, path):
+        if '..' in path:
+            # directory traversal is not allowed
+            return 'Not found', 404
+        return send_file('static/styles/' + path, compressed=web_compress,
+                         file_extension=web_file_extension)
+
+
+    @captive_portal.route('/javascript/<path:path>')
+    async def javascript(request, path):
+        if '..' in path:
+            # directory traversal is not allowed
+            return 'Not found', 404
+        return send_file('static/javascript/' + path, compressed=web_compress,
+                         file_extension=web_file_extension)
+
+
     @captive_portal.route('/', methods=['GET', 'POST'])
     async def index(request):
         print("Got connection")
         if request.method == 'GET':
-            response = send_file('./static/captive_portal.html')
+            response = send_file('static/settings.html')
             if 'ssid' in globals():
                 response.set_cookie(f'current_ssid', ssid)
             else:
                 response.set_cookie(f'current_ssid', "")
+            with open("config/settings.json", 'r') as read_file:
+                settings = json.load(read_file)
 
+            pump_num = settings["pump_number"]
+            response.set_cookie(f'PumpNumber', json.dumps({"pump_num": pump_num}))
+            response.set_cookie(f'CaptivePortal', True)
         else:
             new_ssid = request.json[f"ssid"]
             new_psw = request.json[f"psw"]
@@ -62,14 +88,16 @@ except OSError as e:
     print("Start captive portal")
     captive_portal.run(port=80)
 
-nic.active(True)
 print(f"Connectiong to {ssid}")
-nic.connect(ssid, password)
-time.sleep(5)
-print(nic.ifconfig())
+try:
+    nic.active(True)
+    nic.connect(ssid, password)
+except Exception as e:
+    print(f"Failed to connect to wifi {e}")
 
 
 async def maintain_wifi(wifi):
+    await asyncio.sleep(5)
     while True:
         if not wifi.isconnected():
             print(f'ERROR: WIFI disconnected')

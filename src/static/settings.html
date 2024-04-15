@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+
+    <script>
+        function loadLocalCSS(local_css) {
+            console.log("Load local css ", local_css)
+            var link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = local_css; // URL to your local CSS file
+            document.head.appendChild(link);
+        }
+        function loadLocalScript(local_js) {
+            console.log("Load local js ", local_js)
+            var script = document.createElement('script');
+            script.src = local_js; // URL to your local script
+            document.head.appendChild(script);
+        }
+
+
+    </script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" onerror="loadLocalCSS('styles/bootstrap.min.css')">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" onerror="loadLocalScript('javascript/bootstrap.bundle.min.js')"></script>
+
+
+
+
+    <title>wifi settings</title>
+    <style>
+        label, select, input, button {
+            display: block;
+            margin-bottom: 10px;
+        }
+    </style>
+    <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
+
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg bg-primary" id="navbar" data-bs-theme="dark">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="/">Dosing</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01" aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarColor01">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="/calibration">Calibration</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/settings">Settings</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/ota-upgrade">OTA</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+
+    <ul class="nav nav-tabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <a class="nav-link active" data-bs-toggle="tab" href="#wifitab" aria-selected="true" role="tab">Wi-Fi</a>
+      </li>
+      <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#pumpstab" aria-selected="false" role="tab" tabindex="-1">Pumps</a>
+      </li>
+      <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#analogcontroltab" aria-selected="false" tabindex="-1" role="tab">Analog control</a>
+      </li>
+    </ul>
+
+    <div id="myTabContent" class="tab-content">
+          <div class="tab-pane fade container active show" id="wifitab" role="tabpanel">
+            <h2>Wifi settings</h2>
+            <!-- Form for wi-fi settings -->
+            <form id="wifisettingsForm1" onsubmit="return false;">
+                <label for="ssidInput1">SSID Name:</label>
+                <input type="text" id="ssidInput1" placeholder="Enter SSID name">
+                <label for="pswInput1">WIFI password:</label>
+                <input type="text" id="pswInput1" placeholder="Enter Wifi password">
+            </form>
+          </div>
+        <div class="tab-pane fade container" id="pumpstab" role="tabpanel">
+            <h2>Pumps settings</h2>
+            <label for="pumpSelector">Number of pumps</label>
+            <select id="pumpSelector"></select>
+        </div>
+
+        <div class="tab-pane fade container" id="analogcontroltab" role="tabpanel">
+            <h2>Analog control settings</h2>
+        </div>
+        <div class="tab-pane fade container active show" role="tabpanel">
+        <button type="button" class="btn btn-primary" style="margin-top: 10px" id="uploadDataBtn">Apply</button>
+        </div>
+    </div>
+
+<script>
+const maxNumberOfPumps = 9; // Total number of pumps
+let numberOfPumps;
+let CaptivePortal;
+
+
+document.getElementById('uploadDataBtn').addEventListener('click', function() {
+    const url = window.location.href;
+    const data = {
+        "ssid": document.getElementById('ssidInput1').value,
+        "psw": document.getElementById('pswInput1').value,
+        "pumpNum": parseInt(document.getElementById('pumpSelector').value),
+    };
+    console.log("upload data", data)
+
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+    })
+    .then(response => {
+        console.log("Response:", response)
+    })
+    .then(data => {
+        console.log('Upload success:', data);
+        //updateCalibrationPointsList(1);
+    })
+    .catch((error) => {
+        console.error('Error:', error);
+    });
+});
+
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("Cookie update event")
+    PumpNumber = JSON.parse(getCookie('PumpNumber'));
+    console.log(PumpNumber)
+    numberOfPumps = parseInt(PumpNumber["pump_num"]);
+    CaptivePortal = getCookie('CaptivePortal');
+    if (CaptivePortal){
+        document.getElementById("navbar").style.display="none"
+    }
+
+    // Load calibration data for Pump 1
+    const current_ssid = getCookie('current_ssid');
+    console.log("Number of pumps ", numberOfPumps)
+    var pumpOptions = [];
+    for (let i = 1; i <= maxNumberOfPumps; i++) {
+        pumpOptions.push(i.toString());
+    }
+
+
+    // Dynamically add pump selectors
+    const pumpSelector = document.getElementById('pumpSelector');
+
+    for (let i = 1; i <= maxNumberOfPumps; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.text = 'Pump ' + i;
+        pumpSelector.appendChild(option);
+    }
+    pumpSelector.value= numberOfPumps
+
+
+    if (current_ssid) {
+        console.log('Current wifi ssid:', current_ssid);
+        document.getElementById('ssidInput1').value = current_ssid
+    }
+    //document.getElementById('calibrationPointsList2').style.display = 'none';
+});
+
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+</script>
+
+</body>
+</html>

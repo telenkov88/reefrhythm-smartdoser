@@ -40,8 +40,8 @@ cd ..
 pip3 install numpy
 cd src
 # Precalculate RPM table for Stepper motor
-rm -rf *.npy; rm -rf *.npy.crc; rm -rf constants.crc
-python3 -c 'from lib.stepper_doser_math import *;make_rpm_table()'
+#rm -rf *.npy; rm -rf *.npy.crc; rm -rf constants.crc
+#python3 -c 'from lib.stepper_doser_math import *;make_rpm_table()'
 
 # Copy APP as frozen module
 rm -rf frozen_app.py
@@ -49,8 +49,11 @@ python3 -m freezefs ./ frozen_app.py --on-import=extract --overwrite always --co
 mv frozen_app.py ../micropython/ports/esp32/modules
 cd ..
 
+# Add SHA for frozen module
+echo "RELEASE_TAG='${RELEASE_TAG}'" > micropython/ports/esp32/modules/release_tag.py
+
 # copy ESP32 custom board to micropython
-rm -rfp micropython/ports/esp32/boards/ESP32_GENERIC_S3_16MiB_OTA
+rm -rf micropython/ports/esp32/boards/ESP32_GENERIC_S3_16MiB_OTA
 cp -rf ./boards/ESP32_GENERIC_S3_16MiB_OTA micropython/ports/esp32/boards/ESP32_GENERIC_S3_16MiB_OTA
 cp -rf ./boards/ESP32_GENERIC_S3_16MiB_OTA/partitions-16MiB-4MiB_ota.csv micropython/ports/esp32/
 VERSION_NAME=$(cat version.txt)

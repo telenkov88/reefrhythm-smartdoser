@@ -767,7 +767,7 @@ del _injected_buf, _FS
 def main():
     import argparse
 
-    cmd_parser = argparse.ArgumentParser(description="Run scripts on the pyboard.")
+    cmd_parser = argparse.ArgumentParser(description="Run styles on the pyboard.")
     cmd_parser.add_argument(
         "-d",
         "--device",
@@ -807,7 +807,7 @@ def main():
         "--follow",
         action="store_true",
         default=None,
-        help="follow the output after running the scripts [default if no scripts given]",
+        help="follow the output after running the styles [default if no styles given]",
     )
     group.add_argument(
         "--no-follow",
