@@ -460,8 +460,9 @@ async def settings(request):
     else:
         new_ssid = request.json[f"ssid"]
         new_psw = request.json[f"psw"]
-        with open("./config/wifi.json", "w") as f:
-            f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
+        if new_ssid and new_psw:
+            with open("./config/wifi.json", "w") as f:
+                f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
         new_pump_num = request.json[f"pumpNum"]
         with open("./config/settings.json", "w") as f:
             f.write(json.dumps({"pump_number": new_pump_num}))

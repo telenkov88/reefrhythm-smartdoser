@@ -130,7 +130,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Dynamically add pump selectors
     const pumpSelector = document.getElementById('pumpSelector');
 
-    for (let i = 1; i <= numberOfPumps; i++) {
+    for (let i = 1; i <= maxNumberOfPumps; i++) {
         const option = document.createElement('option');
         option.value = i;
         option.text = 'Pump ' + i;
