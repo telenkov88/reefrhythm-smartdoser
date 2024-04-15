@@ -15,6 +15,9 @@ nic = network.WLAN(network.STA_IF)
 ap = network.WLAN(network.AP_IF)
 from lib.microdot.microdot import Microdot, redirect, send_file
 
+web_file_extension = ".gz"
+web_compress = True
+
 
 try:
     with open("./config/wifi.json", 'r') as wifi_config:
@@ -40,6 +43,24 @@ except OSError as e:
 
     captive_portal = Microdot()
 
+    @captive_portal.route('/styles/<path:path>')
+    async def styles(request, path):
+        if '..' in path:
+            # directory traversal is not allowed
+            return 'Not found', 404
+        return send_file('static/styles/' + path, compressed=web_compress,
+                         file_extension=web_file_extension)
+
+
+    @captive_portal.route('/javascript/<path:path>')
+    async def javascript(request, path):
+        if '..' in path:
+            # directory traversal is not allowed
+            return 'Not found', 404
+        return send_file('static/javascript/' + path, compressed=web_compress,
+                         file_extension=web_file_extension)
+
+
     @captive_portal.route('/', methods=['GET', 'POST'])
     async def index(request):
         print("Got connection")
@@ -49,7 +70,12 @@ except OSError as e:
                 response.set_cookie(f'current_ssid', ssid)
             else:
                 response.set_cookie(f'current_ssid', "")
+            with open("config/settings.json", 'r') as read_file:
+                settings = json.load(read_file)
 
+            pump_num = settings["pump_number"]
+            response.set_cookie(f'PumpNumber', json.dumps({"pump_num": pump_num}))
+            response.set_cookie(f'CaptivePortal', True)
         else:
             new_ssid = request.json[f"ssid"]
             new_psw = request.json[f"psw"]
