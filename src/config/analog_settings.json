@@ -1,7 +1,7 @@
 {
     "pump1": {
         "enable": false,
-        "pin": 3,
+        "pin": 5,
         "dir": 0,
         "points": [{"analogInput": 0, "flowRate": 0},{"analogInput": 100, "flowRate": 11}]
     },
