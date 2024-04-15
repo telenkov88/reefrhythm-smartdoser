@@ -64,20 +64,30 @@
           </div>
         <div class="tab-pane fade container" id="pumpstab" role="tabpanel">
             <h2>Pumps settings</h2>
+            <label for="pumpSelector">Number of pumps</label>
+            <select id="pumpSelector"></select>
         </div>
 
         <div class="tab-pane fade container" id="analogcontroltab" role="tabpanel">
             <h2>Analog control settings</h2>
         </div>
+        <div class="tab-pane fade container active show" role="tabpanel">
+        <button type="button" class="btn btn-primary" style="margin-top: 10px" id="uploadDataBtn">Apply</button>
+        </div>
     </div>
-    <button type="button" class="btn btn-primary" id="uploadDataBtn">Apply</button>
+
 <script>
+const maxNumberOfPumps = 9; // Total number of pumps
+let numberOfPumps;
+
+
 
 document.getElementById('uploadDataBtn').addEventListener('click', function() {
     const url = window.location.href;
     const data = {
         "ssid": document.getElementById('ssidInput1').value,
         "psw": document.getElementById('pswInput1').value,
+        "pumpNum": parseInt(document.getElementById('pumpSelector').value),
     };
     console.log("upload data", data)
 
@@ -104,8 +114,31 @@ document.getElementById('uploadDataBtn').addEventListener('click', function() {
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log("Cookie update event")
+    PumpNumber = JSON.parse(getCookie('PumpNumber'));
+    console.log(PumpNumber)
+    numberOfPumps = parseInt(PumpNumber["pump_num"]);
+
     // Load calibration data for Pump 1
     const current_ssid = getCookie('current_ssid');
+    console.log("Number of pumps ", numberOfPumps)
+    var pumpOptions = [];
+    for (let i = 1; i <= maxNumberOfPumps; i++) {
+        pumpOptions.push(i.toString());
+    }
+
+
+    // Dynamically add pump selectors
+    const pumpSelector = document.getElementById('pumpSelector');
+
+    for (let i = 1; i <= numberOfPumps; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.text = 'Pump ' + i;
+        pumpSelector.appendChild(option);
+    }
+    pumpSelector.value= numberOfPumps
+
+
     if (current_ssid) {
         console.log('Current wifi ssid:', current_ssid);
         document.getElementById('ssidInput1').value = current_ssid
