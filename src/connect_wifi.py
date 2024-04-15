@@ -44,7 +44,7 @@ except OSError as e:
     async def index(request):
         print("Got connection")
         if request.method == 'GET':
-            response = send_file('./static/captive_portal.html')
+            response = send_file('static/settings.html')
             if 'ssid' in globals():
                 response.set_cookie(f'current_ssid', ssid)
             else:

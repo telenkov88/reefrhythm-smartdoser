@@ -171,16 +171,6 @@ def test_mks_ange_after_move_with_rpm(rpm_table, pyboard, rpm):
     assert test_angle - 3 < relative_angle < test_angle + 3
 
 
-def test_uart_buffer(rpm_table, pyboard):
-    esp32 = pyboard
-    esp32.exec("uart_buffer = UARTCommandBuffer()")
-    esp32.exec('task = asyncio.create_task(uart_buffer.add_command(mks.read_pulses,'
-               ' lambda response: print(f"Received response: {response}")))')
-
-    out = lookup(esp32, "await task")
-    print(out)
-
-
 def test_mks_angle_stability(rpm_table, pyboard):
     esp32 = pyboard
     rpm = 8.8
@@ -190,7 +180,7 @@ def test_mks_angle_stability(rpm_table, pyboard):
     errors = []
     for i in range(1, test_number + 1):
         print("=" * 100)
-        print(" " * 40, f"test No {i}")
+        print(" " * 40, f"test No {i}, Errors: {len(errors)}")
         print("=" * 100)
         start_encoder = read_encoder(esp32)
         out = lookup(esp32, f"move_with_rpm(mks, {rpm}, {timeout / (rpm / 8)}, rpm_table, direction=1)")

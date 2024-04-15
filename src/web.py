@@ -446,7 +446,7 @@ async def calibration(request):
 @app.route('/settings', methods=['GET', 'POST'])
 async def settings(request):
     if request.method == 'GET':
-        response = send_file('./static/captive_portal.html', compressed=web_compress,
+        response = send_file('static/settings.html', compressed=web_compress,
                              file_extension=web_file_extension)
 
         if 'ssid' in globals():
@@ -468,7 +468,7 @@ async def settings(request):
 async def wifi_settings(request):
     print("Got connection")
     if request.method == 'GET':
-        response = send_file('./static/captive_portal.html', compressed=web_compress,
+        response = send_file('static/settings.html', compressed=web_compress,
                              file_extension=web_file_extension)
 
         response.set_cookie(f'current_ssid', ssid)
