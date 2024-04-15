@@ -2,9 +2,8 @@ import time
 
 import pytest
 import sys
-from lib.servo42c import *
-from lib.stepper_doser_math import *
-
+from src.lib.servo42c import *
+from src.lib.stepper_doser_math import *
 
 def lookup(target_device, command):
    return target_device.exec("print(" + command + ")").decode("utf-8").strip()
@@ -15,6 +14,13 @@ def free_mem(pyb):
     ret = int(lookup(pyb, "gc.mem_free()"))
     print(f"free mem: {ret // 1024}Kb")
     return ret // 1024
+
+
+def test_local_make_rpm_table():
+    print("\r\n")
+    start_time = time.time()
+    rpm_table = make_rpm_table(regenerate=True)
+    print(f"finish in {time.time()-start_time}sec")
 
 
 def test_make_rpm_table(pyboard):

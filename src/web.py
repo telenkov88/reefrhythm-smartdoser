@@ -12,8 +12,10 @@ from config.pin_config import *
 from lib.asyncscheduler import *
 from time import localtime
 from lib.cron_converter import Cron
-from lib.sched.sched import schedule
+#from lib.sched.sched import schedule
 import requests
+
+from load_configs import *
 
 try:
     # Micropython
@@ -21,11 +23,7 @@ try:
     import ota.status
     import ota.update
     import ota.rollback
-    from machine import UART
 
-    uart = UART(1)
-    #uart.init(baudrate=38400, rx=rx_pin, tx=tx_pin, timeout=100)
-    uart.init(baudrate=115200, rx=rx_pin, tx=tx_pin, timeout=100)
     web_compress = True
     web_file_extension = ".gz"
 
@@ -33,66 +31,22 @@ try:
     print("Release:", RELEASE_TAG)
 
 except ImportError:
-    # Mocking on PC:
+    print("Mocking on PC")
     import os
 
     RELEASE_TAG = "local_debug"
     os.system("python ../scripts/compress_web.py --path ./")
 
-    from unittest.mock import Mock
-
-    sys.implementation = Mock
-    sys.implementation._machine = None
-
-    ota = Mock()
-    ota.status = Mock()
-    ota.rollback.cancel = Mock(return_value=True)
-    ota.status.current_ota = "<Partition type=0, subtype=16, address=65536, size=2555904, label=ota_0, encrypted=0>"
-    ota.status.boot_ota = Mock(
-        return_value="<Partition type=0, subtype=17, address=2621440, size=2555904, label=ota_1, encrypted=0>")
-
-    gc = Mock()
-    gc.mem_free = Mock(return_value=8000 * 1024)
-
-    uart = Mock()
-    uart.read = Mock(return_value=b"\xe0\x01\xe1")
-    machine = Microdot
-    machine.reset = Mock(return_value=True)
-    web_compress = False
-    web_file_extension = ""
 
 app = Microdot()
-command_buffer = CommandBuffer()
-task_manage = TaskManager(command_buffer)
 
-PUMP_NUM = 9
-EXTRAPOLATE_ANGLE = 4
-
-rpm_table = make_rpm_table()
 gc.collect()
 ota_lock = False
 ota_progress = 0
 firmware_size = None
 
 should_continue = True  # Flag for shutdown
-
-with open("config/calibration_points.json", 'r') as read_file:
-    calibration_points = json.load(read_file)
-
-with open("config/analog_settings.json", 'r') as read_file:
-    analog_settings = json.load(read_file)
-
-mks_dict = {}
-for stepper in range(1, PUMP_NUM + 1):
-    mks_dict[f"mks{stepper}"] = Servo42c(uart, addr=stepper - 1, speed=1, mstep=50)
-    mks_dict[f"mks{stepper}"].set_current(1000)
-
-print(f"free memory: {gc.mem_free() // 1024}Kb")
-
-with open("./config/wifi.json", 'r') as wifi_config:
-    wifi_settings = json.load(wifi_config)
-    ssid = wifi_settings["ssid"]
-    password = wifi_settings["password"]
+DURATION = 60  # Duration on pump for analog control
 
 
 async def download_file_async(url, filename, progress=False):
@@ -119,91 +73,43 @@ async def download_file_async(url, filename, progress=False):
     response.close()
 
 
-def get_points(from_json):
-    if len(from_json) >= 2:
-        _cal_points = []
-        for point in from_json:
-            _cal_points.append((point["rpm"], point["flowRate"]))
-        return _cal_points
-    else:
-        return []
+async def analog_control_worker():
+    print("debug spin motor")
+    # Init ADC pins
+    adc = []
+    adc_buffer_values = []
+    for _ in range(len(analog_en)):
+        adc.append(ADC(Pin(analog_settings[f"pump{_+1}"]["pin"])))
+        adc_buffer_values.append([])
+    while True:
+        for _ in range(len(analog_en)):
+            adc_buffer_values[_] = []
+        for x in range(0, DURATION):
+            for _ in range(len(analog_en)):
+                adc_buffer_values[_].append(adc[_].read())
+            await asyncio.sleep(1)
+        for i, en in enumerate(analog_en):
+            if en and len(analog_settings[f"pump{i+1}"]["points"]) >= 2:
+                print(f"\r\n================\r\nRun pump{i+1}")
 
+                def to_float(arr):
+                    if isinstance(arr, np.ndarray):
+                        # If it's a single-item NumPy array, extract the item and return
+                        return arr[0]
+                    else:
+                        return arr
 
-def get_analog_settings(from_json):
-    if len(from_json) >= 2:
-        _analog_points = []
-        for point in from_json:
-            print(point)
-            _analog_points.append((point["analogInput"], point["flowRate"]))
-        return _analog_points
-    else:
-        return []
+                adc_average = sum(adc_buffer_values[i]) / len(adc_buffer_values[i])
+                print("ADC value: ", adc_average)
+                adc_signal = adc_average/4095*100
+                print(f"Signal: {adc_signal}")
+                signals, flow_rates = zip(*analog_chart_points[f"pump{i+1}"])
+                desired_flow = to_float(np.interp(adc_signal, signals, flow_rates))
+                print("Desired flow", desired_flow)
+                desired_rpm_rate = to_float(np.interp(desired_flow, chart_points[f"pump{i+1}"][1], chart_points[f"pump{i+1}"][0]))
 
-
-chart_points = {}
-for _ in range(1, PUMP_NUM + 1):
-    cal_points = get_points(calibration_points[f"calibrationDataPump{_}"])
-    if cal_points:
-        print("----------------------")
-
-        new_rpm_values, new_flow_rate_values = extrapolate_flow_rate(cal_points, degree=EXTRAPOLATE_ANGLE)
-        print(new_flow_rate_values)
-        print(new_flow_rate_values[-1])
-        chart_points[f"pump{_}"] = (new_rpm_values, new_flow_rate_values)
-        print("----------------------")
-
-    else:
-        chart_points[f"pump{_}"] = ([], [])
-
-analog_chart_points = {}
-analog_en = []
-analog_pin = []
-for _ in range(1, PUMP_NUM + 1):
-    analog_en.append(analog_settings[f"pump{_}"]["enable"])
-    analog_pin.append(analog_settings[f"pump{_}"]["pin"])
-    analog_points = get_analog_settings(analog_settings[f"pump{_}"]["points"])
-    print(analog_points)
-
-    if analog_points and len(analog_points) >= 2:
-        analog_chart_points[f"pump{_}"] = linear_interpolation(analog_points)
-    else:
-        analog_chart_points[f"pump{_}"] = ([], [])
-
-
-def do_work(msg):
-    print(localtime(), f" {msg}")
-
-
-def schedule_work(manager, cron_expression, addr, volume, duration, direction):
-    cron_instance = Cron()
-    cron_instance.from_string(cron_expression)
-    mins, hrs, mday, month, wday = cron_instance.to_list()
-
-    desired_flow = volume * (60 / duration)
-    desired_rpm_rate = np.interp(desired_flow, chart_points[f"pump{addr}"][1], chart_points[f"pump{addr}"][0])
-    callback_result_future = CustomFuture()
-
-    def callback(result):
-        print(f"Callback received result: {result}")
-        callback_result_future.set_result({"flow": desired_flow, "rpm": desired_rpm_rate[0], "time": result[0]})
-
-    msg = f"Doser{addr} dose {volume} in {duration}sec"
-    asyncio.create_task(schedule(do_work, msg,
-                                 mins=mins,
-                                 hrs=hrs,
-                                 mday=mday,
-                                 month=None,
-                                 wday=wday
-                                 ))
-    """task = asyncio.create_task(schedule(command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{addr}"],
-                                                               desired_rpm_rate, duration, direction,
-                                                               rpm_table), name,
-                                         mins=mins,
-                                         hrs=hrs,
-                                         mday=mday,
-                                         month=None,
-                                         wday=wday),
-                           name)"""
+                await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{i+1}"], desired_rpm_rate, DURATION*2,
+                                                 analog_settings[f"pump{i+1}"]["dir"], rpm_table)
 
 
 @app.before_request
@@ -337,7 +243,7 @@ async def dose(request):
 
     def callback(result):
         print(f"Callback received result: {result}")
-        callback_result_future.set_result({"flow": desired_flow, "rpm": desired_rpm_rate[0], "time": result[0]})
+        callback_result_future.set_result({"flow": desired_flow, "rpm": desired_rpm_rate, "time": result[0]})
 
     task = asyncio.create_task(
         command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], desired_rpm_rate, execution_time,
@@ -373,6 +279,7 @@ async def index(request):
                     print(analog_chart_points[f"pump{_}"])
                     # Save new settings
                     analog_settings[f"pump{_}"] = data[f"pump{_}"]
+                    analog_en[_-1] = analog_settings[f"pump{_}"]["enable"]
 
                 else:
                     print(f"Pump{_} Not enough Analog Input points")
@@ -576,45 +483,22 @@ async def wifi_settings(request):
     return response
 
 
-import os
-
-print(os.listdir('./static/'))
-
-async def spin_motor():
+async def do_work():
+    print("\r\n\r\n Do some work")
     await asyncio.sleep(5)
-    from machine import Pin, ADC
-    from time import sleep
-
-    pot = ADC(Pin(5))
-    pot.read()
-    while True:
-        print("spin motor")
-
-        direction = 1
-        desired_rpm_rate = pot.read()/4095*30
-        execution_time = 5+4
-        callback_result_future = CustomFuture()
-        desired_flow = 1
-
-        def callback(result):
-            print(f"Callback received result: {result}")
-            callback_result_future.set_result({"flow": desired_flow, "rpm": desired_rpm_rate, "time": result[0]})
-
-        task = asyncio.create_task(
-            command_buffer.add_command(stepper_run, callback, mks_dict[f"mks1"], desired_rpm_rate, execution_time,
-                                       direction, rpm_table))
-        # await uart_buffer.process_commands()
-        await task
-
-        await callback_result_future.wait()
-        callback_result = await callback_result_future.wait()
-        print("Result of callback:", callback_result)
-
-        await asyncio.sleep(5)
 
 
-#asyncio.create_task(spin_motor())
+async def main():
+    print("Start Web server")
+    task1 = asyncio.create_task(analog_control_worker())
+    task2 = asyncio.create_task(start_web_server())
+    # Iterate over the tasks and wait for them to complete one by one
+    #await asyncio.sleep(15)
+    await asyncio.gather(task1, task2)
 
 
-asyncio.create_task((app.run(port=80)))
+async def start_web_server():
+    await app.start_server(port=80)
 
+if __name__ == "__main__":
+    asyncio.run(main())

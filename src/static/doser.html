@@ -104,7 +104,7 @@
             <input type="number" id="amountInput" placeholder="Enter amount in ml">
 
             <label for="timeInput">Duration sec:</label>
-            <input type="number" id="timeInput" placeholder="Enter time in seconds">
+            <input type="number" id="timeInput" value="60" placeholder="Enter time in seconds">
 
             <label for="directionInput">Direction:</label>
             <select id="directionInput">
@@ -160,25 +160,46 @@
         let AnalogPins = {} // Allowed ADC pins
         for (let i = 1; i <= numberOfPumps; i++) {
             scheduleData[`pump${i}`] = [];
-
             analog_chart_points[`pump${i}`] = [];
             analogInpData[`pump${i}`] = [];
         }
 
 
         const eventSource = new EventSource("/dose-chart-sse");
+        eventSource.onopen = function(event) {
+            console.log("SSE connection to server opened.");
+        };
+
+        eventSource.onerror = function(event) {
+            if (event.currentTarget.readyState === EventSource.CLOSED) {
+                console.log("SSE connection was closed.");
+            } else {
+                console.log("SSE Error occurred: ", event);
+            }
+        };
+
         eventSource.onmessage = function(event) {
             const data = JSON.parse(event.data);
             console.log("got sse data: ", data)
             const pumpNumber = document.getElementById('pumpSelector').value
             analog_chart_points = data["AnalogChartPoints"];
             analogInpData = data["Settings"]
-            i = 1
+            //i = 1
             for (const key in analogInpData) {
+                const i = `${key.match(/\d+/)[0]}`
                 const AnalogPinSelect = document.getElementById(`AnalogPin${i}`);
                 //console.log("Set value of ", `AnalogPin${i}`, " to ", analogInpData[key]["pin"])
                 AnalogPinSelect.value =  analogInpData[key]["pin"]
-                i++
+
+                const AnalogDirSelect = document.getElementById(`AnalogDir${i}`);
+                AnalogDirSelect.value = analogInpData[key]["dir"]
+
+                const analogEnBtn = document.getElementById(`analogEnBtn${i}`)
+                if (analogEnBtn.value != analogInpData[key]["enable"]){
+                    toggleAnalogEnBtn(`analogEnBtn${i}`)
+                }
+
+                //i++
             }
 
             updateAnalogInpPointsList(pumpNumber)
@@ -561,6 +582,7 @@
             const data = {};
             const selected_pump = document.getElementById('pumpSelector').value
             analogInpData[`pump${buttonId.match(/\d+/)[0]}`]["pin"] = parseInt(document.getElementById("AnalogPin"+selected_pump).value, 10);
+            analogInpData[`pump${buttonId.match(/\d+/)[0]}`]["dir"] = parseInt(document.getElementById("AnalogDir"+selected_pump).value, 10);
 
             for (const [pumpKey, pumpData] of Object.entries(analogInpData)) {
                 data[pumpKey] = pumpData;
@@ -637,6 +659,10 @@
                             <button id="analogEnBtn${i}" onclick="toggleAnalogEnBtn('analogEnBtn${i}')" value=0 type="button" class="btn btn-secondary">Disabled</button>
                             <select class="form-select" id="AnalogPin${i}" style="width: auto">
                             </select>
+                            <select class="form-select" id="AnalogDir${i}" style="width: auto">
+                            <option value="1">Clockwise</option>
+                            <option value="0">Counterclockwise</option>
+                            </select>
 
                             <button id="analogApplyBtn${i}" onclick="applyAnalogEnBtn('analogEnBtn${i}')" type="button" class="btn btn-outline-success">Apply</button>
 
@@ -682,10 +708,7 @@
                     AnalogPinSelect.appendChild(option);
                 }
 
-                const analogEnBtn = document.getElementById(`analogEnBtn${i}`)
-                if (analogEnBtn.value != analogInpData[`pump${i}`]["enable"]){
-                    toggleAnalogEnBtn(`analogEnBtn${i}`)
-                }
+
             }
 
 

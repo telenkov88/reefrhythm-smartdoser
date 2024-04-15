@@ -24,12 +24,8 @@ from lib.servo42c import *
 from config.pin_config import *
 
 
-if __name__ == '__main__':
-    gc.collect()
-    print('Start')
+if __name__ == "__main__":
     import connect_wifi
-    import web
-
-    loop = asyncio.get_event_loop()
-    loop.run_forever()
-
+    from load_configs import *
+    from web import *
+    asyncio.run(main())

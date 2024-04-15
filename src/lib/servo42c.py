@@ -5,10 +5,10 @@ def calc_crc(*args):
     summ = 0
     print(args)
     for register in args:
-        print(register.to_bytes(1, 'big'), end=' ')
+        print(int(register).to_bytes(1, 'big'), end=' ')
         summ += register
     crc = summ & 0xFF
-    print(f"{crc.to_bytes(1, 'big')}")
+    print(f"{int(crc).to_bytes(1, 'big')}")
     return crc
 
 

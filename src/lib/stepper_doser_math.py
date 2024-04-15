@@ -4,7 +4,8 @@ try:
     from ulab import numpy as np
 except ImportError:
     import numpy as np
-    np.float = float
+    #np.float = float
+    np.float = np.float32
 
 from lib.servo42c import calc_steps
 
