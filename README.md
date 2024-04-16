@@ -53,9 +53,8 @@ It's designed to automate and simplify the dosing process, ensuring accurate and
 2. Download latest [release](https://github.com/telenkov88/reefrhythm-smartdoser/releases/latest)
 3. Connect ESP32-S3 N16R8 controller to USB port in boot mode and erase the flash and flash the firmware
 ```bash
-python -m esptool -b 460800 --before default_reset --chip esp32s3  write_flash --erase-all --flash_mode dio --flash_size 16MB --flash_freq 80m 0x0 bootloader.bin 0x8000 partition-table.bin 0x10000 micropython.bin
+python -m esptool -b 460800 --before default_reset --after hard_reset --chip esp32s3  write_flash --erase-all --flash_mode dio --flash_size 16MB --flash_freq 80m 0x0 bootloader.bin 0x8000 partition-table.bin 0x10000 micropython.bin
 ```
-
 ## Compiling locally
 
 If you would like to compile (or customise) the firmware on a local machine, all you have to do is clone this repository
