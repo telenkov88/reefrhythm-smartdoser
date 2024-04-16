@@ -11,6 +11,7 @@ try:
     import gc
     from machine import UART, Pin, ADC
     import network
+    import machine
     ap = network.WLAN(network.AP_IF)
     nic = network.WLAN(network.STA_IF)
     ap = network.WLAN(network.AP_IF)
