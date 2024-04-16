@@ -55,6 +55,7 @@ It's designed to automate and simplify the dosing process, ensuring accurate and
 ```bash
 python -m esptool -b 460800 --before default_reset --after hard_reset --chip esp32s3  write_flash --erase-all --flash_mode dio --flash_size 16MB --flash_freq 80m 0x0 bootloader.bin 0x8000 partition-table.bin 0x10000 micropython.bin
 ```
+4. Push reset button on ESP32 controller
 ## Compiling locally
 
 If you would like to compile (or customise) the firmware on a local machine, all you have to do is clone this repository
