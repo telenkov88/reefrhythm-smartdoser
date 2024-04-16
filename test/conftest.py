@@ -69,6 +69,7 @@ def pyboard(request):
         libs = list_files("../src/lib")
         configs = list_files("../src/config")
         statics = list_files("../src/static")
+        icons = list_files("../src/icon")
 
         for file in libs:
             pyb.fs_put(f"../src/lib/{file}", f"./lib/{file}")
@@ -77,6 +78,8 @@ def pyboard(request):
         for file in statics:
             if "html.gz" in file:
                 pyb.fs_put(f"../src/static/{file}", f"./static/{file}")
+        for file in icons:
+            pyb.fs_put(f"../src/icon/{file}", f"./icon/{file}")
 
     elif request.config.getoption("deploy") == "servo42c":
         #try:

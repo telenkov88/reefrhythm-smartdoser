@@ -1,7 +1,7 @@
 import json
 import time
 import asyncio
-
+import binascii
 import machine
 
 try:
@@ -9,15 +9,27 @@ try:
 except ImportError:
     print("Only for Micropython")
 
-import sys
 from random import randint
+
+try:
+    with open("./config/settings.json", 'r') as settings_config:
+        settings = json.load(settings_config)
+        hostname = settings["hostname"] if "hostname" in settings else "doser"
+        PUMP_NUM = settings["pump_number"] if "pump_number" in settings else 1
+except OSError as e:
+    hostname = "doser"
+
+print("hostname", hostname)
 nic = network.WLAN(network.STA_IF)
 ap = network.WLAN(network.AP_IF)
+byte_string = nic.config('mac')
+hex_string = binascii.hexlify(byte_string).decode('utf-8')
+mac_address = ':'.join(hex_string[i:i+2] for i in range(0, len(hex_string), 2)).upper()
+
 from lib.microdot.microdot import Microdot, redirect, send_file
 
 web_file_extension = ".gz"
 web_compress = True
-
 
 try:
     with open("./config/wifi.json", 'r') as wifi_config:
@@ -52,6 +64,13 @@ except OSError as e:
                          file_extension=web_file_extension)
 
 
+    @captive_portal.route('/icon/<path:path>')
+    async def static(request, path):
+        if '..' in path:
+            # directory traversal is not allowed
+            return 'Not found', 404
+        return send_file('static/icon/' + path)
+
     @captive_portal.route('/javascript/<path:path>')
     async def javascript(request, path):
         if '..' in path:
@@ -63,27 +82,32 @@ except OSError as e:
 
     @captive_portal.route('/', methods=['GET', 'POST'])
     async def index(request):
-        print("Got connection")
         if request.method == 'GET':
-            response = send_file('static/settings.html')
-            if 'ssid' in globals():
-                response.set_cookie(f'current_ssid', ssid)
-            else:
-                response.set_cookie(f'current_ssid', "")
-            with open("config/settings.json", 'r') as read_file:
-                settings = json.load(read_file)
-
-            pump_num = settings["pump_number"]
-            response.set_cookie(f'PumpNumber', json.dumps({"pump_num": pump_num}))
+            response = send_file('static/settings.html', compressed=web_compress,
+                                 file_extension=web_file_extension)
+            response.set_cookie('hostname', hostname)
             response.set_cookie(f'CaptivePortal', True)
+            response.set_cookie(f'Mac', mac_address)
+            if 'ssid' in globals():
+                response.set_cookie('current_ssid', ssid)
+            else:
+                response.set_cookie('current_ssid', "")
+            response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
         else:
             new_ssid = request.json[f"ssid"]
             new_psw = request.json[f"psw"]
-            with open("./config/wifi.json", "w") as f:
-                f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
+            new_hostname = request.json[f"hostname"]
+            if new_ssid and new_psw:
+                with open("./config/wifi.json", "w") as f:
+                    f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
+            new_pump_num = request.json[f"pumpNum"]
+            with open("./config/settings.json", "w") as f:
+                f.write(json.dumps({"pump_number": new_pump_num,
+                                    "hostname": new_hostname}))
             print(f"Setting up new wifi {new_ssid}, Reboot...")
             machine.reset()
         return response
+
 
     print("Start captive portal")
     captive_portal.run(port=80)
@@ -91,6 +115,7 @@ except OSError as e:
 print(f"Connectiong to {ssid}")
 try:
     nic.active(True)
+    nic.config(dhcp_hostname=hostname)
     nic.connect(ssid, password)
 except Exception as e:
     print(f"Failed to connect to wifi {e}")
@@ -148,3 +173,4 @@ def wait_connection(nic):
 
 
 asyncio.create_task(maintain_wifi(nic))
+

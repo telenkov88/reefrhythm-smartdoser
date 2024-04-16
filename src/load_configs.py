@@ -1,4 +1,5 @@
 import json
+import binascii
 from lib.stepper_doser_math import *
 from lib.servo42c import *
 from lib.asyncscheduler import *
@@ -9,12 +10,21 @@ from config.pin_config import *
 try:
     import gc
     from machine import UART, Pin, ADC
-
+    import network
+    import machine
+    ap = network.WLAN(network.AP_IF)
+    nic = network.WLAN(network.STA_IF)
+    ap = network.WLAN(network.AP_IF)
+    byte_string = nic.config('mac')
+    hex_string = binascii.hexlify(byte_string).decode('utf-8')
+    mac_address = ':'.join(hex_string[i:i+2] for i in range(0, len(hex_string), 2)).upper()
     uart = UART(1)
     uart.init(baudrate=38400, rx=rx_pin, tx=tx_pin, timeout=100)
 except ImportError:
     # Mocking ADC
     from unittest.mock import Mock
+
+    mac_address = "AA:AA:BB:BB:AA:AA"
 
     ADC = Mock()
     Pin = Mock()
@@ -82,6 +92,10 @@ with open("config/analog_settings.json", 'r') as read_file:
 
 with open("config/settings.json", 'r') as read_file:
     settings = json.load(read_file)
+    if "hostname" not in settings:
+        hostname = "doser"
+    else:
+        hostname = settings["hostname"]
 
 PUMP_NUM = settings["pump_number"]
 MAX_PUMPS = 9
@@ -91,10 +105,14 @@ for stepper in range(1, PUMP_NUM + 1):
     mks_dict[f"mks{stepper}"] = Servo42c(uart, addr=stepper - 1, speed=1, mstep=50)
     mks_dict[f"mks{stepper}"].set_current(1000)
 
-with open("./config/wifi.json", 'r') as wifi_config:
-    wifi_settings = json.load(wifi_config)
-    ssid = wifi_settings["ssid"]
-    password = wifi_settings["password"]
+try:
+    with open("./config/wifi.json", 'r') as wifi_config:
+        wifi_settings = json.load(wifi_config)
+        ssid = wifi_settings["ssid"]
+        password = wifi_settings["password"]
+except OSError as e:
+    ssid = "test"
+    password = "test"
 
 chart_points = {}
 for _ in range(1, MAX_PUMPS + 1):

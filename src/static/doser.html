@@ -717,11 +717,11 @@
                 form.appendChild(listDiv);
 
 
-                // Dynamically add GPIO choice for pumps
+                // Dynamically add Pin choice for pumps
                 const AnalogPinSelect = document.getElementById(`AnalogPin${i}`);
                 for (let i = 0; i < AnalogPins.length; i++){
                     const option = document.createElement('option');
-                    option.text = 'GPIO ' + AnalogPins[i];
+                    option.text = 'Pin ' + AnalogPins[i];
                     option.value = AnalogPins[i]
                     AnalogPinSelect.appendChild(option);
                 }

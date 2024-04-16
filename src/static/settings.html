@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
+<html lang="en" data-bs-theme="dark" xmlns="http://www.w3.org/1999/html">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -26,20 +26,35 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" onerror="loadLocalCSS('styles/bootstrap.min.css')">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" onerror="loadLocalScript('javascript/bootstrap.bundle.min.js')"></script>
 
-
-
-
     <title>wifi settings</title>
     <style>
         label, select, input, button {
             display: block;
             margin-bottom: 10px;
         }
+
+
+        #password-with-icon {
+          position: relative;
+        }
+
+        #password-with-icon > i {
+          position: absolute;
+          top: 6px;
+          left: 280px;
+        }
+
+        #password-with-icon > input {
+            padding-right: 40px;
+        }
+
+
     </style>
     <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
 
 </head>
 <body>
+
     <nav class="navbar navbar-expand-lg bg-primary" id="navbar" data-bs-theme="dark">
       <div class="container-fluid">
         <a class="navbar-brand" href="/">Dosing</a>
@@ -78,14 +93,33 @@
     <div id="myTabContent" class="tab-content">
           <div class="tab-pane fade container active show" id="wifitab" role="tabpanel">
             <h2>Wifi settings</h2>
+              <label for="mac">Mac Address:</label>
+              <fieldset>
+                  <input type="mac" id="mac" name="mac" style="width: 300px" class="form-control rounded" readonly="">
+              </fieldset>
+
+              <label for="hostName">Hostname:</label>
+              <input type="text" style="width: 300px" id="hostName" name="hostName" pattern="[a-zA-Z0-9\-\.]{1,15}"
+                     class="form-control is-valid"
+                     title="Hostname must be 1-15 characters long and contain only letters, numbers, hyphens"
+              oninput="checkPattern(document.getElementById('hostName'), /^[a-zA-Z0-9\-]{1,15}$/)">
+
             <!-- Form for wi-fi settings -->
-            <form id="wifisettingsForm1" onsubmit="return false;">
-                <label for="ssidInput1">SSID Name:</label>
-                <input type="text" id="ssidInput1" placeholder="Enter SSID name">
-                <label for="pswInput1">WIFI password:</label>
-                <input type="text" id="pswInput1" placeholder="Enter Wifi password">
-            </form>
+            <label for="ssidInput1">SSID Name:</label>
+            <input type="text" style="width: 300px" id="ssidInput1" placeholder="Enter SSID name">
+
+              <label for="password" class="form-label mt-4">WIFI password:</label>
+
+              <div class="input-group" id="password-with-icon" style="width: 300px">
+                  <input type="password" id="password" name="password" class="form-control rounded"
+                         autocomplete="password"
+                         spellcheck="false" autocapitalize="off" required
+                         placeholder="Enter Wifi password">
+              </div>
+
           </div>
+
+
         <div class="tab-pane fade container" id="pumpstab" role="tabpanel">
             <h2>Pumps settings</h2>
             <label for="pumpSelector">Number of pumps</label>
@@ -106,12 +140,29 @@ let numberOfPumps;
 let CaptivePortal;
 
 
+function checkPattern(inputElement, pattern) {
+    value = inputElement.value
+    const applyButton = document.getElementById("uploadDataBtn")
+    if (!pattern.test(value)){
+        inputElement.className  = "form-control is-invalid"
+        applyButton.className = "btn btn-primary disabled"
+    }else {
+        inputElement.className  = "form-control is-valid"
+        applyButton.className = "btn btn-primary"
+    }
+    return pattern.test(value)
+}
+
+
+
+
 document.getElementById('uploadDataBtn').addEventListener('click', function() {
     const url = window.location.href;
     const data = {
         "ssid": document.getElementById('ssidInput1').value,
-        "psw": document.getElementById('pswInput1').value,
+        "psw": document.getElementById('password').value,
         "pumpNum": parseInt(document.getElementById('pumpSelector').value),
+        "hostname": document.getElementById('hostName').value
     };
     console.log("upload data", data)
 
@@ -142,9 +193,14 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log(PumpNumber)
     numberOfPumps = parseInt(PumpNumber["pump_num"]);
     CaptivePortal = getCookie('CaptivePortal');
+
+    document.getElementById('hostName').value = getCookie('hostname');
+    document.getElementById('mac').value = getCookie('Mac');
     if (CaptivePortal){
         document.getElementById("navbar").style.display="none"
     }
+
+    checkPattern(document.getElementById('hostName'), /^[a-zA-Z0-9\-]{1,15}$/)
 
     // Load calibration data for Pump 1
     const current_ssid = getCookie('current_ssid');
