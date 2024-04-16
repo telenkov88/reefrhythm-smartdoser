@@ -67,21 +67,19 @@ async def download_file_async(url, filename, progress=False):
 async def analog_control_worker():
     print("debug spin motor")
     # Init ADC pins
-    adc = []
     adc_buffer_values = []
     for _ in range(len(analog_en)):
-        adc.append(ADC(Pin(analog_settings[f"pump{_+1}"]["pin"])))
         adc_buffer_values.append([])
     while True:
         for _ in range(len(analog_en)):
             adc_buffer_values[_] = []
         for x in range(0, DURATION):
             for _ in range(len(analog_en)):
-                adc_buffer_values[_].append(adc[_].read())
+                adc_buffer_values[_].append(ADC(Pin(analog_settings[f"pump{_+1}"]["pin"], Pin.IN, Pin.PULL_DOWN)).read())
             await asyncio.sleep(1)
         for i, en in enumerate(analog_en):
             if en and len(analog_settings[f"pump{i+1}"]["points"]) >= 2:
-                print(f"\r\n================\r\nRun pump{i+1}")
+                print(f"\r\n================\r\nRun pump{i+1}, PIN", analog_settings[f"pump{i+1}"]["pin"])
 
                 def to_float(arr):
                     if isinstance(arr, np.ndarray):
