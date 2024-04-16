@@ -9,12 +9,16 @@ from config.pin_config import *
 try:
     import gc
     from machine import UART, Pin, ADC
-
+    import network
+    ap = network.WLAN(network.AP_IF)
+    mac_adress = ap.config('mac')
     uart = UART(1)
     uart.init(baudrate=38400, rx=rx_pin, tx=tx_pin, timeout=100)
 except ImportError:
     # Mocking ADC
     from unittest.mock import Mock
+
+    mac_adress = "AA:AA:BB:BB:AA:AA"
 
     ADC = Mock()
     Pin = Mock()
@@ -82,6 +86,10 @@ with open("config/analog_settings.json", 'r') as read_file:
 
 with open("config/settings.json", 'r') as read_file:
     settings = json.load(read_file)
+    if "hostname" not in settings:
+        hostname = "doser"
+    else:
+        hostname = settings["hostname"]
 
 PUMP_NUM = settings["pump_number"]
 MAX_PUMPS = 9
@@ -91,10 +99,14 @@ for stepper in range(1, PUMP_NUM + 1):
     mks_dict[f"mks{stepper}"] = Servo42c(uart, addr=stepper - 1, speed=1, mstep=50)
     mks_dict[f"mks{stepper}"].set_current(1000)
 
-with open("./config/wifi.json", 'r') as wifi_config:
-    wifi_settings = json.load(wifi_config)
-    ssid = wifi_settings["ssid"]
-    password = wifi_settings["password"]
+try:
+    with open("./config/wifi.json", 'r') as wifi_config:
+        wifi_settings = json.load(wifi_config)
+        ssid = wifi_settings["ssid"]
+        password = wifi_settings["password"]
+except OSError as e:
+    ssid = "test"
+    password = "test"
 
 chart_points = {}
 for _ in range(1, MAX_PUMPS + 1):

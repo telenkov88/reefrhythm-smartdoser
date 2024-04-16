@@ -3,16 +3,7 @@ import asyncio
 from lib.microdot.microdot import Microdot, redirect, send_file
 from lib.microdot.sse import with_sse
 import re
-import sys
-import json
 import time
-from lib.servo42c import *
-from lib.stepper_doser_math import *
-from config.pin_config import *
-from lib.asyncscheduler import *
-from time import localtime
-from lib.cron_converter import Cron
-#from lib.sched.sched import schedule
 import requests
 
 from load_configs import *
@@ -106,10 +97,11 @@ async def analog_control_worker():
                 signals, flow_rates = zip(*analog_chart_points[f"pump{i+1}"])
                 desired_flow = to_float(np.interp(adc_signal, signals, flow_rates))
                 print("Desired flow", desired_flow)
-                desired_rpm_rate = to_float(np.interp(desired_flow, chart_points[f"pump{i+1}"][1], chart_points[f"pump{i+1}"][0]))
+                if desired_flow >= 0.01:
+                    desired_rpm_rate = to_float(np.interp(desired_flow, chart_points[f"pump{i+1}"][1], chart_points[f"pump{i+1}"][0]))
 
-                await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{i+1}"], desired_rpm_rate, DURATION*2,
-                                                 analog_settings[f"pump{i+1}"]["dir"], rpm_table)
+                    await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{i+1}"], desired_rpm_rate, DURATION*2,
+                                                     analog_settings[f"pump{i+1}"]["dir"], rpm_table)
 
 
 @app.before_request
@@ -196,6 +188,13 @@ async def static(request, path):
         # directory traversal is not allowed
         return 'Not found', 404
     return send_file('static/' + path)
+
+@app.route('/icon/<path:path>')
+async def static(request, path):
+    if '..' in path:
+        # directory traversal is not allowed
+        return 'Not found', 404
+    return send_file('static/icon/' + path)
 
 
 @app.route('/run_with_rpm')
@@ -452,42 +451,27 @@ async def settings(request):
     if request.method == 'GET':
         response = send_file('static/settings.html', compressed=web_compress,
                              file_extension=web_file_extension)
+        response.set_cookie('hostname', hostname)
+        response.set_cookie(f'Mac', mac_adress)
 
         if 'ssid' in globals():
-            response.set_cookie(f'current_ssid', ssid)
+            response.set_cookie('current_ssid', ssid)
         else:
-            response.set_cookie(f'current_ssid', "")
+            response.set_cookie('current_ssid', "")
         response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
     else:
         new_ssid = request.json[f"ssid"]
         new_psw = request.json[f"psw"]
+        new_hostname = request.json[f"hostname"]
         if new_ssid and new_psw:
             with open("./config/wifi.json", "w") as f:
                 f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
         new_pump_num = request.json[f"pumpNum"]
         with open("./config/settings.json", "w") as f:
-            f.write(json.dumps({"pump_number": new_pump_num}))
+            f.write(json.dumps({"pump_number": new_pump_num,
+                                "hostname": new_hostname}))
         print(f"Setting up new wifi {new_ssid}, Reboot...")
         machine.reset()
-    return response
-
-
-@app.route('/wifi_settings', methods=['GET', 'POST'])
-async def wifi_settings(request):
-    print("Got connection")
-    if request.method == 'GET':
-        response = send_file('static/settings.html', compressed=web_compress,
-                             file_extension=web_file_extension)
-
-        response.set_cookie(f'current_ssid', ssid)
-
-    else:
-        new_ssid = request.json[f"ssid"]
-        new_psw = request.json[f"psw"]
-        with open("./config/wifi.json", "w") as f:
-            f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
-        print(f"Setting up new wifi {new_ssid}, Reboot...")
-        sys.exit()
     return response
 
 
