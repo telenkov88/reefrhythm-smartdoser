@@ -452,7 +452,7 @@ async def settings(request):
         response = send_file('static/settings.html', compressed=web_compress,
                              file_extension=web_file_extension)
         response.set_cookie('hostname', hostname)
-        response.set_cookie(f'Mac', mac_adress)
+        response.set_cookie(f'Mac', mac_address)
 
         if 'ssid' in globals():
             response.set_cookie('current_ssid', ssid)

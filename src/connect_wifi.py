@@ -1,7 +1,7 @@
 import json
 import time
 import asyncio
-
+import binascii
 import machine
 
 try:
@@ -17,24 +17,19 @@ try:
         hostname = settings["hostname"] if "hostname" in settings else "doser"
         PUMP_NUM = settings["pump_number"] if "pump_number" in settings else 1
 except OSError as e:
-    print(e)
-    hostname = "hostname"
-
-except OSError as e:
     hostname = "doser"
-    mdns = "doser"
 
-
+print("hostname", hostname)
 nic = network.WLAN(network.STA_IF)
 ap = network.WLAN(network.AP_IF)
-ap.config(dhcp_hostname=hostname)
-nic.config(dhcp_hostname=hostname)
+byte_string = nic.config('mac')
+hex_string = binascii.hexlify(byte_string).decode('utf-8')
+mac_address = ':'.join(hex_string[i:i+2] for i in range(0, len(hex_string), 2)).upper()
 
 from lib.microdot.microdot import Microdot, redirect, send_file
 
 web_file_extension = ".gz"
 web_compress = True
-
 
 try:
     with open("./config/wifi.json", 'r') as wifi_config:
@@ -92,7 +87,7 @@ except OSError as e:
                                  file_extension=web_file_extension)
             response.set_cookie('hostname', hostname)
             response.set_cookie(f'CaptivePortal', True)
-            response.set_cookie(f'Mac', ap.config('mac'))
+            response.set_cookie(f'Mac', mac_address)
             if 'ssid' in globals():
                 response.set_cookie('current_ssid', ssid)
             else:
@@ -102,7 +97,6 @@ except OSError as e:
             new_ssid = request.json[f"ssid"]
             new_psw = request.json[f"psw"]
             new_hostname = request.json[f"hostname"]
-            new_mdns = request.json[f"mdns"]
             if new_ssid and new_psw:
                 with open("./config/wifi.json", "w") as f:
                     f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
@@ -121,6 +115,7 @@ except OSError as e:
 print(f"Connectiong to {ssid}")
 try:
     nic.active(True)
+    nic.config(dhcp_hostname=hostname)
     nic.connect(ssid, password)
 except Exception as e:
     print(f"Failed to connect to wifi {e}")
@@ -178,3 +173,4 @@ def wait_connection(nic):
 
 
 asyncio.create_task(maintain_wifi(nic))
+

@@ -1,4 +1,5 @@
 import json
+import binascii
 from lib.stepper_doser_math import *
 from lib.servo42c import *
 from lib.asyncscheduler import *
@@ -11,14 +12,18 @@ try:
     from machine import UART, Pin, ADC
     import network
     ap = network.WLAN(network.AP_IF)
-    mac_adress = ap.config('mac')
+    nic = network.WLAN(network.STA_IF)
+    ap = network.WLAN(network.AP_IF)
+    byte_string = nic.config('mac')
+    hex_string = binascii.hexlify(byte_string).decode('utf-8')
+    mac_address = ':'.join(hex_string[i:i+2] for i in range(0, len(hex_string), 2)).upper()
     uart = UART(1)
     uart.init(baudrate=38400, rx=rx_pin, tx=tx_pin, timeout=100)
 except ImportError:
     # Mocking ADC
     from unittest.mock import Mock
 
-    mac_adress = "AA:AA:BB:BB:AA:AA"
+    mac_address = "AA:AA:BB:BB:AA:AA"
 
     ADC = Mock()
     Pin = Mock()
