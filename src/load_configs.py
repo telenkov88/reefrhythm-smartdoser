@@ -9,6 +9,7 @@ from config.pin_config import *
 
 try:
     import gc
+    import utime
     from machine import UART, Pin, ADC
     import network
     import machine
@@ -31,6 +32,11 @@ except ImportError:
 
     Pin.return_value = Mock()
     mock_adc = Mock()
+
+    utime = Mock()
+    import time
+    # Utime is CPython epoch 2000-01-01 00:00:00 UTC, when time.time() is 1970-01-01 00:00:00 UTC epoch
+    utime.time = Mock(return_value=(time.time()-946684800))
 
     def random_adc_read():
         import random
@@ -97,8 +103,19 @@ with open("config/settings.json", 'r') as read_file:
     else:
         hostname = settings["hostname"]
 
+
 PUMP_NUM = settings["pump_number"]
 MAX_PUMPS = 9
+
+try:
+    with open("config/schedule.json") as read_file:
+        schedule = json.load(read_file)
+        print("schedule: ", schedule)
+except OSError as e:
+    print("Can't load schedule config, generate new")
+    schedule = {}
+    for _ in range(1, MAX_PUMPS+1):
+        schedule[f"pump{_}"] = []
 
 mks_dict = {}
 for stepper in range(1, PUMP_NUM + 1):

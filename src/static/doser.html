@@ -176,7 +176,8 @@
 
 
               <button type="button" id="schedAddBtn" onclick="addSchedPoint()" class="btn btn-primary disabled">Add schedule dose</button>
-              <div id="schedulePointsList"></div>
+              <div id="schedPointContainer"></div>
+
           </div>
 
 
@@ -259,6 +260,7 @@
             const pumpNumber = document.getElementById('pumpSelector').value
             analog_chart_points = data["AnalogChartPoints"];
             analogInpData = data["Settings"]
+            scheduleData = data["Schedule"]
             console.log("analogInpData", analogInpData)
             for (const key in analogInpData) {
                 let i = `${key.match(/\d+/)[0]}`
@@ -279,6 +281,10 @@
                 }
 
             }
+            for (let i = 1; i < maxNumberOfPumps+1; i++) {
+                updateScheduleList(i)
+            }
+
 
             updateAnalogInpPointsList(pumpNumber)
             waitForChartDefinition(function() {
@@ -387,6 +393,9 @@
 
             doseButton.disabled = !(isAmountValid && isTimeValid);
         }
+
+        
+
 
         function addAnalogInpPoint(pumpNumber) {
             const analogInput = document.getElementById('analogInput' + pumpNumber);
@@ -624,7 +633,7 @@
         }
 
         function updateScheduleList(pumpNumber) {
-            const listContainer = document.getElementById('scheduleList' + pumpNumber);
+            const listContainer = document.getElementById(`schedulePointsList${pumpNumber}`);
             listContainer.innerHTML = '';
             console.log("Update schedule list for pump", pumpNumber)
 
@@ -632,40 +641,52 @@
             table.style.width="500px"
             listContainer.appendChild(table);
 
+            // Table head
+            const headRow = table.insertRow(0);
+            const headers = ["Direction", "Amount", "Start", "End", "Freq", ""];
+
+            // Loop through the headers array to create each cell
+            headers.forEach(header => {
+                const cell = headRow.insertCell();
+                cell.textContent = header;
+            });
+
+
+
             scheduleData['pump' + pumpNumber].forEach((point, index) => {
                 console.log(point)
                 const row = table.insertRow(-1); // Insert a new row at the end of the table
                                 row.setAttribute('style', 'text-align: left');
-                // Point cell
+                // Dir cell
                 const pointCell = row.insertCell(0);
-                pointCell.textContent = `${pumpNumber + 1}`;
+                if (point["dir"] === 1){
+                    pointCell.textContent = "Clockwise";
+                } else {pointCell.textContent = "Counterclockwise";}
 
 
-                // Schedule cell
+                // Dose Amount cell
                 const schCell = row.insertCell(1);
-                var cronstrue = window.cronstrue;
-                schCell.setAttribute('style', 'white-space: pre;');
-                schCell.textContent = `${point["cron"]}`+'\r\n';
+                schCell.textContent = `${point["amount"]}`;
 
-                var differentFontSpan = document.createElement('span');
-                differentFontSpan.style = 'font-family: Arial, sans-serif;font-size: smaller;font-style: italic;font-stretch: condensed;'; // Specify the font family
-                differentFontSpan.textContent = cronstrue.toString(point["cron"]);
-                schCell.appendChild(differentFontSpan);
+                // Start time cell
+                const startTimeCell = row.insertCell(2);
+                startTimeCell.textContent = `${point["start_time"]}`;
 
-                const volumeCell = row.insertCell(2);
-                volumeCell.textContent = `${point["volume"]} ml`;
+                // End time cell
+                const endTimeCell = row.insertCell(3);
+                endTimeCell.textContent = `${point["end_time"]}`;
 
-
-                const durationCell = row.insertCell(3);
-                durationCell.textContent = `${point["time"]} sec`;
+                // Frequency cell
+                const freqCell = row.insertCell(4);
+                freqCell.textContent = `${point["frequency"]}`;
 
                 // Delete button cell
-                const deleteCell = row.insertCell(4);
+                const deleteCell = row.insertCell(5);
                 const deleteButton = document.createElement('button');
                 deleteButton.style.height = "100%";
                 deleteButton.textContent = 'Delete';
                 deleteButton.onclick = function() {
-                    deleteSchedulePoint(pumpNumber, doser);
+                    deleteSchedulePoint(pumpNumber, index);
                 };
                 deleteCell.appendChild(deleteButton);
             });
@@ -781,7 +802,12 @@
             // Init schedule form
             checkSchedInput()
             //const document.getElementById('scheduleFormsContainer');
-
+            const schedPointContainer = document.getElementById('schedPointContainer');
+            for (let i = 1; i <= maxNumberOfPumps; i++) {
+                const listDiv = document.createElement('div');
+                listDiv.id = `schedulePointsList${i}`;
+                schedPointContainer.appendChild(listDiv);
+            }
 
             // Dynamically add form for Pumps Analog Input control
             const analogInp_container = document.getElementById('analogControlFormsContainer');
@@ -856,24 +882,22 @@
             }
 
 
-            console.log("Selected pump ", pumpSelector.value)
+            for (let i=1; i<maxNumberOfPumps+1; i++ ){
+                document.getElementById(`schedulePointsList${i}`).style.display = 'none';
+            }
+            document.getElementById(`schedulePointsList${pumpSelector.value}`).style.display = 'block';
 
 
             pumpOptions = pumpOptions.filter(option => option !== pumpSelector.value);
             pumpOptions.forEach(pumpNumber => {
                 // If the pump is the selected one, show its calibration points list and update the chart
                 if (pumpNumber === pumpSelector.value) {
-                    document.getElementById('scheduleList' + pumpNumber).style.display = 'block';
-
                     updateChart(pumpNumber);
-
-                } else {
-                    //
-
 
                 }
             });
 
+            document.getElementById(`schedulePointsList${pumpSelector.value}`).style.display = 'block';
             document.querySelectorAll('.analogControlForm').forEach(form => form.style.display = 'none');
             document.getElementById('analogControlForm' + pumpSelector.value).style.display = 'block';
 
@@ -896,6 +920,12 @@
             document.getElementById('analogControlForm' + pumpNumber).style.display = 'block';
 
             updateAnalogInpChart(pumpNumber);
+
+            for (let i=1; i<maxNumberOfPumps+1; i++ ){
+                document.getElementById(`schedulePointsList${i}`).style.display = 'none';
+            }
+            document.getElementById(`schedulePointsList${this.value}`).style.display = 'block';
+
 
         });
 

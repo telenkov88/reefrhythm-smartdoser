@@ -5,6 +5,7 @@ from lib.microdot.sse import with_sse
 import re
 import time
 import requests
+import lib.mcron as mcron
 
 from load_configs import *
 
@@ -38,6 +39,8 @@ firmware_size = None
 
 should_continue = True  # Flag for shutdown
 DURATION = 60  # Duration on pump for analog control
+c = 0
+mcron.init_timer()
 
 
 async def download_file_async(url, filename, progress=False):
@@ -289,16 +292,19 @@ async def index(request):
 
 @app.route('/dose-chart-sse')
 @with_sse
-async def dose(request, sse):
+async def dose_sse(request, sse):
     print("Got connection")
     old_settings = None
+    old_schedule = None
     try:
         while "eof" not in str(request.sock[0]):
-            if old_settings != analog_settings:
+            if old_settings != analog_settings or old_schedule != schedule:
                 old_settings = analog_settings.copy()
+                old_schedule = schedule.copy()
                 event = json.dumps({
                     "AnalogChartPoints": analog_chart_points,
                     "Settings": analog_settings,
+                    "Schedule": schedule
                 })
 
                 print("send Analog Control settigs")
@@ -473,18 +479,35 @@ async def settings(request):
     return response
 
 
-async def do_work():
-    print("\r\n\r\n Do some work")
-    await asyncio.sleep(5)
+def do_work(callback_id, current_time, callback_memory):
+    global c
+    c += 1
+    print('call: %s %s' % (c, utime.localtime()))
+    asyncio.run(command_buffer.add_command(stepper_run, None, mks_dict[f"mks1"], 1, 2, 1, rpm_table))
+    print("command added")
+
+
+async def start_scheduler():
+    print("start task scheduler")
+    time_per_day = 3
+    #mcron.insert(mcron.PERIOD_MINUTE, range(0, mcron.PERIOD_MINUTE, 5), 'minute_5s', do_work)
+    h = 12
+    m = 56
+    start_time = h * 60 * 60 + m * 60
+    mcron.insert(mcron.PERIOD_DAY, range(start_time, mcron.PERIOD_DAY, mcron.PERIOD_DAY // 1440), 'day_x4', do_work)
+
+    print("task added")
+
 
 
 async def main():
     print("Start Web server")
     task1 = asyncio.create_task(analog_control_worker())
     task2 = asyncio.create_task(start_web_server())
+    task3 = asyncio.create_task(start_scheduler())
+
     # Iterate over the tasks and wait for them to complete one by one
-    #await asyncio.sleep(15)
-    await asyncio.gather(task1, task2)
+    await asyncio.gather(task1, task2, task3)
 
 
 async def start_web_server():
