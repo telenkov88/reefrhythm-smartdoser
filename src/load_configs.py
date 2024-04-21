@@ -13,6 +13,7 @@ try:
     from machine import UART, Pin, ADC
     import network
     import machine
+    import ntptime
     ap = network.WLAN(network.AP_IF)
     nic = network.WLAN(network.STA_IF)
     ap = network.WLAN(network.AP_IF)
@@ -29,6 +30,7 @@ except ImportError:
 
     ADC = Mock()
     Pin = Mock()
+    ntptime = Mock()
 
     Pin.return_value = Mock()
     mock_adc = Mock()

@@ -566,16 +566,58 @@ def update_schedule(data):
         write_file.write(json.dumps(data))
 
 
+async def sync_time(wifi):
+    ntptime.host = "1.europe.pool.ntp.org"
+    while not wifi.isconnected():
+        await asyncio.sleep(1)
+    try:
+        print("Local time before synchronization：%s" % str(time.localtime()))
+        ntptime.settime()
+        rtc = machine.RTC()
+        utc_shift = 8
+
+        tm = utime.localtime(utime.mktime(utime.localtime()) + utc_shift * 3600)
+        tm = tm[0:3] + (0,) + tm[3:6] + (0,)
+        rtc.datetime(tm)
+        print("Local time after synchronization：%s" % str(time.localtime()))
+    except:
+        print("Failed to sync time on start")
+    while True:
+        if wifi.isconnected():
+            for x in range(0, 30):
+                try:
+                    print("Local time before synchronization：%s" % str(time.localtime()))
+                    ntptime.settime()
+                    rtc = machine.RTC()
+                    utc_shift = 8
+
+                    tm = utime.localtime(utime.mktime(utime.localtime()) + utc_shift * 3600)
+                    tm = tm[0:3] + (0,) + tm[3:6] + (0,)
+                    rtc.datetime(tm)
+                    print("Local time after synchronization：%s" % str(time.localtime()))
+                    break
+                except:
+                    x += 1
+                    print(f'{x} time sync failed')
+                if x >= 30:
+                    print("Time sync not working, reboot")
+                    sys.exit()
+
+                await asyncio.sleep(60)
+        else:
+            print("wifi disconnected")
+
+        await asyncio.sleep(1800)
 
 async def main():
     print("Start Web server")
     update_schedule(schedule)
     task1 = asyncio.create_task(analog_control_worker())
     task2 = asyncio.create_task(start_web_server())
-    #task3 = asyncio.create_task(start_scheduler())
+    task3 = asyncio.create_task(sync_time(nic))
 
     # Iterate over the tasks and wait for them to complete one by one
-    await asyncio.gather(task1, task2)
+    await asyncio.gather(task1, task2, task3)
 
 
 async def start_web_server():
