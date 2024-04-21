@@ -191,6 +191,13 @@ async def static(request, path):
         return 'Not found', 404
     return send_file('static/' + path)
 
+@app.route('/icon/<path:path>')
+async def static(request, path):
+    if '..' in path:
+        # directory traversal is not allowed
+        return 'Not found', 404
+    return send_file('static/icon/' + path)
+
 
 @app.route('/icon/<path:path>')
 async def static(request, path):
@@ -494,6 +501,7 @@ async def settings(request):
     return response
 
 
+
 def do_work(callback_id, current_time, callback_memory):
     global c
     c += 1
@@ -556,6 +564,7 @@ def update_schedule(data):
 
     with open("config/schedule.json", 'w') as write_file:
         write_file.write(json.dumps(data))
+
 
 
 async def main():
