@@ -138,35 +138,35 @@
               </select>
 
 
-              <label for="schedVolume">Volume:</label>
-              <input type="text" style="width: 200px" id="schedVolume"
+              <label for="schedAmount">Amount ml:</label>
+              <input type="text" style="width: 200px" id="schedAmount"
                      class="form-control is-valid"
                      title="Volume must be less than 99999ml"
                      oninput="checkSchedInput()">
-              <label for="schedDuration">Duration:</label>
+              <label for="schedDuration">Duration sec:</label>
               <input type="text" id="schedDuration" style="width: 200px"
                      class="form-control is-valid"
                      title="Duration must be less than 6000sec"
                      oninput="checkSchedInput()">
 
-              <div class="has-danger" id="fromTimeDiv" style="width: 200px">
-                  <label class="form-label mt-4" for="fromTime">Start time:</label>
-                  <input type="text" value="wrong value" class="form-control is-invalid" id="fromTime" placeholder="HH:MM"
+              <div class="has-danger" id="startTimeDiv" style="width: 200px">
+                  <label class="form-label mt-4" for="startTime">Start time:</label>
+                  <input type="text" value="wrong value" class="form-control is-invalid" id="startTime" placeholder="HH:MM"
                          oninput="checkSchedInput()">
                   <div class="invalid-feedback" id="schedFromFeedback">default error message</div>
               </div>
 
 
-              <div class="has-danger" id="toTimeDiv" style="width: 200px">
-                  <label class="form-label mt-4" for="toTime">End time:</label>
-                  <input type="text" value="wrong value" class="form-control is-invalid" id="toTime" placeholder="HH:MM"
+              <div class="has-danger" id="endTimeDiv" style="width: 200px">
+                  <label class="form-label mt-4" for="endTime">End time:</label>
+                  <input type="text" value="wrong value" class="form-control is-invalid" id="endTime" placeholder="HH:MM"
                          oninput="checkSchedInput()">
                   <div class="invalid-feedback" id="schedToFeedback">default error message</div>
               </div>
 
 
-              <label for="schedRunXselect" class="form-label mt-4">Frequency</label>
-              <select class="form-select" id="schedRunXselect" style="width: 200px" onchange="checkSchedInput()">
+              <label for="freqSelect" class="form-label mt-4">Frequency</label>
+              <select class="form-select" id="freqSelect" style="width: 200px" onchange="checkSchedInput()">
                 <option>1</option>
                 <option>2</option>
                 <option>3</option>
@@ -176,6 +176,7 @@
 
 
               <button type="button" id="schedAddBtn" onclick="addSchedPoint()" class="btn btn-primary disabled">Add schedule dose</button>
+              <button type="button" onclick="uploadSchedule()" class="btn btn-success">Apply</button>
               <div id="schedPointContainer"></div>
 
           </div>
@@ -235,11 +236,11 @@
         }
 
         function checkSchedInput(){
-            volume = checkPattern(document.getElementById('schedVolume'), /^[0-9]{1,5}(\.[0-9]{1,8})?$/, 99999)
+            volume = checkPattern(document.getElementById('schedAmount'), /^[0-9]{1,5}(\.[0-9]{1,8})?$/, 99999)
             duration = checkPattern(document.getElementById('schedDuration'), /^[0-9]{1,5}(\.[0-9]{1,8})?$/, 6000)
 
 
-            const dose_number = document.getElementById("schedRunXselect").value
+            const dose_number = document.getElementById("freqSelect").value
             times = validateTime(dose_number)
 
             if (!volume || !duration ||!times)
@@ -295,29 +296,29 @@
 
 
     function validateTime(dose_number) {
-        const fromTime = document.getElementById("fromTime").value;
-        const toTime = document.getElementById("toTime").value;
+        const startTime = document.getElementById("startTime").value;
+        const endTime = document.getElementById("endTime").value;
 
         // Regular expression to check if the time is in H:M military format
         const timePattern = /^(?:[01]?\d|2[0-3]):[0-5]?\d$/;
 
         // Check if both times are valid
-        if (!timePattern.test(fromTime)) {
-            document.getElementById("fromTime").className = "form-control is-invalid"
+        if (!timePattern.test(startTime)) {
+            document.getElementById("startTime").className = "form-control is-invalid"
             document.getElementById("schedFromFeedback").textContent ="Time must be in HH:MM format"
         } else {
-            document.getElementById("fromTime").className = "form-control is-valid"
+            document.getElementById("startTime").className = "form-control is-valid"
         }
 
         if (dose_number>1){
-            document.getElementById("toTime").removeAttribute("disabled", "")
-            if (!timePattern.test(toTime)) {
-                document.getElementById("toTime").className = "form-control is-invalid"
+            document.getElementById("endTime").removeAttribute("disabled", "")
+            if (!timePattern.test(endTime)) {
+                document.getElementById("endTime").className = "form-control is-invalid"
                 document.getElementById("schedToFeedback").textContent ="Time must be in HH:MM format"
             } else {
-                document.getElementById("toTime").className = "form-control is-valid"
+                document.getElementById("endTime").className = "form-control is-valid"
             }
-            if (!timePattern.test(fromTime) || !timePattern.test(toTime)) {
+            if (!timePattern.test(startTime) || !timePattern.test(endTime)) {
                 return false
             }
 
@@ -328,23 +329,22 @@
                 return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
             }
 
-            const minutesFromTime = timeToMinutes(fromTime);
-            const minutesToTime = timeToMinutes(toTime);
+            const minutesStartTime = timeToMinutes(startTime);
+            const minutesEndTime = timeToMinutes(endTime);
 
             // Check if "from" time is before "to" time
-            if (minutesFromTime >= minutesToTime) {
-                document.getElementById("toTime").className = "form-control is-invalid"
+            if (minutesStartTime >= minutesEndTime) {
+                document.getElementById("endTime").className = "form-control is-invalid"
                 document.getElementById("schedToFeedback").textContent ="Much be earlier than start time"
                 document.getElementById("schedAddBtn").className = "btn btn-primary disabled"
                 return false
             }
         } else {
-            document.getElementById("toTime").className = "form-control"
-            document.getElementById("toTime").setAttribute("disabled", "")
-            //document.getElementById("toTime").disable = ""
+            document.getElementById("endTime").className = "form-control"
+            document.getElementById("endTime").setAttribute("disabled", "")
 
             // Do not check time if its only one run
-            if (!timePattern.test(fromTime)){
+            if (!timePattern.test(startTime)){
                 return false
             }
         }
@@ -356,7 +356,7 @@
 
         //Upload schedule to controller
         function uploadSchedule() {
-            const url = window.location.href;
+            const url = window.location.href+'schedule';
             const data = {};
 
             for (const [pumpKey, pumpData] of Object.entries(scheduleData)) {
@@ -364,7 +364,7 @@
             }
 
             console.log("upload data", data)
-
+            console.log("url", url)
             fetch(url, {
                 method: 'POST',
                 headers: {
@@ -394,7 +394,33 @@
             doseButton.disabled = !(isAmountValid && isTimeValid);
         }
 
-        
+        function addSchedPoint(){
+            const pumpNumber = document.getElementById("pumpSelector").value
+            console.log("add scheduled job for pump" + pumpNumber);
+            const direction = Number(document.getElementById('schedDir').value);
+            const amount = Number(document.getElementById('schedAmount').value);
+            const duration = Number(document.getElementById('schedDuration').value);
+            const startTime = document.getElementById('startTime').value;
+
+            const frequency = Number(document.getElementById('freqSelect').value);
+            let EndTime=""
+            if (frequency >1){
+                EndTime = document.getElementById('endTime').value;
+            }
+
+            //scheduleData[`pump${pumpNumber}`]
+            console.log(scheduleData)
+            console.log(scheduleData["pump1"])
+            scheduleData[`pump${pumpNumber}`].push({
+                        dir: direction,
+                        amount: amount,
+                        duration: duration,
+                        start_time: startTime,
+                        end_time: EndTime,
+                        frequency: frequency
+                    });
+            updateScheduleList(pumpNumber)
+        }
 
 
         function addAnalogInpPoint(pumpNumber) {
@@ -569,68 +595,6 @@
 
         checkInputs(); // Run once on page load to set initial button state
 
-
-        // Add Schedule
-        function addSchedule() {
-            const pumpNumber = document.getElementById('pumpSelector').value
-            const schVolumeInput = document.getElementById('schVolumeInput');
-            const schDurationInput = document.getElementById('schDurationInput');
-            if (schVolumeInput.value && schDurationInput.value){
-                console.log("Add schedule for ", pumpNumber)
-                var cronInput = document.getElementById(`myCronInput`);
-
-                // Use querySelector on cronInput to find the nested input element
-                var nestedInput = cronInput.querySelector('div > div:nth-child(1) > input');
-                // Check if the nested input element was found
-                if (nestedInput) {
-                    // Get the value of the nested input element
-                    var inputValue = nestedInput.value;
-                    var cronstrue = window.cronstrue;
-                    console.log("cronstrue", cronstrue.toString(inputValue))
-                } else {
-                    console.log('Nested input element not found');
-                }
-
-                var cronCheckStatus = cronInput.querySelector('div > small');
-
-                if (cronCheckStatus.className == 'cronexpressionError hiden'){
-                    data = {
-                        cron: nestedInput.value,
-                        volume: schVolumeInput.value,
-                        time: schDurationInput.value
-                    }
-
-                    // Check if schedule list already contains same settings
-                    function containsObject(array, obj) {
-                        return array.some(element =>
-                            Object.keys(obj).every(key =>
-                                element.hasOwnProperty(key) && element[key] === obj[key]
-                            )
-                        );
-                    }
-
-
-                    if (containsObject(scheduleData['pump' + pumpNumber], data)) {
-                        console.log("Already in list")
-                        }
-                    else {
-                        console.log(123)
-                       // const arr = stringToArray("*/5 * * * *");
-
-                        //print(arr)
-
-                        console.log(`Add ${nestedInput.value} to Pump${pumpNumber} schedule`)
-                        scheduleData['pump' + pumpNumber].push(data);
-                        console.log(scheduleData['pump' + pumpNumber])
-                        //updateScheduleList(pumpNumber);
-
-                    }
-                }
-            }
-            else {
-                console.log("Volume and Duration empy")
-            }
-        }
 
         function updateScheduleList(pumpNumber) {
             const listContainer = document.getElementById(`schedulePointsList${pumpNumber}`);

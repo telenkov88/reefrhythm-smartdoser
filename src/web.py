@@ -41,6 +41,7 @@ should_continue = True  # Flag for shutdown
 DURATION = 60  # Duration on pump for analog control
 c = 0
 mcron.init_timer()
+mcron_keys = []
 
 
 async def download_file_async(url, filename, progress=False):
@@ -189,6 +190,7 @@ async def static(request, path):
         # directory traversal is not allowed
         return 'Not found', 404
     return send_file('static/' + path)
+
 
 @app.route('/icon/<path:path>')
 async def static(request, path):
@@ -410,6 +412,19 @@ async def ota_upgrade(request):
     return response
 
 
+@app.route('/schedule', methods=['GET', 'POST'])
+async def calibration(request):
+    if request.method == 'GET':
+        return schedule
+    else:
+        response = redirect('/')
+        data = request.json
+        print("Got new schedule")
+        print(data)
+
+        update_schedule(data)
+
+
 @app.route('/calibration', methods=['GET', 'POST'])
 async def calibration(request):
     if request.method == 'GET':
@@ -483,31 +498,75 @@ def do_work(callback_id, current_time, callback_memory):
     global c
     c += 1
     print('call: %s %s' % (c, utime.localtime()))
-    asyncio.run(command_buffer.add_command(stepper_run, None, mks_dict[f"mks1"], 1, 2, 1, rpm_table))
+    asyncio.run(command_buffer.add_command(stepper_run, None, mks_dict[f"mks1"], 1, 10, 1, rpm_table))
     print("command added")
 
 
-async def start_scheduler():
-    print("start task scheduler")
-    time_per_day = 3
-    #mcron.insert(mcron.PERIOD_MINUTE, range(0, mcron.PERIOD_MINUTE, 5), 'minute_5s', do_work)
-    h = 12
-    m = 56
-    start_time = h * 60 * 60 + m * 60
-    mcron.insert(mcron.PERIOD_DAY, range(start_time, mcron.PERIOD_DAY, mcron.PERIOD_DAY // 1440), 'day_x4', do_work)
+def create_task_with_args(duration):
+    def task(callback_id, current_time, callback_memory):
+        global c
+        print("Duration:", duration, "Number:", c)
+        asyncio.run(command_buffer.add_command(stepper_run, None, mks_dict[f"mks1"], 1, duration, 1, rpm_table))
+    return task
 
-    print("task added")
 
+def update_schedule(data):
+    if mcron_keys:
+        mcron.remove_all()
+
+    def create_task_with_args(id, rpm, duration, direction):
+        def task(callback_id, current_time, callback_memory):
+            print("Callback id:", callback_id)
+            asyncio.run(command_buffer.add_command(stepper_run, None, mks_dict[f"mks"+id], rpm, duration, direction,
+                                                   rpm_table))
+        return task
+
+    mcron_job_number = 0
+    for pump in data:
+        id = pump[-1]
+        print(f"Add job for {pump}")
+        print(data[pump])
+        for job in data[pump]:
+            amount = job['amount']
+            duration = job['duration']
+            start_time = job['start_time']
+            end_time = job['end_time']
+            frequency = job['frequency']
+            direction = job['dir']
+
+            desired_flow = amount * (60 / duration)
+            desired_rpm_rate = np.interp(desired_flow, chart_points[f"pump{id}"][1], chart_points[f"pump{id}"][0])
+
+            dir_string = "Clockwise" if direction else "Counterclockwise"
+
+            print(f"[pump{id}] {amount}ml/{duration}sec {start_time}-{end_time} for {frequency} times {dir_string}")
+            print(f"Desired flow: {round(desired_flow, 2)}")
+
+            start_time = int(start_time.split(":")[0]) * 60 * 60 + int(start_time.split(":")[1]) * 60
+
+            if end_time:
+                end_time = int(end_time.split(":")[0]) * 60 * 60 + int(end_time.split(":")[1]) * 60
+            else:
+                end_time = mcron.PERIOD_DAY
+
+            new_job = create_task_with_args(id, desired_rpm_rate, duration, direction)
+            mcron.insert(mcron.PERIOD_DAY, range(start_time, end_time, mcron.PERIOD_DAY // frequency), f'mcron_{mcron_job_number}', new_job)
+            mcron_keys.append(f'mcron_{mcron_job_number}')
+            mcron_job_number += 1
+
+    with open("config/schedule.json", 'w') as write_file:
+        write_file.write(json.dumps(data))
 
 
 async def main():
     print("Start Web server")
+    update_schedule(schedule)
     task1 = asyncio.create_task(analog_control_worker())
     task2 = asyncio.create_task(start_web_server())
-    task3 = asyncio.create_task(start_scheduler())
+    #task3 = asyncio.create_task(start_scheduler())
 
     # Iterate over the tasks and wait for them to complete one by one
-    await asyncio.gather(task1, task2, task3)
+    await asyncio.gather(task1, task2)
 
 
 async def start_web_server():
