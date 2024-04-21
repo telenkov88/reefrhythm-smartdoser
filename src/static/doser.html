@@ -130,14 +130,54 @@
 
 
           <div class="tab-pane fade container" id="schedtab" role="tabpanel">
-            <p>Dosing pump schedule.</p>
-              <button id="schedShowbtn" onclick="showSchedule()">Schedule program</button>
+              <h2>Schedule</h2>
+              <label for="schedDir">Pump direction:</label>
+              <select class="form-select" id="schedDir" style="width: 200px">
+                  <option value="1">Clockwise</option>
+                  <option value="0">Counterclockwise</option>
+              </select>
+
+
+              <label for="schedVolume">Volume:</label>
+              <input type="text" style="width: 200px" id="schedVolume"
+                     class="form-control is-valid"
+                     title="Volume must be less than 99999ml"
+                     oninput="checkSchedInput()">
+              <label for="schedDuration">Duration:</label>
+              <input type="text" id="schedDuration" style="width: 200px"
+                     class="form-control is-valid"
+                     title="Duration must be less than 6000sec"
+                     oninput="checkSchedInput()">
+
+              <div class="has-danger" id="fromTimeDiv" style="width: 200px">
+                  <label class="form-label mt-4" for="fromTime">Start time:</label>
+                  <input type="text" value="wrong value" class="form-control is-invalid" id="fromTime" placeholder="HH:MM"
+                         oninput="checkSchedInput()">
+                  <div class="invalid-feedback" id="schedFromFeedback">default error message</div>
+              </div>
+
+
+              <div class="has-danger" id="toTimeDiv" style="width: 200px">
+                  <label class="form-label mt-4" for="toTime">End time:</label>
+                  <input type="text" value="wrong value" class="form-control is-invalid" id="toTime" placeholder="HH:MM"
+                         oninput="checkSchedInput()">
+                  <div class="invalid-feedback" id="schedToFeedback">default error message</div>
+              </div>
+
+
+              <label for="schedRunXselect" class="form-label mt-4">Frequency</label>
+              <select class="form-select" id="schedRunXselect" style="width: 200px" onchange="checkSchedInput()">
+                <option>1</option>
+                <option>2</option>
+                <option>3</option>
+                <option>4</option>
+                <option>5</option>
+              </select>
+
+
+              <button type="button" id="schedAddBtn" onclick="addSchedPoint()" class="btn btn-primary disabled">Add schedule dose</button>
+              <div id="schedulePointsList"></div>
           </div>
-
-
-
-
-
 
 
         <div class="tab-pane fade container" id="limittab">
@@ -151,13 +191,6 @@
             </div>
         </div>
     </div>
-
-
-
-
-
-
-
 
 
     <script>
@@ -188,6 +221,37 @@
                 console.log("SSE Error occurred: ", event);
             }
         };
+
+        function checkPattern(inputElement, pattern, limit) {
+            let value = inputElement.value;
+            if (!pattern.test(value) || Number(value) === 0 || Number(value) >= limit) {
+                inputElement.className = "form-control is-invalid";
+                return false
+            } else {
+                inputElement.className = "form-control is-valid";
+            }
+            return pattern.test(value);
+        }
+
+        function checkSchedInput(){
+            volume = checkPattern(document.getElementById('schedVolume'), /^[0-9]{1,5}(\.[0-9]{1,8})?$/, 99999)
+            duration = checkPattern(document.getElementById('schedDuration'), /^[0-9]{1,5}(\.[0-9]{1,8})?$/, 6000)
+
+
+            const dose_number = document.getElementById("schedRunXselect").value
+            times = validateTime(dose_number)
+
+            if (!volume || !duration ||!times)
+            {
+                const applyButton = document.getElementById("schedAddBtn");
+                applyButton.className = "btn btn-primary disabled";
+                applyButton.setAttribute('aria-disabled', 'true');
+            } else {
+                const applyButton = document.getElementById("schedAddBtn");
+                applyButton.className = "btn btn-primary";
+                applyButton.setAttribute('aria-disabled', 'false');
+            }
+        }
 
         eventSource.onmessage = function(event) {
             const data = JSON.parse(event.data);
@@ -222,6 +286,66 @@
                 updateAnalogInpChart(pumpNumber);
             });
         }
+
+
+    function validateTime(dose_number) {
+        const fromTime = document.getElementById("fromTime").value;
+        const toTime = document.getElementById("toTime").value;
+
+        // Regular expression to check if the time is in H:M military format
+        const timePattern = /^(?:[01]?\d|2[0-3]):[0-5]?\d$/;
+
+        // Check if both times are valid
+        if (!timePattern.test(fromTime)) {
+            document.getElementById("fromTime").className = "form-control is-invalid"
+            document.getElementById("schedFromFeedback").textContent ="Time must be in HH:MM format"
+        } else {
+            document.getElementById("fromTime").className = "form-control is-valid"
+        }
+
+        if (dose_number>1){
+            document.getElementById("toTime").removeAttribute("disabled", "")
+            if (!timePattern.test(toTime)) {
+                document.getElementById("toTime").className = "form-control is-invalid"
+                document.getElementById("schedToFeedback").textContent ="Time must be in HH:MM format"
+            } else {
+                document.getElementById("toTime").className = "form-control is-valid"
+            }
+            if (!timePattern.test(fromTime) || !timePattern.test(toTime)) {
+                return false
+            }
+
+
+            // Convert time string into total minutes since start of the day
+            function timeToMinutes(time) {
+                const parts = time.split(':');
+                return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+            }
+
+            const minutesFromTime = timeToMinutes(fromTime);
+            const minutesToTime = timeToMinutes(toTime);
+
+            // Check if "from" time is before "to" time
+            if (minutesFromTime >= minutesToTime) {
+                document.getElementById("toTime").className = "form-control is-invalid"
+                document.getElementById("schedToFeedback").textContent ="Much be earlier than start time"
+                document.getElementById("schedAddBtn").className = "btn btn-primary disabled"
+                return false
+            }
+        } else {
+            document.getElementById("toTime").className = "form-control"
+            document.getElementById("toTime").setAttribute("disabled", "")
+            //document.getElementById("toTime").disable = ""
+
+            // Do not check time if its only one run
+            if (!timePattern.test(fromTime)){
+                return false
+            }
+        }
+
+        document.getElementById("schedAddBtn").className = "btn btn-primary"
+        return true
+    }
 
 
         //Upload schedule to controller
@@ -502,7 +626,7 @@
         function updateScheduleList(pumpNumber) {
             const listContainer = document.getElementById('scheduleList' + pumpNumber);
             listContainer.innerHTML = '';
-            console.log("Update list fro pump", pumpNumber)
+            console.log("Update schedule list for pump", pumpNumber)
 
             const table = document.createElement('table');
             table.style.width="500px"
@@ -654,8 +778,10 @@
 
             }
 
+            // Init schedule form
+            checkSchedInput()
+            //const document.getElementById('scheduleFormsContainer');
 
-            // Dynamically add form for Pumps schedule
 
             // Dynamically add form for Pumps Analog Input control
             const analogInp_container = document.getElementById('analogControlFormsContainer');
