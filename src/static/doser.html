@@ -164,18 +164,12 @@
                   <div class="invalid-feedback" id="schedToFeedback">default error message</div>
               </div>
 
-
               <label for="freqSelect" class="form-label mt-4">Frequency</label>
-              <select class="form-select" id="freqSelect" style="width: 200px" onchange="checkSchedInput()">
-                <option>1</option>
-                <option>2</option>
-                <option>3</option>
-                <option>4</option>
-                <option>5</option>
-                  <option>120</option>
-                  <option>271</option>
-              </select>
-
+              <input type="text" id="freqSelect" style="width: 200px"
+                     class="form-control is-valid"
+                     title="Frequency must be bigger than 15sec"
+                     value="1"
+                     oninput="checkSchedInput()">
 
               <button type="button" id="schedAddBtn" onclick="addSchedPoint()" class="btn btn-primary disabled">Add schedule dose</button>
               <button type="button" onclick="uploadSchedule()" class="btn btn-success">Apply</button>
@@ -282,7 +276,7 @@
 
         function checkPattern(inputElement, pattern, limit) {
             let value = inputElement.value;
-            if (!pattern.test(value) || Number(value) === 0 || Number(value) >= limit) {
+            if (!pattern.test(value) || Number(value) === 0 || Number(value) > limit) {
                 inputElement.className = "form-control is-invalid";
                 return false
             } else {
@@ -294,12 +288,10 @@
         function checkSchedInput(){
             volume = checkPattern(document.getElementById('schedAmount'), /^[0-9]{1,5}(\.[0-9]{1,8})?$/, 99999)
             duration = checkPattern(document.getElementById('schedDuration'), /^[0-9]{1,5}(\.[0-9]{1,8})?$/, 6000)
+            frequency =  checkPattern(document.getElementById("freqSelect"),/^[0-9]{1,5}(\.[0-9]{1,8})?$/, 14400)
+            times = validateTime(Number(document.getElementById("freqSelect").value))
 
-
-            const dose_number = document.getElementById("freqSelect").value
-            times = validateTime(dose_number)
-
-            if (!volume || !duration ||!times)
+            if (!volume || !duration ||!times || !frequency)
             {
                 const applyButton = document.getElementById("schedAddBtn");
                 applyButton.className = "btn btn-primary disabled";
@@ -351,7 +343,7 @@
         }
 
 
-    function validateTime(dose_number) {
+    function validateTime(frequency) {
         const startTime = document.getElementById("startTime").value;
         const endTime = document.getElementById("endTime").value;
 
@@ -372,8 +364,8 @@
             document.getElementById("startTime").className = "form-control is-valid"
         }
 
-        if (dose_number>1){
-            document.getElementById("endTime").removeAttribute("disabled", "")
+        if (frequency>1){
+            document.getElementById("endTime").removeAttribute("disabled")
             if (!timePattern.test(endTime)) {
                 document.getElementById("endTime").className = "form-control is-invalid"
                 document.getElementById("schedToFeedback").textContent =feedback
@@ -416,12 +408,18 @@
             const minutesStartTime = timeToMinutes(startTime);
             const minutesEndTime = timeToMinutes(endTime);
 
-            console.log(minutesStartTime, minutesEndTime)
+
+            //console.log(minutesStartTime, minutesEndTime)
             // Check if "from" time is before "to" time
             if (minutesStartTime >= minutesEndTime) {
 
                 document.getElementById("endTime").className = "form-control is-invalid"
                 document.getElementById("schedToFeedback").textContent ="Much be earlier than start time"
+                document.getElementById("schedAddBtn").className = "btn btn-primary disabled"
+                return false
+            } else if ((minutesEndTime - minutesStartTime)/frequency< 0.25){
+                // frequency less than 15sec
+                document.getElementById("freqSelect").className = "form-control is-invalid"
                 document.getElementById("schedAddBtn").className = "btn btn-primary disabled"
                 return false
             }
