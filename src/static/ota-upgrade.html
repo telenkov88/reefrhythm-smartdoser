@@ -113,11 +113,6 @@
             return null;
         }
 
-        if (otaStatus){
-            document.getElementById("startUpgradeButton").disabled = true;
-            document.getElementById("cancelButton").disabled = true;
-        }
-
 
         // Event listener for Start Upgrade button
         document.getElementById('startUpgradeButton').addEventListener('click', function() {
@@ -169,6 +164,7 @@
             if (status) {
                 document.getElementById("startUpgradeButton").disabled = true;
                 document.getElementById("cancelButton").disabled = true;
+
 
                 // Show the progress bar container
                 upgradeContainer.style.display = "block";
