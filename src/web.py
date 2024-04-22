@@ -1,10 +1,8 @@
-import asyncio
-
 from lib.microdot.microdot import Microdot, redirect, send_file
 from lib.microdot.sse import with_sse
 import re
-import time
 import requests
+import lib.mcron as mcron
 
 from load_configs import *
 
@@ -19,15 +17,17 @@ try:
     web_file_extension = ".gz"
 
     from release_tag import *
+
     print("Release:", RELEASE_TAG)
 
 except ImportError:
     print("Mocking on PC")
     import os
 
+    mcron.remove_all = Mock()
+
     RELEASE_TAG = "local_debug"
     os.system("python ../scripts/compress_web.py --path ./")
-
 
 app = Microdot()
 
@@ -38,6 +38,10 @@ firmware_size = None
 
 should_continue = True  # Flag for shutdown
 DURATION = 60  # Duration on pump for analog control
+c = 0
+mcron.init_timer()
+mcron_keys = []
+time_synced = False
 
 
 async def download_file_async(url, filename, progress=False):
@@ -75,11 +79,12 @@ async def analog_control_worker():
             adc_buffer_values[_] = []
         for x in range(0, DURATION):
             for _ in range(len(analog_en)):
-                adc_buffer_values[_].append(ADC(Pin(analog_settings[f"pump{_+1}"]["pin"], Pin.IN, Pin.PULL_DOWN)).read())
+                adc_buffer_values[_].append(
+                    ADC(Pin(analog_settings[f"pump{_ + 1}"]["pin"], Pin.IN, Pin.PULL_DOWN)).read())
             await asyncio.sleep(1)
         for i, en in enumerate(analog_en):
-            if en and len(analog_settings[f"pump{i+1}"]["points"]) >= 2:
-                print(f"\r\n================\r\nRun pump{i+1}, PIN", analog_settings[f"pump{i+1}"]["pin"])
+            if en and len(analog_settings[f"pump{i + 1}"]["points"]) >= 2:
+                print(f"\r\n================\r\nRun pump{i + 1}, PIN", analog_settings[f"pump{i + 1}"]["pin"])
 
                 def to_float(arr):
                     if isinstance(arr, np.ndarray):
@@ -90,16 +95,18 @@ async def analog_control_worker():
 
                 adc_average = sum(adc_buffer_values[i]) / len(adc_buffer_values[i])
                 print("ADC value: ", adc_average)
-                adc_signal = adc_average/4095*100
+                adc_signal = adc_average / 4095 * 100
                 print(f"Signal: {adc_signal}")
-                signals, flow_rates = zip(*analog_chart_points[f"pump{i+1}"])
+                signals, flow_rates = zip(*analog_chart_points[f"pump{i + 1}"])
                 desired_flow = to_float(np.interp(adc_signal, signals, flow_rates))
                 print("Desired flow", desired_flow)
                 if desired_flow >= 0.01:
-                    desired_rpm_rate = to_float(np.interp(desired_flow, chart_points[f"pump{i+1}"][1], chart_points[f"pump{i+1}"][0]))
+                    desired_rpm_rate = to_float(
+                        np.interp(desired_flow, chart_points[f"pump{i + 1}"][1], chart_points[f"pump{i + 1}"][0]))
 
-                    await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{i+1}"], desired_rpm_rate, DURATION*2,
-                                                     analog_settings[f"pump{i+1}"]["dir"], rpm_table)
+                    await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{i + 1}"], desired_rpm_rate,
+                                                     DURATION * 2,
+                                                     analog_settings[f"pump{i + 1}"]["dir"], rpm_table)
 
 
 @app.before_request
@@ -187,6 +194,15 @@ async def static(request, path):
         return 'Not found', 404
     return send_file('static/' + path)
 
+
+@app.route('/icon/<path:path>')
+async def static(request, path):
+    if '..' in path:
+        # directory traversal is not allowed
+        return 'Not found', 404
+    return send_file('static/icon/' + path)
+
+
 @app.route('/icon/<path:path>')
 async def static(request, path):
     if '..' in path:
@@ -263,6 +279,7 @@ async def index(request):
                              file_extension=web_file_extension)
         response.set_cookie(f'AnalogPins', json.dumps(analog_pins))
         response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
+        response.set_cookie(f'timeformat', timeformat)
         return response
     else:
         response = redirect('/')
@@ -278,7 +295,7 @@ async def index(request):
                     print(analog_chart_points[f"pump{_}"])
                     # Save new settings
                     analog_settings[f"pump{_}"] = data[f"pump{_}"]
-                    analog_en[_-1] = analog_settings[f"pump{_}"]["enable"]
+                    analog_en[_ - 1] = analog_settings[f"pump{_}"]["enable"]
 
                 else:
                     print(f"Pump{_} Not enough Analog Input points")
@@ -287,35 +304,48 @@ async def index(request):
         return response
 
 
-@app.route('/dose-chart-sse')
+@app.route('/time')
 @with_sse
-async def dose(request, sse):
+async def dose_ssetime(request, sse):
     print("Got connection")
-    old_settings = None
     try:
         while "eof" not in str(request.sock[0]):
-            if old_settings != analog_settings:
+            event = json.dumps({
+                "time": get_time(),
+            })
+            await sse.send(event)  # unnamed event
+            await asyncio.sleep(10)
+    except Exception as e:
+        print(f"Error in SSE loop: {e}")
+    print("SSE closed")
+
+
+@app.route('/dose-chart-sse')
+@with_sse
+async def dose_sse(request, sse):
+    print("Got connection")
+    old_settings = None
+    old_schedule = None
+    try:
+        while "eof" not in str(request.sock[0]):
+            if old_settings != analog_settings or old_schedule != schedule:
                 old_settings = analog_settings.copy()
+                old_schedule = schedule.copy()
                 event = json.dumps({
                     "AnalogChartPoints": analog_chart_points,
                     "Settings": analog_settings,
+                    "Schedule": schedule
                 })
 
                 print("send Analog Control settigs")
                 await sse.send(event)  # unnamed event
                 await asyncio.sleep(1)
             else:
-                #print("No updates, skip")
+                # print("No updates, skip")
                 await asyncio.sleep(1)
     except Exception as e:
         print(f"Error in SSE loop: {e}")
     print("SSE closed")
-
-
-@app.route('/debug', methods=['GET'])
-async def debug(request):
-    response = send_file('./static/debug.html')
-    return response
 
 
 @app.route('/ota-sse')
@@ -404,6 +434,19 @@ async def ota_upgrade(request):
     return response
 
 
+@app.route('/schedule', methods=['GET', 'POST'])
+async def calibration(request):
+    if request.method == 'GET':
+        return schedule
+    else:
+        response = redirect('/')
+        data = request.json
+        print("Got new schedule")
+        print(data)
+
+        update_schedule(data)
+
+
 @app.route('/calibration', methods=['GET', 'POST'])
 async def calibration(request):
     if request.method == 'GET':
@@ -451,6 +494,8 @@ async def settings(request):
                              file_extension=web_file_extension)
         response.set_cookie('hostname', hostname)
         response.set_cookie(f'Mac', mac_address)
+        response.set_cookie(f'timezone', timezone)
+        response.set_cookie(f'timeformat', timeformat)
 
         if 'ssid' in globals():
             response.set_cookie('current_ssid', ssid)
@@ -461,34 +506,139 @@ async def settings(request):
         new_ssid = request.json[f"ssid"]
         new_psw = request.json[f"psw"]
         new_hostname = request.json[f"hostname"]
+        new_timezone = float(request.json[f"timezone"])
+        new_timeformat = int(request.json[f"timeformat"])
         if new_ssid and new_psw:
             with open("./config/wifi.json", "w") as f:
                 f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
         new_pump_num = request.json[f"pumpNum"]
         with open("./config/settings.json", "w") as f:
             f.write(json.dumps({"pump_number": new_pump_num,
-                                "hostname": new_hostname}))
+                                "hostname": new_hostname,
+                                "timezone": new_timezone,
+                                "timeformat": new_timeformat}))
         print(f"Setting up new wifi {new_ssid}, Reboot...")
         machine.reset()
     return response
 
 
-async def do_work():
-    print("\r\n\r\n Do some work")
-    await asyncio.sleep(5)
+def update_schedule(data):
+    if mcron_keys:
+        mcron.remove_all()
+
+    def create_task_with_args(id, rpm, duration, direction):
+        def task(callback_id, current_time, callback_memory):
+            print(f"[{get_time()}] Callback id:", callback_id)
+            asyncio.run(command_buffer.add_command(stepper_run, None, mks_dict[f"mks" + id], rpm, duration, direction,
+                                                   rpm_table))
+
+        return task
+
+    mcron_job_number = 0
+    for pump in data:
+        id = pump[-1]
+        print(f"Add job for {pump}")
+        print(data[pump])
+        for job in data[pump]:
+            amount = job['amount']
+            duration = job['duration']
+            start_time = job['start_time']
+            end_time = job['end_time']
+            frequency = job['frequency']
+            direction = job['dir']
+
+            desired_flow = amount * (60 / duration)
+            desired_rpm_rate = np.interp(desired_flow, chart_points[f"pump{id}"][1], chart_points[f"pump{id}"][0])
+
+            dir_string = "Clockwise" if direction else "Counterclockwise"
+
+            print(f"[pump{id}] {amount}ml/{duration}sec {start_time}-{end_time} for {frequency} times {dir_string}")
+            print(f"Desired flow: {round(desired_flow, 2)}")
+
+            start_time = int(start_time.split(":")[0]) * 60 * 60 + int(start_time.split(":")[1]) * 60
+
+            if end_time:
+                end_time = int(end_time.split(":")[0]) * 60 * 60 + int(end_time.split(":")[1]) * 60
+                step = (end_time-start_time)//frequency
+            else:
+                end_time = mcron.PERIOD_DAY
+                step = end_time//frequency
+
+            new_job = create_task_with_args(id, desired_rpm_rate, duration, direction)
+            mcron.insert(mcron.PERIOD_DAY, range(start_time, end_time, step),
+                         f'mcron_{mcron_job_number}', new_job)
+            mcron_keys.append(f'mcron_{mcron_job_number}')
+            mcron_job_number += 1
+
+    with open("config/schedule.json", 'w') as write_file:
+        write_file.write(json.dumps(data))
+    global schedule
+    schedule = data.copy()
+
+
+async def sync_time(wifi):
+    ntptime.host = ntphost
+    global time_synced
+    while not wifi.isconnected():
+        await asyncio.sleep(1)
+
+    # Initial time sync is Mandatory to job scheduler
+    while not time_synced:
+        try:
+            print("Local time before synchronization：%s" % str(time.localtime()))
+            ntptime.settime(timezone)
+            print("Local time after synchronization：%s" % str(time.localtime()))
+            time_synced = True
+            break
+        except Exception as _e:
+            print("Failed to sync time on start. ", _e)
+        await asyncio.sleep(10)
+
+    while True:
+        if wifi.isconnected():
+            x = 0
+            while True:
+                try:
+                    print("Local time before synchronization：%s" % str(time.localtime()))
+                    ntptime.settime(timezone)
+                    print("Local time after synchronization：%s" % str(time.localtime()))
+                    time_synced = True
+                    break
+                except Exception as _e:
+                    x += 1
+                    print(f'{x} time sync failed, Error: {_e}')
+                if x >= 3600:
+                    print("Time sync not working, reboot")
+                    sys.exit()
+
+                await asyncio.sleep(60)
+        else:
+            print("wifi disconnected")
+
+        await asyncio.sleep(1800)
+
+
+async def update_sched_onstart():
+    while not time_synced:
+        await asyncio.sleep(1)
+    update_schedule(schedule)
 
 
 async def main():
     print("Start Web server")
+
     task1 = asyncio.create_task(analog_control_worker())
     task2 = asyncio.create_task(start_web_server())
+    task3 = asyncio.create_task(sync_time(nic))
+    task4 = asyncio.create_task(update_sched_onstart())
+
     # Iterate over the tasks and wait for them to complete one by one
-    #await asyncio.sleep(15)
-    await asyncio.gather(task1, task2)
+    await asyncio.gather(task1, task2, task3, task4)
 
 
 async def start_web_server():
     await app.start_server(port=80)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

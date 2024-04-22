@@ -3,7 +3,8 @@ import time
 import asyncio
 import binascii
 import machine
-
+from lib.microdot.sse import with_sse
+import utime
 try:
     import network
 except ImportError:
@@ -79,15 +80,39 @@ except OSError as e:
         return send_file('static/javascript/' + path, compressed=web_compress,
                          file_extension=web_file_extension)
 
+    def get_time():
+        _time = utime.localtime()
+        print(_time)
+        return f"{_time[3]:02}:{_time[4]:02}:{_time[5]:02}"
+
+    @captive_portal.route('/time')
+    @with_sse
+    async def dose_ssetime(request, sse):
+        print("Got connection")
+        try:
+            while "eof" not in str(request.sock[0]):
+                event = json.dumps({
+                    "time": get_time(),
+                })
+                await sse.send(event)  # unnamed event
+                await asyncio.sleep(10)
+        except Exception as e:
+            print(f"Error in SSE loop: {e}")
+        print("SSE closed")
+
 
     @captive_portal.route('/', methods=['GET', 'POST'])
     async def index(request):
+        timezone = "0.0"
+        timeformat = 0
         if request.method == 'GET':
             response = send_file('static/settings.html', compressed=web_compress,
                                  file_extension=web_file_extension)
             response.set_cookie('hostname', hostname)
-            response.set_cookie(f'CaptivePortal', True)
             response.set_cookie(f'Mac', mac_address)
+            response.set_cookie(f'timezone', timezone)
+            response.set_cookie(f'timeformat', timeformat)
+
             if 'ssid' in globals():
                 response.set_cookie('current_ssid', ssid)
             else:
@@ -97,13 +122,17 @@ except OSError as e:
             new_ssid = request.json[f"ssid"]
             new_psw = request.json[f"psw"]
             new_hostname = request.json[f"hostname"]
+            new_timezone = float(request.json[f"timezone"])
+            new_timeformat = int(request.json[f"timeformat"])
             if new_ssid and new_psw:
                 with open("./config/wifi.json", "w") as f:
                     f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
             new_pump_num = request.json[f"pumpNum"]
             with open("./config/settings.json", "w") as f:
                 f.write(json.dumps({"pump_number": new_pump_num,
-                                    "hostname": new_hostname}))
+                                    "hostname": new_hostname,
+                                    "timezone": new_timezone,
+                                    "timeformat": new_timeformat}))
             print(f"Setting up new wifi {new_ssid}, Reboot...")
             machine.reset()
         return response

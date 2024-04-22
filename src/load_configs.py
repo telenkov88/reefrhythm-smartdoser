@@ -9,9 +9,15 @@ from config.pin_config import *
 
 try:
     import gc
+    import utime
     from machine import UART, Pin, ADC
     import network
     import machine
+
+    # Use modified ntptime with timezone support
+    import lib.ntptime as ntptime
+    import time
+
     ap = network.WLAN(network.AP_IF)
     nic = network.WLAN(network.STA_IF)
     ap = network.WLAN(network.AP_IF)
@@ -28,9 +34,25 @@ except ImportError:
 
     ADC = Mock()
     Pin = Mock()
+    ntptime = Mock()
+    nic = Mock
+    nic.isconnected = Mock(return_value=False)
 
     Pin.return_value = Mock()
     mock_adc = Mock()
+
+    utime = Mock()
+    import time
+    # Utime is CPython epoch 2000-01-01 00:00:00 UTC, when time.time() is 1970-01-01 00:00:00 UTC epoch
+    utime.time = Mock(return_value=(time.time()-946684800))
+
+
+    def localtime():
+        import datetime
+        return datetime.datetime.now().strftime("%Y %m %d %H %M %S").split()
+
+
+    utime.localtime = localtime
 
     def random_adc_read():
         import random
@@ -83,6 +105,11 @@ def get_analog_settings(from_json):
     else:
         return []
 
+def get_time():
+    _time = utime.localtime()
+    print(_time)
+    return f"{_time[3]:02}:{_time[4]:02}:{_time[5]:02}"
+
 
 with open("config/calibration_points.json", 'r') as read_file:
     calibration_points = json.load(read_file)
@@ -96,9 +123,30 @@ with open("config/settings.json", 'r') as read_file:
         hostname = "doser"
     else:
         hostname = settings["hostname"]
+    if "timezone" not in settings:
+        timezone = 0.0
+    else:
+        timezone = settings["timezone"]
+    if "timeformat" not in settings:
+        timeformat = 0
+    else:
+        timeformat = settings["timeformat"]
+    if "ntphost" not in settings:
+        ntphost = "time.google.com"
+
 
 PUMP_NUM = settings["pump_number"]
 MAX_PUMPS = 9
+
+try:
+    with open("config/schedule.json") as read_file:
+        schedule = json.load(read_file)
+        print("schedule: ", schedule)
+except OSError as e:
+    print("Can't load schedule config, generate new")
+    schedule = {}
+    for _ in range(1, MAX_PUMPS+1):
+        schedule[f"pump{_}"] = []
 
 mks_dict = {}
 for stepper in range(1, PUMP_NUM + 1):

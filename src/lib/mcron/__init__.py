@@ -1,4 +1,16 @@
-import utime
+try:
+    import utime
+except ImportError:
+    from unittest.mock import Mock
+    utime = Mock()
+    import time
+    # Utime is CPython epoch 2000-01-01 00:00:00 UTC, when time.time() is 1970-01-01 00:00:00 UTC epoch
+    utime.time = Mock(return_value=(time.time() - 946684800))
+
+    # Mock CPython const implementation
+    def const(value):
+        return value
+
 import machine
 
 PERIOD_CENTURY = const(100 * 365 * 24 * 60 * 60)  # Warning: average value

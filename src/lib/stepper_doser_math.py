@@ -10,7 +10,7 @@ except:
 
 
 MIN_MSTEP = 1
-MSTEP_MAX = 255
+MSTEP_MAX = 253
 
 SPEED_MIN = 1
 SPEED_NUM = 127
@@ -117,7 +117,8 @@ def make_rpm_table(regenerate=False):
     # Precompute RPM steps using NumPy for efficient calculations
     # Create a custom RPM steps array with varying resolutions
     rpm_steps = np.concatenate((
-        np.arange(0, MAX_RPM // 100, RPM_STEP, dtype=np.float),
+        np.arange(0, MAX_RPM // 250, RPM_STEP/2, dtype=np.float),
+        np.arange(MAX_RPM // 250, MAX_RPM // 100, RPM_STEP, dtype=np.float),
         np.arange(MAX_RPM // 100, MAX_RPM // 10, RPM_STEP * 2, dtype=np.float),
         np.arange(MAX_RPM // 10, MAX_RPM // 4, RPM_STEP * 3, dtype=np.float),
         np.arange(MAX_RPM // 4, MAX_RPM, RPM_STEP * 4, dtype=np.float),
@@ -127,9 +128,8 @@ def make_rpm_table(regenerate=False):
     closest_rpms = np.zeros(len(rpm_steps), dtype=np.float)
     closest_msteps = np.zeros(len(rpm_steps), dtype=np.uint8)
     closest_speeds = np.zeros(len(rpm_steps), dtype=np.uint8)
-
-    for mstep in range(MIN_MSTEP, MSTEP_MAX + 1):
-        for speed in range(SPEED_MIN, SPEED_NUM + 1):
+    for speed in range(SPEED_MIN, SPEED_NUM + 1):
+        for mstep in range(MIN_MSTEP, MSTEP_MAX + 1):
             rpm = calc_rpm(mstep, speed)
 
             if rpm > MAX_RPM:
