@@ -16,6 +16,7 @@ try:
 
     # Use modified ntptime with timezone support
     import lib.ntptime as ntptime
+    import time
 
     ap = network.WLAN(network.AP_IF)
     nic = network.WLAN(network.STA_IF)

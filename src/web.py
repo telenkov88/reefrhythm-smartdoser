@@ -565,11 +565,13 @@ def update_schedule(data):
 
             if end_time:
                 end_time = int(end_time.split(":")[0]) * 60 * 60 + int(end_time.split(":")[1]) * 60
+                step = (end_time-start_time)//frequency
             else:
                 end_time = mcron.PERIOD_DAY
+                step = end_time//frequency
 
             new_job = create_task_with_args(id, desired_rpm_rate, duration, direction)
-            mcron.insert(mcron.PERIOD_DAY, range(start_time, end_time, mcron.PERIOD_DAY // frequency),
+            mcron.insert(mcron.PERIOD_DAY, range(start_time, end_time, step),
                          f'mcron_{mcron_job_number}', new_job)
             mcron_keys.append(f'mcron_{mcron_job_number}')
             mcron_job_number += 1

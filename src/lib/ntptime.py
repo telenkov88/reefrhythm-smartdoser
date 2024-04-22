@@ -39,7 +39,7 @@ def time(timezone):
         raise Exception("Unsupported epoch: {}".format(EPOCH_YEAR))
 
     # Shifting time by timezone
-    return val - NTP_DELTA + timezone * 3600
+    return val - NTP_DELTA + int(timezone * 3600)
 
 
 # There's currently no timezone support in MicroPython, and the RTC is set in UTC time.
