@@ -45,6 +45,14 @@ except ImportError:
     # Utime is CPython epoch 2000-01-01 00:00:00 UTC, when time.time() is 1970-01-01 00:00:00 UTC epoch
     utime.time = Mock(return_value=(time.time()-946684800))
 
+
+    def localtime():
+        import datetime
+        return datetime.datetime.now().strftime("%Y %m %d %H %M %S").split()
+
+
+    utime.localtime = localtime
+
     def random_adc_read():
         import random
         return random.randint(800, 1000)

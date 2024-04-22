@@ -1,9 +1,6 @@
-import asyncio
-
 from lib.microdot.microdot import Microdot, redirect, send_file
 from lib.microdot.sse import with_sse
 import re
-import time
 import requests
 import lib.mcron as mcron
 
@@ -20,16 +17,17 @@ try:
     web_file_extension = ".gz"
 
     from release_tag import *
+
     print("Release:", RELEASE_TAG)
 
 except ImportError:
     print("Mocking on PC")
     import os
+
     mcron.remove_all = Mock()
 
     RELEASE_TAG = "local_debug"
     os.system("python ../scripts/compress_web.py --path ./")
-
 
 app = Microdot()
 
@@ -81,11 +79,12 @@ async def analog_control_worker():
             adc_buffer_values[_] = []
         for x in range(0, DURATION):
             for _ in range(len(analog_en)):
-                adc_buffer_values[_].append(ADC(Pin(analog_settings[f"pump{_+1}"]["pin"], Pin.IN, Pin.PULL_DOWN)).read())
+                adc_buffer_values[_].append(
+                    ADC(Pin(analog_settings[f"pump{_ + 1}"]["pin"], Pin.IN, Pin.PULL_DOWN)).read())
             await asyncio.sleep(1)
         for i, en in enumerate(analog_en):
-            if en and len(analog_settings[f"pump{i+1}"]["points"]) >= 2:
-                print(f"\r\n================\r\nRun pump{i+1}, PIN", analog_settings[f"pump{i+1}"]["pin"])
+            if en and len(analog_settings[f"pump{i + 1}"]["points"]) >= 2:
+                print(f"\r\n================\r\nRun pump{i + 1}, PIN", analog_settings[f"pump{i + 1}"]["pin"])
 
                 def to_float(arr):
                     if isinstance(arr, np.ndarray):
@@ -96,16 +95,18 @@ async def analog_control_worker():
 
                 adc_average = sum(adc_buffer_values[i]) / len(adc_buffer_values[i])
                 print("ADC value: ", adc_average)
-                adc_signal = adc_average/4095*100
+                adc_signal = adc_average / 4095 * 100
                 print(f"Signal: {adc_signal}")
-                signals, flow_rates = zip(*analog_chart_points[f"pump{i+1}"])
+                signals, flow_rates = zip(*analog_chart_points[f"pump{i + 1}"])
                 desired_flow = to_float(np.interp(adc_signal, signals, flow_rates))
                 print("Desired flow", desired_flow)
                 if desired_flow >= 0.01:
-                    desired_rpm_rate = to_float(np.interp(desired_flow, chart_points[f"pump{i+1}"][1], chart_points[f"pump{i+1}"][0]))
+                    desired_rpm_rate = to_float(
+                        np.interp(desired_flow, chart_points[f"pump{i + 1}"][1], chart_points[f"pump{i + 1}"][0]))
 
-                    await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{i+1}"], desired_rpm_rate, DURATION*2,
-                                                     analog_settings[f"pump{i+1}"]["dir"], rpm_table)
+                    await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{i + 1}"], desired_rpm_rate,
+                                                     DURATION * 2,
+                                                     analog_settings[f"pump{i + 1}"]["dir"], rpm_table)
 
 
 @app.before_request
@@ -192,6 +193,7 @@ async def static(request, path):
         # directory traversal is not allowed
         return 'Not found', 404
     return send_file('static/' + path)
+
 
 @app.route('/icon/<path:path>')
 async def static(request, path):
@@ -293,13 +295,35 @@ async def index(request):
                     print(analog_chart_points[f"pump{_}"])
                     # Save new settings
                     analog_settings[f"pump{_}"] = data[f"pump{_}"]
-                    analog_en[_-1] = analog_settings[f"pump{_}"]["enable"]
+                    analog_en[_ - 1] = analog_settings[f"pump{_}"]["enable"]
 
                 else:
                     print(f"Pump{_} Not enough Analog Input points")
         with open("config/analog_settings.json", 'w') as write_file:
             write_file.write(json.dumps(analog_settings))
         return response
+
+
+def get_time():
+    _time = utime.localtime()
+    print(_time)
+    return f"{_time[3]:02}:{_time[4]:02}:{_time[5]:02}"
+
+
+@app.route('/time')
+@with_sse
+async def dose_ssetime(request, sse):
+    print("Got connection")
+    try:
+        while "eof" not in str(request.sock[0]):
+            event = json.dumps({
+                "time": get_time(),
+            })
+            await sse.send(event)  # unnamed event
+            await asyncio.sleep(10)
+    except Exception as e:
+        print(f"Error in SSE loop: {e}")
+    print("SSE closed")
 
 
 @app.route('/dose-chart-sse')
@@ -323,17 +347,11 @@ async def dose_sse(request, sse):
                 await sse.send(event)  # unnamed event
                 await asyncio.sleep(1)
             else:
-                #print("No updates, skip")
+                # print("No updates, skip")
                 await asyncio.sleep(1)
     except Exception as e:
         print(f"Error in SSE loop: {e}")
     print("SSE closed")
-
-
-@app.route('/debug', methods=['GET'])
-async def debug(request):
-    response = send_file('./static/debug.html')
-    return response
 
 
 @app.route('/ota-sse')
@@ -510,23 +528,16 @@ async def settings(request):
     return response
 
 
-def create_task_with_args(duration):
-    def task(callback_id, current_time, callback_memory):
-        global c
-        print("Duration:", duration, "Number:", c)
-        asyncio.run(command_buffer.add_command(stepper_run, None, mks_dict[f"mks1"], 1, duration, 1, rpm_table))
-    return task
-
-
 def update_schedule(data):
     if mcron_keys:
         mcron.remove_all()
 
     def create_task_with_args(id, rpm, duration, direction):
         def task(callback_id, current_time, callback_memory):
-            print("Callback id:", callback_id)
-            asyncio.run(command_buffer.add_command(stepper_run, None, mks_dict[f"mks"+id], rpm, duration, direction,
+            print(f"[{get_time()}] Callback id:", callback_id)
+            asyncio.run(command_buffer.add_command(stepper_run, None, mks_dict[f"mks" + id], rpm, duration, direction,
                                                    rpm_table))
+
         return task
 
     mcron_job_number = 0
@@ -558,7 +569,8 @@ def update_schedule(data):
                 end_time = mcron.PERIOD_DAY
 
             new_job = create_task_with_args(id, desired_rpm_rate, duration, direction)
-            mcron.insert(mcron.PERIOD_DAY, range(start_time, end_time, mcron.PERIOD_DAY // frequency), f'mcron_{mcron_job_number}', new_job)
+            mcron.insert(mcron.PERIOD_DAY, range(start_time, end_time, mcron.PERIOD_DAY // frequency),
+                         f'mcron_{mcron_job_number}', new_job)
             mcron_keys.append(f'mcron_{mcron_job_number}')
             mcron_job_number += 1
 
@@ -630,6 +642,7 @@ async def main():
 
 async def start_web_server():
     await app.start_server(port=80)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

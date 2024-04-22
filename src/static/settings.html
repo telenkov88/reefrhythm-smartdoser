@@ -195,6 +195,26 @@ let numberOfPumps;
 let CaptivePortal;
 
 
+let eventSource = new EventSource("/time");
+        eventSource.onopen = function(event) {
+            console.log("SSE connection to server opened.");
+        };
+
+        eventSource.onerror = function(event) {
+            if (event.currentTarget.readyState === EventSource.CLOSED) {
+                console.log("SSE connection was closed.");
+            } else {
+                console.log("SSE Error occurred: ", event);
+            }
+        };
+
+eventSource.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+    console.log("got sse data: ", data)
+    document.getElementById("currentTime").value = data["time"]
+}
+
+
 function checkPattern(inputElement, pattern) {
     value = inputElement.value
     const applyButton = document.getElementById("uploadDataBtn")
