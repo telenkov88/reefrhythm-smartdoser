@@ -13,7 +13,10 @@ try:
     from machine import UART, Pin, ADC
     import network
     import machine
-    import ntptime
+
+    # Use modified ntptime with timezone support
+    import lib.ntptime as ntptime
+
     ap = network.WLAN(network.AP_IF)
     nic = network.WLAN(network.STA_IF)
     ap = network.WLAN(network.AP_IF)
@@ -31,6 +34,8 @@ except ImportError:
     ADC = Mock()
     Pin = Mock()
     ntptime = Mock()
+    nic = Mock
+    nic.isconnected = Mock(return_value=False)
 
     Pin.return_value = Mock()
     mock_adc = Mock()
@@ -104,6 +109,16 @@ with open("config/settings.json", 'r') as read_file:
         hostname = "doser"
     else:
         hostname = settings["hostname"]
+    if "timezone" not in settings:
+        timezone = 0.0
+    else:
+        timezone = settings["timezone"]
+    if "timeformat" not in settings:
+        timeformat = 0
+    else:
+        timeformat = settings["timeformat"]
+    if "ntphost" not in settings:
+        ntphost = "time.google.com"
 
 
 PUMP_NUM = settings["pump_number"]

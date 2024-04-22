@@ -151,7 +151,7 @@
 
               <div class="has-danger" id="startTimeDiv" style="width: 200px">
                   <label class="form-label mt-4" for="startTime">Start time:</label>
-                  <input type="text" value="wrong value" class="form-control is-invalid" id="startTime" placeholder="HH:MM"
+                  <input type="text" value="" class="form-control is-invalid" id="startTime" placeholder="HH:MM"
                          oninput="checkSchedInput()">
                   <div class="invalid-feedback" id="schedFromFeedback">default error message</div>
               </div>
@@ -159,7 +159,7 @@
 
               <div class="has-danger" id="endTimeDiv" style="width: 200px">
                   <label class="form-label mt-4" for="endTime">End time:</label>
-                  <input type="text" value="wrong value" class="form-control is-invalid" id="endTime" placeholder="HH:MM"
+                  <input type="text" value="" class="form-control is-invalid" id="endTime" placeholder="HH:MM"
                          oninput="checkSchedInput()">
                   <div class="invalid-feedback" id="schedToFeedback">default error message</div>
               </div>
@@ -172,6 +172,8 @@
                 <option>3</option>
                 <option>4</option>
                 <option>5</option>
+                  <option>120</option>
+                  <option>271</option>
               </select>
 
 
@@ -197,6 +199,7 @@
 
     <script>
         const maxNumberOfPumps = 9; // Total number of pumps
+        let timeFormat = 0
         let numberOfPumps;
 
         let scheduleData = {};
@@ -223,6 +226,59 @@
                 console.log("SSE Error occurred: ", event);
             }
         };
+
+        function convertTo12HFormat(time) {
+            // Split the time string into hours and minutes
+            if (time===""){
+                return ""
+            }
+            console.log("convert time to 12H format: ", time)
+            const [hours24, minutes] = time.split(':');
+
+            // Parse the hour component to an integer
+            const hours = parseInt(hours24, 10);
+
+            // Determine the AM/PM suffix and adjust the hour if necessary
+            const suffix = hours >= 12 ? 'PM' : 'AM';
+            const hours12 = hours % 12 === 0 ? 12 : hours % 12; // Converts 0 to 12 for 12 AM, and 12 to 12 for 12 PM
+
+            // Format minutes to ensure two digits
+            const formattedMinutes = minutes.padStart(2, '0');
+
+            // Return the formatted time string in 12-hour format
+            console.log("New format:", `${hours12}:${formattedMinutes} ${suffix}`)
+            return `${hours12}:${formattedMinutes} ${suffix}`;
+        }
+
+        function convertTo24HFormat(time) {
+            if (time===""){
+                return ""
+            }
+            // Extract the hours, minutes, and AM/PM part from the time string
+            const parts = time.match(/(\d+):(\d+)\s?(AM|PM)/i);
+            if (!parts) {
+                throw new Error("Invalid time format");
+            }
+
+            let [_, hours12, minutes, modifier] = parts;
+            hours12 = parseInt(hours12, 10);  // Convert string to number
+
+            // Convert 12-hour time to 24-hour time
+            let hours24 = hours12;
+            if (modifier.toUpperCase() === "PM" && hours12 !== 12) {
+                hours24 = hours12 + 12;
+            } else if (modifier.toUpperCase() === "AM" && hours12 === 12) {
+                hours24 = 0;
+            }
+
+            // Ensure the hours are formatted to two digits
+            const formattedHours = hours24.toString().padStart(2, '0');
+            // Ensure the minutes are formatted to two digits
+            const formattedMinutes = minutes.padStart(2, '0');
+
+            return `${formattedHours}:${formattedMinutes}`;
+        }
+
 
         function checkPattern(inputElement, pattern, limit) {
             let value = inputElement.value;
@@ -299,13 +355,19 @@
         const startTime = document.getElementById("startTime").value;
         const endTime = document.getElementById("endTime").value;
 
-        // Regular expression to check if the time is in H:M military format
-        const timePattern = /^(?:[01]?\d|2[0-3]):[0-5]?\d$/;
+        // Define regular expressions for both 24h and 12h formats
+        const timePattern24h = /^(?:[01]?\d|2[0-3]):[0-5]?\d$/; // 24-hour format
+        const timePattern12h = /^(1[0-2]|0?[1-9]):[0-5]\d\s?(?:AM|PM)$/i; // 12-hour format
+
+        // Determine which pattern to use based on formatTime
+        const timePattern = timeFormat === 1 ? timePattern12h : timePattern24h;
+        const feedback = "Time must be in " + (timeFormat === 1 ? "HH:MM AM/PM" : "HH:MM") + " format";
+
 
         // Check if both times are valid
         if (!timePattern.test(startTime)) {
             document.getElementById("startTime").className = "form-control is-invalid"
-            document.getElementById("schedFromFeedback").textContent ="Time must be in HH:MM format"
+            document.getElementById("schedFromFeedback").textContent =feedback
         } else {
             document.getElementById("startTime").className = "form-control is-valid"
         }
@@ -314,7 +376,7 @@
             document.getElementById("endTime").removeAttribute("disabled", "")
             if (!timePattern.test(endTime)) {
                 document.getElementById("endTime").className = "form-control is-invalid"
-                document.getElementById("schedToFeedback").textContent ="Time must be in HH:MM format"
+                document.getElementById("schedToFeedback").textContent =feedback
             } else {
                 document.getElementById("endTime").className = "form-control is-valid"
             }
@@ -325,21 +387,46 @@
 
             // Convert time string into total minutes since start of the day
             function timeToMinutes(time) {
-                const parts = time.split(':');
-                return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+                const timePattern12h = /(\d+):(\d+)\s?(AM|PM)/i;
+                let hours, minutes, modifier;
+
+                // Check if the time is in 12-hour format with AM/PM
+                if (timePattern12h.test(time)) {
+                    const parts = time.match(timePattern12h);
+                    hours = parseInt(parts[1], 10);
+                    minutes = parseInt(parts[2], 10);
+                    modifier = parts[3];
+
+                    // Convert 12-hour time to 24-hour time if needed
+                    if (modifier.toUpperCase() === "PM" && hours < 12) {
+                        hours += 12;
+                    } else if (modifier.toUpperCase() === "AM" && hours === 12) {
+                        hours = 0;
+                    }
+                } else {
+                    // Handle as 24-hour time
+                    const parts = time.split(':');
+                    hours = parseInt(parts[0], 10);
+                    minutes = parseInt(parts[1], 10);
+                }
+
+                return hours * 60 + minutes;
             }
 
             const minutesStartTime = timeToMinutes(startTime);
             const minutesEndTime = timeToMinutes(endTime);
 
+            console.log(minutesStartTime, minutesEndTime)
             // Check if "from" time is before "to" time
             if (minutesStartTime >= minutesEndTime) {
+
                 document.getElementById("endTime").className = "form-control is-invalid"
                 document.getElementById("schedToFeedback").textContent ="Much be earlier than start time"
                 document.getElementById("schedAddBtn").className = "btn btn-primary disabled"
                 return false
             }
         } else {
+
             document.getElementById("endTime").className = "form-control"
             document.getElementById("endTime").setAttribute("disabled", "")
 
@@ -400,12 +487,12 @@
             const direction = Number(document.getElementById('schedDir').value);
             const amount = Number(document.getElementById('schedAmount').value);
             const duration = Number(document.getElementById('schedDuration').value);
-            const startTime = document.getElementById('startTime').value;
+            const startTime = convertTo24HFormat(document.getElementById('startTime').value);
 
             const frequency = Number(document.getElementById('freqSelect').value);
             let EndTime=""
             if (frequency >1){
-                EndTime = document.getElementById('endTime').value;
+                EndTime = convertTo24HFormat(document.getElementById('endTime').value);
             }
 
             //scheduleData[`pump${pumpNumber}`]
@@ -607,7 +694,7 @@
 
             // Table head
             const headRow = table.insertRow(0);
-            const headers = ["Direction", "Amount", "Start", "End", "Freq", ""];
+            const headers = ["Direction", "Amount", "Duration", "Start", "End", "Freq", ""];
 
             // Loop through the headers array to create each cell
             headers.forEach(header => {
@@ -632,20 +719,33 @@
                 const schCell = row.insertCell(1);
                 schCell.textContent = `${point["amount"]}`;
 
+                // Duration cell
+                const durationCell = row.insertCell(2);
+                durationCell.textContent = `${point["duration"]}`;
+
                 // Start time cell
-                const startTimeCell = row.insertCell(2);
-                startTimeCell.textContent = `${point["start_time"]}`;
+                const startTimeCell = row.insertCell(3);
+                if (timeFormat === 1){
+                    startTimeCell.textContent = convertTo12HFormat(`${point["start_time"]}`)
+                } else {
+                    startTimeCell.textContent = `${point["start_time"]}`;
+                }
 
                 // End time cell
-                const endTimeCell = row.insertCell(3);
-                endTimeCell.textContent = `${point["end_time"]}`;
+                const endTimeCell = row.insertCell(4);
+                if (timeFormat === 1){
+                    endTimeCell.textContent = convertTo12HFormat(`${point["end_time"]}`)
+                } else {
+                    endTimeCell.textContent = `${point["end_time"]}`;
+                }
+
 
                 // Frequency cell
-                const freqCell = row.insertCell(4);
+                const freqCell = row.insertCell(5);
                 freqCell.textContent = `${point["frequency"]}`;
 
                 // Delete button cell
-                const deleteCell = row.insertCell(5);
+                const deleteCell = row.insertCell(6);
                 const deleteButton = document.createElement('button');
                 deleteButton.style.height = "100%";
                 deleteButton.textContent = 'Delete';
@@ -745,6 +845,8 @@
             console.log("Cookie update event")
             AnalogPins = JSON.parse(getCookie('AnalogPins'));
             PumpNumber = JSON.parse(getCookie('PumpNumber'));
+            timeFormat = Number(JSON.parse(getCookie('timeformat')));
+
             console.log(PumpNumber)
             numberOfPumps = parseInt(PumpNumber["pump_num"]);
             console.log("Number of pumps ", numberOfPumps)

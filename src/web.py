@@ -25,6 +25,7 @@ try:
 except ImportError:
     print("Mocking on PC")
     import os
+    mcron.remove_all = Mock()
 
     RELEASE_TAG = "local_debug"
     os.system("python ../scripts/compress_web.py --path ./")
@@ -42,6 +43,7 @@ DURATION = 60  # Duration on pump for analog control
 c = 0
 mcron.init_timer()
 mcron_keys = []
+time_synced = False
 
 
 async def download_file_async(url, filename, progress=False):
@@ -275,6 +277,7 @@ async def index(request):
                              file_extension=web_file_extension)
         response.set_cookie(f'AnalogPins', json.dumps(analog_pins))
         response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
+        response.set_cookie(f'timeformat', timeformat)
         return response
     else:
         response = redirect('/')
@@ -479,6 +482,8 @@ async def settings(request):
                              file_extension=web_file_extension)
         response.set_cookie('hostname', hostname)
         response.set_cookie(f'Mac', mac_address)
+        response.set_cookie(f'timezone', timezone)
+        response.set_cookie(f'timeformat', timeformat)
 
         if 'ssid' in globals():
             response.set_cookie('current_ssid', ssid)
@@ -489,25 +494,20 @@ async def settings(request):
         new_ssid = request.json[f"ssid"]
         new_psw = request.json[f"psw"]
         new_hostname = request.json[f"hostname"]
+        new_timezone = float(request.json[f"timezone"])
+        new_timeformat = int(request.json[f"timeformat"])
         if new_ssid and new_psw:
             with open("./config/wifi.json", "w") as f:
                 f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
         new_pump_num = request.json[f"pumpNum"]
         with open("./config/settings.json", "w") as f:
             f.write(json.dumps({"pump_number": new_pump_num,
-                                "hostname": new_hostname}))
+                                "hostname": new_hostname,
+                                "timezone": new_timezone,
+                                "timeformat": new_timeformat}))
         print(f"Setting up new wifi {new_ssid}, Reboot...")
         machine.reset()
     return response
-
-
-
-def do_work(callback_id, current_time, callback_memory):
-    global c
-    c += 1
-    print('call: %s %s' % (c, utime.localtime()))
-    asyncio.run(command_buffer.add_command(stepper_run, None, mks_dict[f"mks1"], 1, 10, 1, rpm_table))
-    print("command added")
 
 
 def create_task_with_args(duration):
@@ -564,42 +564,42 @@ def update_schedule(data):
 
     with open("config/schedule.json", 'w') as write_file:
         write_file.write(json.dumps(data))
+    global schedule
+    schedule = data.copy()
 
 
 async def sync_time(wifi):
-    ntptime.host = "1.europe.pool.ntp.org"
+    ntptime.host = ntphost
+    global time_synced
     while not wifi.isconnected():
         await asyncio.sleep(1)
-    try:
-        print("Local time before synchronization：%s" % str(time.localtime()))
-        ntptime.settime()
-        rtc = machine.RTC()
-        utc_shift = 8
 
-        tm = utime.localtime(utime.mktime(utime.localtime()) + utc_shift * 3600)
-        tm = tm[0:3] + (0,) + tm[3:6] + (0,)
-        rtc.datetime(tm)
-        print("Local time after synchronization：%s" % str(time.localtime()))
-    except:
-        print("Failed to sync time on start")
+    # Initial time sync is Mandatory to job scheduler
+    while not time_synced:
+        try:
+            print("Local time before synchronization：%s" % str(time.localtime()))
+            ntptime.settime(timezone)
+            print("Local time after synchronization：%s" % str(time.localtime()))
+            time_synced = True
+            break
+        except Exception as _e:
+            print("Failed to sync time on start. ", _e)
+        await asyncio.sleep(10)
+
     while True:
         if wifi.isconnected():
-            for x in range(0, 30):
+            x = 0
+            while True:
                 try:
                     print("Local time before synchronization：%s" % str(time.localtime()))
-                    ntptime.settime()
-                    rtc = machine.RTC()
-                    utc_shift = 8
-
-                    tm = utime.localtime(utime.mktime(utime.localtime()) + utc_shift * 3600)
-                    tm = tm[0:3] + (0,) + tm[3:6] + (0,)
-                    rtc.datetime(tm)
+                    ntptime.settime(timezone)
                     print("Local time after synchronization：%s" % str(time.localtime()))
+                    time_synced = True
                     break
-                except:
+                except Exception as _e:
                     x += 1
-                    print(f'{x} time sync failed')
-                if x >= 30:
+                    print(f'{x} time sync failed, Error: {_e}')
+                if x >= 3600:
                     print("Time sync not working, reboot")
                     sys.exit()
 
@@ -609,15 +609,23 @@ async def sync_time(wifi):
 
         await asyncio.sleep(1800)
 
+
+async def update_sched_onstart():
+    while not time_synced:
+        await asyncio.sleep(1)
+    update_schedule(schedule)
+
+
 async def main():
     print("Start Web server")
-    update_schedule(schedule)
+
     task1 = asyncio.create_task(analog_control_worker())
     task2 = asyncio.create_task(start_web_server())
     task3 = asyncio.create_task(sync_time(nic))
+    task4 = asyncio.create_task(update_sched_onstart())
 
     # Iterate over the tasks and wait for them to complete one by one
-    await asyncio.gather(task1, task2, task3)
+    await asyncio.gather(task1, task2, task3, task4)
 
 
 async def start_web_server():
