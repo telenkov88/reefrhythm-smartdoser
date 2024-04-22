@@ -19,7 +19,28 @@ def free_mem(pyb):
 def test_local_make_rpm_table():
     print("\r\n")
     start_time = time.time()
-    rpm_table = make_rpm_table(regenerate=True)
+    table = make_rpm_table(regenerate=True)
+    rpm_table = table[0]
+    mstep_table = table[1]
+    speed_table = table[2]
+    max_mstep = 0
+
+    sliced_rows = []
+
+    for index in range(0, len(rpm_table)):
+        print(f"RPM: {rpm_table[index]:<20}", end=' ')
+        if mstep_table[index]>max_mstep:
+            max_mstep = mstep_table[index]
+        row = f"RealRPM: {round(calc_real_rpm(int(mstep_table[index]), int(speed_table[index])), 4) :<10}, MSTEP: {mstep_table[index]:<5}, SPEED: {speed_table[index]:<5}"
+        if mstep_table[index] > 250:
+            sliced_rows.append(row)
+        print(row)
+
+    print("\r\n-------------------------------------------")
+    for _ in sliced_rows:
+        print(_)
+
+    print("Max mstep: ", max_mstep)
     print(f"finish in {time.time()-start_time}sec")
 
 
