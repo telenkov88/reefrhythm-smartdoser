@@ -105,6 +105,11 @@ def get_analog_settings(from_json):
     else:
         return []
 
+def get_time():
+    _time = utime.localtime()
+    print(_time)
+    return f"{_time[3]:02}:{_time[4]:02}:{_time[5]:02}"
+
 
 with open("config/calibration_points.json", 'r') as read_file:
     calibration_points = json.load(read_file)

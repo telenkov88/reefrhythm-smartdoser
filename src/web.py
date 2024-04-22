@@ -304,12 +304,6 @@ async def index(request):
         return response
 
 
-def get_time():
-    _time = utime.localtime()
-    print(_time)
-    return f"{_time[3]:02}:{_time[4]:02}:{_time[5]:02}"
-
-
 @app.route('/time')
 @with_sse
 async def dose_ssetime(request, sse):
