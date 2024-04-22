@@ -195,6 +195,30 @@ let numberOfPumps;
 let CaptivePortal;
 
 
+function convertTo12HFormat(time) {
+    // Split the time string into hours and minutes
+    if (time===""){
+        return ""
+    }
+    console.log("convert time to 12H format: ", time)
+    const [hours24, minutes] = time.split(':');
+
+    // Parse the hour component to an integer
+    const hours = parseInt(hours24, 10);
+
+    // Determine the AM/PM suffix and adjust the hour if necessary
+    const suffix = hours >= 12 ? 'PM' : 'AM';
+    const hours12 = hours % 12 === 0 ? 12 : hours % 12; // Converts 0 to 12 for 12 AM, and 12 to 12 for 12 PM
+
+    // Format minutes to ensure two digits
+    const formattedMinutes = minutes.padStart(2, '0');
+
+    // Return the formatted time string in 12-hour format
+    console.log("New format:", `${hours12}:${formattedMinutes} ${suffix}`)
+    return `${hours12}:${formattedMinutes} ${suffix}`;
+}
+
+
 let eventSource = new EventSource("/time");
         eventSource.onopen = function(event) {
             console.log("SSE connection to server opened.");
@@ -211,7 +235,13 @@ let eventSource = new EventSource("/time");
 eventSource.onmessage = function(event) {
     const data = JSON.parse(event.data);
     console.log("got sse data: ", data)
-    document.getElementById("currentTime").value = data["time"]
+    let time = data["time"]
+    console.log("time format:", document.getElementById("timeFormat").value)
+    if (document.getElementById("timeFormat").value ==="1"){
+        time = convertTo12HFormat(data["time"])
+    }
+
+    document.getElementById("currentTime").value = time
 }
 
 
