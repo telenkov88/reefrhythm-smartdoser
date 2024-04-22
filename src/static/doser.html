@@ -141,7 +141,7 @@
               <label for="schedAmount">Amount ml:</label>
               <input type="text" style="width: 200px" id="schedAmount"
                      class="form-control is-valid"
-                     title="Volume must be less than 99999ml"
+                     title="Volume must be less than 9999ml"
                      oninput="checkSchedInput()">
               <label for="schedDuration">Duration sec:</label>
               <input type="text" id="schedDuration" style="width: 200px"
@@ -286,7 +286,7 @@
         }
 
         function checkSchedInput(){
-            volume = checkPattern(document.getElementById('schedAmount'), /^[0-9]{1,5}(\.[0-9]{1,8})?$/, 99999)
+            volume = checkPattern(document.getElementById('schedAmount'), /^[0-9]{1,4}(\.[0-9]{1,8})?$/, 9999)
             duration = checkPattern(document.getElementById('schedDuration'), /^[0-9]{1,5}(\.[0-9]{1,8})?$/, 6000)
             frequency =  checkPattern(document.getElementById("freqSelect"),/^[0-9]{1,5}(\.[0-9]{1,8})?$/, 14400)
             times = validateTime(Number(document.getElementById("freqSelect").value))
@@ -687,12 +687,12 @@
             console.log("Update schedule list for pump", pumpNumber)
 
             const table = document.createElement('table');
-            table.style.width="500px"
+            //table.style.width="500px"
             listContainer.appendChild(table);
 
             // Table head
             const headRow = table.insertRow(0);
-            const headers = ["Direction", "Amount", "Duration", "Start", "End", "Freq", ""];
+            const headers = ["Dir", "ml", "sec", "Start", "End", "Freq", ""];
 
             // Loop through the headers array to create each cell
             headers.forEach(header => {
@@ -709,17 +709,20 @@
                 // Dir cell
                 const pointCell = row.insertCell(0);
                 if (point["dir"] === 1){
-                    pointCell.textContent = "Clockwise";
-                } else {pointCell.textContent = "Counterclockwise";}
+                    pointCell.textContent = "CW";
+                } else {pointCell.textContent = "CCW";}
+                pointCell.style.width="35px"
 
 
                 // Dose Amount cell
-                const schCell = row.insertCell(1);
-                schCell.textContent = `${point["amount"]}`;
+                const amountCell = row.insertCell(1);
+                amountCell.textContent = `${point["amount"]}`;
+                amountCell.style.width="40px"
 
                 // Duration cell
                 const durationCell = row.insertCell(2);
                 durationCell.textContent = `${point["duration"]}`;
+                durationCell.style.width="50px"
 
                 // Start time cell
                 const startTimeCell = row.insertCell(3);
@@ -728,6 +731,7 @@
                 } else {
                     startTimeCell.textContent = `${point["start_time"]}`;
                 }
+                startTimeCell.style.width="70px"
 
                 // End time cell
                 const endTimeCell = row.insertCell(4);
@@ -736,17 +740,19 @@
                 } else {
                     endTimeCell.textContent = `${point["end_time"]}`;
                 }
+                endTimeCell.style.width="70px"
 
 
                 // Frequency cell
                 const freqCell = row.insertCell(5);
                 freqCell.textContent = `${point["frequency"]}`;
+                freqCell.style.width="40px"
 
                 // Delete button cell
                 const deleteCell = row.insertCell(6);
                 const deleteButton = document.createElement('button');
                 deleteButton.style.height = "100%";
-                deleteButton.textContent = 'Delete';
+                deleteButton.textContent = 'Del';
                 deleteButton.onclick = function() {
                     deleteSchedulePoint(pumpNumber, index);
                 };

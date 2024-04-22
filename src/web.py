@@ -25,6 +25,7 @@ except ImportError:
     import os
 
     mcron.remove_all = Mock()
+    mcron.insert = Mock()
 
     RELEASE_TAG = "local_debug"
     os.system("python ../scripts/compress_web.py --path ./")
@@ -626,6 +627,7 @@ async def update_sched_onstart():
 
 async def main():
     print("Start Web server")
+    print("Time format:", timeformat)
 
     task1 = asyncio.create_task(analog_control_worker())
     task2 = asyncio.create_task(start_web_server())
