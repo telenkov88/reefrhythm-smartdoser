@@ -94,10 +94,13 @@
 
 
     <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load OTA Partition information from Cookie
+            console.log("Cookie update event")
+            document.getElementById('otaPartitionInfo').textContent = 'OTA Partition: ' + getCookie('otaPartition');
+            document.getElementById('firmwareVesrion').textContent = 'Firmware Version: ' + getCookie('firmware');
+        })
 
-        // Load OTA Partition information from Cookie
-        document.getElementById('otaPartitionInfo').textContent = 'OTA Partition: ' + otaPartition;
-        document.getElementById('firmwareVesrion').textContent = 'Firmware Version: ' + getCookie('firmware');
 
         function getCookie(name) {
             let cookieArray = document.cookie.split(';');
