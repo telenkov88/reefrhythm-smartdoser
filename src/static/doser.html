@@ -485,12 +485,20 @@
             const direction = Number(document.getElementById('schedDir').value);
             const amount = Number(document.getElementById('schedAmount').value);
             const duration = Number(document.getElementById('schedDuration').value);
-            const startTime = convertTo24HFormat(document.getElementById('startTime').value);
+            let startTime = document.getElementById('startTime').value;
+            if (timeFormat===1){
+                startTime = convertTo24HFormat(startTime);
+            }
+
 
             const frequency = Number(document.getElementById('freqSelect').value);
             let EndTime=""
             if (frequency >1){
-                EndTime = convertTo24HFormat(document.getElementById('endTime').value);
+                if (timeFormat===1) {
+                    EndTime = convertTo24HFormat(document.getElementById('endTime').value);
+                } else {
+                    EndTime= document.getElementById('endTime').value;
+                }
             }
 
             //scheduleData[`pump${pumpNumber}`]
