@@ -150,7 +150,7 @@ except OSError as e:
 
 mks_dict = {}
 for stepper in range(1, PUMP_NUM + 1):
-    mks_dict[f"mks{stepper}"] = Servo42c(uart, addr=stepper - 1, speed=1, mstep=50)
+    mks_dict[f"mks{stepper}"] = Servo42c(uart, addr=stepper - 1, speed=1)
     mks_dict[f"mks{stepper}"].set_current(1000)
 
 try:

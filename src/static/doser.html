@@ -941,6 +941,10 @@
 
                 // Dynamically add Pin choice for pumps
                 const AnalogPinSelect = document.getElementById(`AnalogPin${i}`);
+                const option = document.createElement('option');
+                option.text = "100%";
+                option.value = "99"
+                AnalogPinSelect.appendChild(option);
                 for (let i = 0; i < AnalogPins.length; i++){
                     const option = document.createElement('option');
                     option.text = 'Pin ' + AnalogPins[i];

@@ -172,7 +172,10 @@ def extrapolate_flow_rate(calibration_points, degree=1):
     # Extracting RPM and flow rate values (RPM, flow rate in ml/min)
     rpm_values, flow_rate_values = zip(*calibration_points)
     # Fit a polynomial of degree
-    degree = min(degree, len(rpm_values)-2)
+    if len(rpm_values) <= 2:
+        degree = 1
+    else:
+        degree = min(degree, len(rpm_values)-2)
     print("degree= ", degree)
     print("max flow rate", max(flow_rate_values))
     print(f"Num RPM {len(rpm_values)}, NUM Flow: {len(flow_rate_values)}")

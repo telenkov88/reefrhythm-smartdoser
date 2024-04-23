@@ -70,29 +70,28 @@ async def download_file_async(url, filename, progress=False):
 
 
 async def analog_control_worker():
-    print("debug spin motor")
-    # Init ADC pins
+    def to_float(arr):
+        if isinstance(arr, np.ndarray):
+            # If it's a single-item NumPy array, extract the item and return
+            return arr[0]
+        else:
+            return arr
+
+    # Init Pumps
     adc_buffer_values = []
-    for _ in range(len(analog_en)):
+    for i, en in enumerate(analog_en):
         adc_buffer_values.append([])
+        if en and len(analog_settings[f"pump{i + 1}"]["points"]) >= 2:
+            if analog_settings[f"pump{i + 1}"]["pin"] != 99:
+                adc_buffer_values[i].append(
+                    ADC(Pin(analog_settings[f"pump{i + 1}"]["pin"], Pin.IN, Pin.PULL_DOWN)).read())
+            elif en:
+                adc_buffer_values[i].append(4095)
+
     while True:
-        for _ in range(len(analog_en)):
-            adc_buffer_values[_] = []
-        for x in range(0, DURATION):
-            for _ in range(len(analog_en)):
-                adc_buffer_values[_].append(
-                    ADC(Pin(analog_settings[f"pump{_ + 1}"]["pin"], Pin.IN, Pin.PULL_DOWN)).read())
-            await asyncio.sleep(1)
         for i, en in enumerate(analog_en):
             if en and len(analog_settings[f"pump{i + 1}"]["points"]) >= 2:
                 print(f"\r\n================\r\nRun pump{i + 1}, PIN", analog_settings[f"pump{i + 1}"]["pin"])
-
-                def to_float(arr):
-                    if isinstance(arr, np.ndarray):
-                        # If it's a single-item NumPy array, extract the item and return
-                        return arr[0]
-                    else:
-                        return arr
 
                 adc_average = sum(adc_buffer_values[i]) / len(adc_buffer_values[i])
                 print("ADC value: ", adc_average)
@@ -106,8 +105,18 @@ async def analog_control_worker():
                         np.interp(desired_flow, chart_points[f"pump{i + 1}"][1], chart_points[f"pump{i + 1}"][0]))
 
                     await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{i + 1}"], desired_rpm_rate,
-                                                     DURATION * 2,
+                                                     DURATION + 5,
                                                      analog_settings[f"pump{i + 1}"]["dir"], rpm_table)
+        for _ in range(len(analog_en)):
+            adc_buffer_values[_] = []
+        for x in range(0, DURATION):
+            for i, en in enumerate(analog_en):
+                if en and analog_settings[f"pump{i + 1}"]["pin"] != 99:
+                    adc_buffer_values[i].append(
+                        ADC(Pin(analog_settings[f"pump{i + 1}"]["pin"], Pin.IN, Pin.PULL_DOWN)).read())
+                elif en:
+                    adc_buffer_values[i].append(4095)
+            await asyncio.sleep(1)
 
 
 @app.before_request

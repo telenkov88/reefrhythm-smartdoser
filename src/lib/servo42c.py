@@ -3,12 +3,12 @@ import struct
 
 def calc_crc(*args):
     summ = 0
-    print(args)
+    #print(args)
     for register in args:
         print(int(register).to_bytes(1, 'big'), end=' ')
         summ += register
     crc = summ & 0xFF
-    print(f"{int(crc).to_bytes(1, 'big')}")
+    #print(f"{int(crc).to_bytes(1, 'big')}")
     return crc
 
 
@@ -20,7 +20,7 @@ def calc_steps(mks, rpm, mstep, timeout):
 
 
 class Servo42c:
-    def __init__(self, uart, addr: int, speed=1, mstep=255, direction=0, step_per_rev=200):
+    def __init__(self, uart, addr: int, speed=1, mstep=999, direction=0, step_per_rev=200):
         self.sec_in_pulse = None
         self.rpm = None
         self.speed_reg = None
@@ -33,7 +33,10 @@ class Servo42c:
         reply_crc = calc_crc(self.addr, 1)
         self.reply_pattern = bytes([self.addr, 1, reply_crc])
 
-        self.set_mstep(mstep, force=True, retry=1)
+        # Skip setting mstep on init if not set
+        if self.mstep <= 256:
+            self.set_mstep(mstep, force=True, retry=1)
+
         self.set_speed(speed, self.dir)
         self.flush()
 
