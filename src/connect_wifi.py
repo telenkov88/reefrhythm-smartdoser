@@ -4,7 +4,6 @@ import asyncio
 import binascii
 import machine
 from lib.microdot.sse import with_sse
-import utime
 try:
     import network
 except ImportError:
@@ -202,4 +201,7 @@ def wait_connection(nic):
 
 
 asyncio.create_task(maintain_wifi(nic))
+
+if __name__ == "__main__":
+    import utime
 

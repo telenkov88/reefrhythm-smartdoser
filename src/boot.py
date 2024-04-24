@@ -1,6 +1,4 @@
-import gc
 import time
-import asyncio
 
 print("Extract app to flash")
 extart_start = time.time()
@@ -20,12 +18,10 @@ if RELEASE_TAG != release_ver:
 
 print(f"Finished in {time.time()-extart_start}sec")
 
-from lib.servo42c import *
-from config.pin_config import *
-
 
 if __name__ == "__main__":
-    import connect_wifi
     from load_configs import *
+    from connect_wifi import *
+
     from web import *
     asyncio.run(main())

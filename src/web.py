@@ -159,7 +159,6 @@ async def get_analog_chart_points(request):
 @app.route('/memfree')
 async def get_free_mem(request):
     ret = gc.mem_free() // 1024
-    gc.collect()
     print(f"free mem: {ret}Kb")
     return {"free_mem": ret}
 

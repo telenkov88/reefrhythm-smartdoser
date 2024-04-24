@@ -84,6 +84,8 @@ except ImportError:
     web_compress = False
     web_file_extension = ""
 
+MAX_PUMPS = 9
+
 
 def get_points(from_json):
     if len(from_json) >= 2:
@@ -111,32 +113,63 @@ def get_time():
     return f"{_time[3]:02}:{_time[4]:02}:{_time[5]:02}"
 
 
-with open("config/calibration_points.json", 'r') as read_file:
-    calibration_points = json.load(read_file)
+# Settings for Calibration
+try:
+    with open("config/calibration_points.json", 'r') as read_file:
+        calibration_points = json.load(read_file)
+except OSError as e:
+    print("Can't load calibration config, load default ", e)
+    calibration_points = {}
+    for _ in range(MAX_PUMPS):
+        if f"calibrationDataPump{_ + 1}" not in calibration_points:
+            calibration_points[f"calibrationDataPump{_ + 1}"] = [{"rpm": 100,"flowRate": 100},{"rpm": 500,"flowRate": 400},{"rpm": 1000,"flowRate": 800}]
 
-with open("config/analog_settings.json", 'r') as read_file:
-    analog_settings = json.load(read_file)
 
-with open("config/settings.json", 'r') as read_file:
-    settings = json.load(read_file)
-    if "hostname" not in settings:
-        hostname = "doser"
-    else:
-        hostname = settings["hostname"]
-    if "timezone" not in settings:
-        timezone = 0.0
-    else:
-        timezone = settings["timezone"]
-    if "timeformat" not in settings:
-        timeformat = 0
-    else:
-        timeformat = settings["timeformat"]
-    if "ntphost" not in settings:
-        ntphost = "time.google.com"
+# Settings for Analog control
+try:
+    with open("config/analog_settings.json", 'r') as read_file:
+        analog_settings = json.load(read_file)
+        if "period" not in analog_settings:
+            analog_settings[f"period"] = 60
+        for _ in range(MAX_PUMPS):
+            if f"pump{_+1}" not in analog_settings:
+                analog_settings[f"pump{_ + 1}"] = {"enable": False, "pin": 99, "dir": 1,
+                                                   "points": [{"analogInput": 0, "flowRate": 0},
+                                                              {"analogInput": 100, "flowRate": 5}]}
 
+
+except OSError as e:
+    print("Can't load analog setting config, load default ", e)
+    analog_settings = {}
+    for _ in range(MAX_PUMPS):
+        analog_settings[f"pump{_+1}"] = {"enable": False, "pin": 99, "dir": 1, "points": [{"analogInput": 0, "flowRate": 0}, {"analogInput": 100, "flowRate": 5}]}
+        analog_settings[f"period"] = 60
+
+
+# General device settings
+try:
+    with open("config/settings.json", 'r') as read_file:
+        settings = json.load(read_file)
+except OSError as e:
+    print("Can't load general setting config, load default ", e)
+    settings = {"pump_number": 1, "hostname": "doser", "timezone": 0.0, "timeformat": 0, "ntphost": "time.google.com"}
+
+if "hostname" not in settings:
+    hostname = "doser"
+else:
+    hostname = settings["hostname"]
+if "timezone" not in settings:
+    timezone = 0.0
+else:
+    timezone = settings["timezone"]
+if "timeformat" not in settings:
+    timeformat = 0
+else:
+    timeformat = settings["timeformat"]
+if "ntphost" not in settings:
+    ntphost = "time.google.com"
 
 PUMP_NUM = settings["pump_number"]
-MAX_PUMPS = 9
 
 try:
     with open("config/schedule.json") as read_file:

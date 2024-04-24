@@ -206,6 +206,7 @@
             analog_chart_points[`pump${i}`] = [];
             analogInpData[`pump${i}`] = [];
         }
+        let AnalogPeriod = 60
 
 
         let eventSource = new EventSource("/dose-chart-sse");
@@ -312,6 +313,11 @@
             scheduleData = data["Schedule"]
             console.log("analogInpData", analogInpData)
             for (const key in analogInpData) {
+                if (key === "period"){
+                    AnalogPeriod = analogInpData["period"]
+                    continue
+                }
+
                 let i = `${key.match(/\d+/)[0]}`
                 if (i>numberOfPumps){
                     continue
@@ -601,18 +607,6 @@
         }
 
 
-        function fetchAnalogInputPoints(pumpNumber) {
-            return fetch(`/get_analog_chart_points?pump=${pumpNumber}`)
-                .then(response => response.json())
-                .then(data => {
-                    console.log("Loading Analog Input Signal Chart points for", pumpNumber);
-
-                    analog_chart_points['pump' + pumpNumber] = data
-                })
-                .catch(error => console.error('Error fetching Analog Input Signal Chart data:', error));
-        }
-
-
         function waitForChartDefinition(callback) {
             // Check if Chart is defined
             if (typeof Chart !== 'undefined') {
@@ -806,19 +800,6 @@
             return cookieValue;
         }
 
-        function loadAnalogInputPointsFromCookie(pumpNumber){
-            const AnalogInputDataPump = getCookie('AnalogInputDataPump'+ pumpNumber);
-            if (AnalogInputDataPump) {
-                //console.log(AnalogInputDataPump)
-                const validJsonString = AnalogInputDataPump.replace(/'/g, '"');
-                const data = JSON.parse(validJsonString);
-
-                analogInpData[`pump${pumpNumber}`] = data;
-
-                //console.log('Load pump'+pumpNumber+' settings from Cookie:', analogInpData[`pump${pumpNumber}`]);
-            }
-        }
-
 
         function applyAnalogEnBtn(buttonId) {
             const url = window.location.href;
@@ -830,6 +811,7 @@
             for (const [pumpKey, pumpData] of Object.entries(analogInpData)) {
                 data[pumpKey] = pumpData;
             }
+            data["period"] = Number(AnalogPeriod)
 
             console.log("upload data", data)
 
@@ -989,18 +971,12 @@
         document.getElementById('pumpSelector').addEventListener('change', function() {
             const pumpNumber = this.value
             console.log("pump selector change ",this.value)
-            // Show the relevant form and hide the other
-            //document.querySelectorAll('.scheduleFormsContainer').forEach(form => form.style.display = 'none');
-            //document.getElementById('scheduleList' + pumpNumber).style.display = 'block';
-
-            // Show the relevant list of calibration points and hide the others
-            //document.querySelectorAll('[id^="scheduleList"]').forEach(list => list.style.display = 'none');
-            //document.getElementById('scheduleList' + pumpNumber).style.display = 'block';
 
             // Show the relevant form and hide the other
             document.querySelectorAll('.analogControlForm').forEach(form => form.style.display = 'none');
             document.getElementById('analogControlForm' + pumpNumber).style.display = 'block';
 
+            updateAnalogInpPointsList(pumpNumber)
             updateAnalogInpChart(pumpNumber);
 
             for (let i=1; i<maxNumberOfPumps+1; i++ ){
