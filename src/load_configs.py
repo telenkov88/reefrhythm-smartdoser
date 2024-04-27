@@ -1,5 +1,4 @@
 import json
-import binascii
 from lib.stepper_doser_math import *
 from lib.servo42c import *
 from lib.asyncscheduler import *
@@ -13,30 +12,26 @@ try:
     from machine import UART, Pin, ADC
     import network
     import machine
+    import asyncio
 
     # Use modified ntptime with timezone support
     import lib.ntptime as ntptime
     import time
 
-    ap = network.WLAN(network.AP_IF)
-    nic = network.WLAN(network.STA_IF)
-    ap = network.WLAN(network.AP_IF)
-    byte_string = nic.config('mac')
-    hex_string = binascii.hexlify(byte_string).decode('utf-8')
-    mac_address = ':'.join(hex_string[i:i+2] for i in range(0, len(hex_string), 2)).upper()
     uart = UART(1)
     uart.init(baudrate=38400, rx=rx_pin, tx=tx_pin, timeout=100)
 except ImportError:
+    print("import_config debugging on PC")
     # Mocking ADC
     from unittest.mock import Mock
-
+    import asyncio
     mac_address = "AA:AA:BB:BB:AA:AA"
+    network = Mock()
 
     ADC = Mock()
     Pin = Mock()
     ntptime = Mock()
-    nic = Mock
-    nic.isconnected = Mock(return_value=False)
+
 
     Pin.return_value = Mock()
     mock_adc = Mock()
@@ -107,6 +102,7 @@ def get_analog_settings(from_json):
     else:
         return []
 
+
 def get_time():
     _time = utime.localtime()
     print(_time)
@@ -117,7 +113,7 @@ def get_time():
 try:
     with open("config/calibration_points.json", 'r') as read_file:
         calibration_points = json.load(read_file)
-except OSError as e:
+except Exception as e:
     print("Can't load calibration config, load default ", e)
     calibration_points = {}
     for _ in range(MAX_PUMPS):
@@ -138,7 +134,7 @@ try:
                                                               {"analogInput": 100, "flowRate": 5}]}
 
 
-except OSError as e:
+except Exception as e:
     print("Can't load analog setting config, load default ", e)
     analog_settings = {}
     for _ in range(MAX_PUMPS):
@@ -150,7 +146,7 @@ except OSError as e:
 try:
     with open("config/settings.json", 'r') as read_file:
         settings = json.load(read_file)
-except OSError as e:
+except Exception as e:
     print("Can't load general setting config, load default ", e)
     settings = {"pump_number": 1, "hostname": "doser", "timezone": 0.0, "timeformat": 0, "ntphost": "time.google.com"}
 
@@ -166,8 +162,11 @@ if "timeformat" not in settings:
     timeformat = 0
 else:
     timeformat = settings["timeformat"]
+
 if "ntphost" not in settings:
     ntphost = "time.google.com"
+else:
+    ntphost = settings["ntphost"]
 
 PUMP_NUM = settings["pump_number"]
 
@@ -175,7 +174,7 @@ try:
     with open("config/schedule.json") as read_file:
         schedule = json.load(read_file)
         print("schedule: ", schedule)
-except OSError as e:
+except Exception as e:
     print("Can't load schedule config, generate new")
     schedule = {}
     for _ in range(1, MAX_PUMPS+1):
@@ -189,11 +188,19 @@ for stepper in range(1, PUMP_NUM + 1):
 try:
     with open("./config/wifi.json", 'r') as wifi_config:
         wifi_settings = json.load(wifi_config)
-        ssid = wifi_settings["ssid"]
-        password = wifi_settings["password"]
-except OSError as e:
-    ssid = "test"
-    password = "test"
+        if "ssid" in wifi_settings:
+            ssid = wifi_settings["ssid"]
+        else:
+            ssid = ""
+        if "password" in wifi_settings:
+            password = wifi_settings["password"]
+        else:
+            password = ""
+except Exception as e:
+    print("Failed to load config/wifi.json ", e)
+    ssid = ""
+    password = ""
+
 
 chart_points = {}
 for _ in range(1, MAX_PUMPS + 1):

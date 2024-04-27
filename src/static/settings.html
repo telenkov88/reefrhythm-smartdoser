@@ -299,8 +299,11 @@ document.addEventListener('DOMContentLoaded', function() {
     PumpNumber = JSON.parse(getCookie('PumpNumber'));
     console.log(PumpNumber)
     numberOfPumps = parseInt(PumpNumber["pump_num"]);
-    CaptivePortal = getCookie('CaptivePortal');
 
+    const current_ssid = getCookie('current_ssid');
+    if (current_ssid===""){
+        CaptivePortal = true
+    }
 
     document.getElementById('hostName').value = getCookie('hostname');
     document.getElementById('mac').value = getCookie('Mac')
@@ -314,7 +317,7 @@ document.addEventListener('DOMContentLoaded', function() {
     checkPattern(document.getElementById('hostName'), /^[a-zA-Z0-9\-]{1,15}$/)
 
     // Load calibration data for Pump 1
-    const current_ssid = getCookie('current_ssid');
+
     console.log("Number of pumps ", numberOfPumps)
     var pumpOptions = [];
     for (let i = 1; i <= maxNumberOfPumps; i++) {

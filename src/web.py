@@ -3,10 +3,10 @@ from lib.microdot.sse import with_sse
 import re
 import requests
 import lib.mcron as mcron
-
 from load_configs import *
-
+import binascii
 try:
+    import uasyncio as asyncio
     # Micropython
     import gc
     import ota.status
@@ -21,7 +21,9 @@ try:
     print("Release:", RELEASE_TAG)
 
 except ImportError:
+    import asyncio
     print("Mocking on PC")
+    from unittest.mock import Mock
     import os
 
     mcron.remove_all = Mock()
@@ -43,6 +45,11 @@ c = 0
 mcron.init_timer()
 mcron_keys = []
 time_synced = False
+
+wifi = network.WLAN(network.STA_IF)
+byte_string = wifi.config('mac')
+hex_string = binascii.hexlify(byte_string).decode('utf-8')
+mac_address = ':'.join(hex_string[i:i+2] for i in range(0, len(hex_string), 2)).upper()
 
 
 async def download_file_async(url, filename, progress=False):
@@ -284,6 +291,10 @@ async def dose(request):
 @app.route('/', methods=['GET', 'POST'])
 async def index(request):
     if request.method == 'GET':
+        # Captive portal
+        if not ssid:
+            return setting_responce(request)
+
         response = send_file('./static/doser.html', compressed=web_compress,
                              file_extension=web_file_extension)
         response.set_cookie(f'AnalogPins', json.dumps(analog_pins))
@@ -291,6 +302,10 @@ async def index(request):
         response.set_cookie(f'timeformat', timeformat)
         return response
     else:
+        # Captive portal
+        if not ssid:
+            return setting_process_post(request)
+
         response = redirect('/')
         data = request.json
         print(data)
@@ -496,38 +511,50 @@ async def calibration(request):
     return response
 
 
+def setting_responce(request):
+    response = send_file('static/settings.html', compressed=web_compress,
+                         file_extension=web_file_extension)
+    response.set_cookie('hostname', hostname)
+    response.set_cookie(f'Mac', mac_address)
+    response.set_cookie(f'timezone', timezone)
+    response.set_cookie(f'timeformat', timeformat)
+
+    if 'ssid' in globals():
+        response.set_cookie('current_ssid', ssid)
+    else:
+        response.set_cookie('current_ssid', "")
+    response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
+    return response
+
+
+def setting_process_post(request):
+    new_ssid = request.json[f"ssid"]
+    new_psw = request.json[f"psw"]
+    new_hostname = request.json[f"hostname"]
+    new_timezone = float(request.json[f"timezone"])
+    new_timeformat = int(request.json[f"timeformat"])
+    if new_ssid and new_psw:
+        with open("./config/wifi.json", "w") as f:
+            f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
+    new_pump_num = request.json[f"pumpNum"]
+    with open("./config/settings.json", "w") as f:
+        f.write(json.dumps({"pump_number": new_pump_num,
+                            "hostname": new_hostname,
+                            "timezone": new_timezone,
+                            "timeformat": new_timeformat}))
+    with open("./config/analog_settings.json", "w") as f:
+        json.dump(analog_settings, f)
+    print(f"Setting up new wifi {new_ssid}, Reboot...")
+    machine.reset()
+    return redirect("/settings")
+
+
 @app.route('/settings', methods=['GET', 'POST'])
 async def settings(request):
     if request.method == 'GET':
-        response = send_file('static/settings.html', compressed=web_compress,
-                             file_extension=web_file_extension)
-        response.set_cookie('hostname', hostname)
-        response.set_cookie(f'Mac', mac_address)
-        response.set_cookie(f'timezone', timezone)
-        response.set_cookie(f'timeformat', timeformat)
-
-        if 'ssid' in globals():
-            response.set_cookie('current_ssid', ssid)
-        else:
-            response.set_cookie('current_ssid', "")
-        response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
+        response = setting_responce(request)
     else:
-        new_ssid = request.json[f"ssid"]
-        new_psw = request.json[f"psw"]
-        new_hostname = request.json[f"hostname"]
-        new_timezone = float(request.json[f"timezone"])
-        new_timeformat = int(request.json[f"timeformat"])
-        if new_ssid and new_psw:
-            with open("./config/wifi.json", "w") as f:
-                f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
-        new_pump_num = request.json[f"pumpNum"]
-        with open("./config/settings.json", "w") as f:
-            f.write(json.dumps({"pump_number": new_pump_num,
-                                "hostname": new_hostname,
-                                "timezone": new_timezone,
-                                "timeformat": new_timeformat}))
-        print(f"Setting up new wifi {new_ssid}, Reboot...")
-        machine.reset()
+        response = setting_process_post(request)
     return response
 
 
@@ -585,7 +612,7 @@ def update_schedule(data):
     schedule = data.copy()
 
 
-async def sync_time(wifi):
+async def sync_time():
     ntptime.host = ntphost
     global time_synced
     while not wifi.isconnected():
@@ -633,17 +660,26 @@ async def update_sched_onstart():
     update_schedule(schedule)
 
 
+async def maintain_memory():
+    while True:
+        gc.collect()
+        print(f"free memory {gc.mem_free() // 1024}KB")
+        await asyncio.sleep(120)
+
+
 async def main():
     print("Start Web server")
-    print("Time format:", timeformat)
+    from connect_wifi import maintain_wifi
 
     task1 = asyncio.create_task(analog_control_worker())
     task2 = asyncio.create_task(start_web_server())
-    task3 = asyncio.create_task(sync_time(nic))
+    task3 = asyncio.create_task(sync_time())
     task4 = asyncio.create_task(update_sched_onstart())
+    task5 = asyncio.create_task(maintain_wifi(ssid, password))
+    task6 = asyncio.create_task(maintain_memory())
 
     # Iterate over the tasks and wait for them to complete one by one
-    await asyncio.gather(task1, task2, task3, task4)
+    await asyncio.gather(task1, task2, task3, task4, task5, task6)
 
 
 async def start_web_server():
@@ -651,4 +687,5 @@ async def start_web_server():
 
 
 if __name__ == "__main__":
+    print("Debugging web.py")
     asyncio.run(main())
