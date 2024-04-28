@@ -312,6 +312,10 @@ async def index(request):
         response.set_cookie(f'AnalogPins', json.dumps(analog_pins))
         response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
         response.set_cookie(f'timeformat', timeformat)
+
+        if addon and hasattr(extension, 'extension_navbar'):
+            response.set_cookie("Extension", json.dumps(extension.extension_navbar))
+
         return response
     else:
         # Captive portal
@@ -428,6 +432,9 @@ async def ota_upgrade(request):
         response.set_cookie(f'OtaStarted', ota_lock)
         response.set_cookie(f'firmware', RELEASE_TAG)
 
+        if addon and hasattr(extension, 'extension_navbar'):
+            response.set_cookie("Extension", json.dumps(extension.extension_navbar))
+
     if request.method == 'POST':
         print("process post request")
         link = request.args.get('link', default=None, type=str)
@@ -475,7 +482,6 @@ async def calibration(request):
     if request.method == 'GET':
         return schedule
     else:
-        response = redirect('/')
         data = request.json
         print("Got new schedule")
         print(data)
@@ -493,6 +499,9 @@ async def calibration(request):
             response.set_cookie(f'calibrationDataPump{pump}',
                                 json.dumps(calibration_points[f"calibrationDataPump{pump}"]))
             response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
+
+        if addon and hasattr(extension, 'extension_navbar'):
+            response.set_cookie("Extension", json.dumps(extension.extension_navbar))
 
     else:
         response = redirect('/')
@@ -565,6 +574,10 @@ def setting_process_post(request):
 async def settings(request):
     if request.method == 'GET':
         response = setting_responce(request)
+
+        if addon and hasattr(extension, 'extension_navbar'):
+            response.set_cookie("Extension", json.dumps(extension.extension_navbar))
+
     else:
         response = setting_process_post(request)
     return response

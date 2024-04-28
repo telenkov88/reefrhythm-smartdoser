@@ -341,7 +341,26 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Current wifi ssid:', current_ssid);
         document.getElementById('ssidInput1').value = current_ssid
     }
-    //document.getElementById('calibrationPointsList2').style.display = 'none';
+
+    // Load extension
+    var navbar = document.getElementById('navbarColor01');
+    const navbarExtension = JSON.parse(getCookie('Extension'));
+    console.log("Extension:", navbarExtension)
+    navbarExtension.forEach(addon => {
+        console.log("Add ", addon)
+        var newNavItem = document.createElement('li');
+        newNavItem.className = 'nav-item';
+
+        // Create the link within the list item
+        var navLink = document.createElement('a');
+        navLink.className = 'nav-link';
+        navLink.href = addon["link"];  // Link URL
+        navLink.textContent = addon["name"];  // Link text
+
+        // Append the link to the list item, and the list item to the navbar
+        newNavItem.appendChild(navLink);
+        navbar.querySelector('.navbar-nav').appendChild(newNavItem);
+        });
 });
 
 
