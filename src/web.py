@@ -46,8 +46,9 @@ mcron.init_timer()
 mcron_keys = []
 time_synced = False
 
-wifi = network.WLAN(network.STA_IF)
+
 byte_string = wifi.config('mac')
+print(byte_string)
 hex_string = binascii.hexlify(byte_string).decode('utf-8')
 mac_address = ':'.join(hex_string[i:i+2] for i in range(0, len(hex_string), 2)).upper()
 
@@ -511,6 +512,25 @@ async def calibration(request):
     return response
 
 
+# Function to dynamically import a module
+def dynamic_import(module_name):
+    try:
+        module = __import__(module_name)
+        return module
+    except ImportError as e:
+        print("Failed to import module:", e)
+        return None
+
+
+# Function to register routes from a module
+def register_module_routes(app, module):
+    for attr_name in dir(module):
+        attr = getattr(module, attr_name)
+        if callable(attr) and hasattr(attr, 'route_decorators'):
+            for route in attr.route_decorators:
+                app.add_url_rule(route.path, attr, methods=route.methods)
+
+
 def setting_responce(request):
     response = send_file('static/settings.html', compressed=web_compress,
                          file_extension=web_file_extension)
@@ -671,15 +691,19 @@ async def main():
     print("Start Web server")
     from connect_wifi import maintain_wifi
 
-    task1 = asyncio.create_task(analog_control_worker())
-    task2 = asyncio.create_task(start_web_server())
-    task3 = asyncio.create_task(sync_time())
-    task4 = asyncio.create_task(update_sched_onstart())
-    task5 = asyncio.create_task(maintain_wifi(ssid, password))
-    task6 = asyncio.create_task(maintain_memory())
+    tasks = [
+        asyncio.create_task(analog_control_worker()),
+        asyncio.create_task(start_web_server()),
+        asyncio.create_task(sync_time()),
+        asyncio.create_task(update_sched_onstart()),
+        asyncio.create_task(maintain_wifi(ssid, password)),
+        asyncio.create_task(maintain_memory())
+    ]
 
-    # Iterate over the tasks and wait for them to complete one by one
-    await asyncio.gather(task1, task2, task3, task4, task5, task6)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for result in results:
+        if isinstance(result, Exception):
+            print(f"Task error: {result}")
 
 
 async def start_web_server():

@@ -20,13 +20,17 @@ try:
 
     uart = UART(1)
     uart.init(baudrate=38400, rx=rx_pin, tx=tx_pin, timeout=100)
+    wifi = network.WLAN(network.STA_IF)
+
 except ImportError:
     print("import_config debugging on PC")
     # Mocking ADC
-    from unittest.mock import Mock
+    from unittest.mock import Mock, MagicMock
     import asyncio
     mac_address = "AA:AA:BB:BB:AA:AA"
-    network = Mock()
+    network = MagicMock()
+    wifi = network.WLAN(network.STA_IF)
+    wifi.config.return_value = b'\xde\xad\xbe\xef\xca\xfe'
 
     ADC = Mock()
     Pin = Mock()
