@@ -63,8 +63,8 @@ async def maintain_wifi(ssid, password):
             print(">> WIFI - Connected")
             ip = wifi.ifconfig()[0]
             print(f"http://{ip}")
-            print(f"http://{ip}/dose?direction=1&volume=2&time=10")
-            print(f"http://{ip}/run_with_rpm?direction=1&rpm=10&time=10")
+            print(f"http://{ip}/dose?direction=1&amount=2&duration=10")
+            print(f"http://{ip}/run?direction=1&rpm=10&duration=10")
 
             await asyncio.sleep(60)
 

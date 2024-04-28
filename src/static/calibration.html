@@ -173,7 +173,7 @@ document.getElementById('runButton').addEventListener('click', function() {
             const direction = document.getElementById('directionInput').value;
 
             // Replace <address> with your server's address
-            const url = `/run_with_rpm?id=${pumpNumber}&rpm=${rpm}&time=${time}&direction=${direction}`;
+            const url = `/run?id=${pumpNumber}&rpm=${rpm}&duration=${time}&direction=${direction}`;
             console.log(url)
             fetch(url)
             .then(response => response.json())

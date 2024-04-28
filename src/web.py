@@ -89,14 +89,15 @@ async def download_file_async(url, filename, progress=False):
     response.close()
 
 
-async def analog_control_worker():
-    def to_float(arr):
-        if isinstance(arr, np.ndarray):
-            # If it's a single-item NumPy array, extract the item and return
-            return arr[0]
-        else:
-            return arr
+def to_float(arr):
+    if isinstance(arr, np.ndarray):
+        # If it's a single-item NumPy array, extract the item and return
+        return arr[0]
+    else:
+        return arr
 
+
+async def analog_control_worker():
     # Init Pumps
     adc_buffer_values = []
     for i, en in enumerate(analog_en):
@@ -240,7 +241,7 @@ async def static(request, path):
     return send_file('static/icon/' + path)
 
 
-@app.route('/run_with_rpm')
+@app.route('/run')
 async def run_with_rpm(request):
     id = request.args.get('id', default=1, type=int)
     rpm = request.args.get('rpm', default=1, type=float)
@@ -281,6 +282,7 @@ async def dose(request):
     print(f"Desired flow: {round(desired_flow, 2)}")
     print(f"Direction: {direction}")
     desired_rpm_rate = np.interp(desired_flow, chart_points[f"pump{id}"][1], chart_points[f"pump{id}"][0])
+    desired_rpm_rate = to_float(desired_rpm_rate)
 
     callback_result_future = CustomFuture()
 

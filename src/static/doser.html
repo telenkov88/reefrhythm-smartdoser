@@ -672,7 +672,7 @@
             const direction = document.getElementById('directionInput').value;
 
             // use API to start dosing
-            const url = `/dose?volume=${amount}&time=${time}&direction=${direction}&id=${pumpNumber}`;
+            const url = `/dose?amount=${amount}&duration=${time}&direction=${direction}&id=${pumpNumber}`;
 
             fetch(url)
             .then(response => response.json())
