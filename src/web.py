@@ -245,7 +245,7 @@ async def run_with_rpm(request):
     id = request.args.get('id', default=1, type=int)
     rpm = request.args.get('rpm', default=1, type=float)
     direction = request.args.get('direction', default=1, type=int)
-    execution_time = request.args.get('time', default=1, type=float)
+    execution_time = request.args.get('duration', default=1, type=float)
 
     print(f"[ID {id}] Run {rpm}RPM for {execution_time}sec Dir={direction}")
 
@@ -270,8 +270,8 @@ async def run_with_rpm(request):
 @app.route('/dose')
 async def dose(request):
     id = request.args.get('id', default=1, type=int)
-    volume = request.args.get('volume', default=0, type=float)
-    execution_time = request.args.get('time', default=0, type=float)
+    volume = request.args.get('amount', default=0, type=float)
+    execution_time = request.args.get('duration', default=0, type=float)
     direction = request.args.get('direction', default=1, type=int)
     print(f"[Pump{id}]")
     print(f"Dose {volume}ml in {execution_time}s ")
@@ -715,6 +715,118 @@ async def maintain_memory():
         await asyncio.sleep(120)
 
 
+async def mqtt_worker():
+    if not mqtt_broker:
+        return True
+    while not time_synced:
+        await asyncio.sleep(1)
+    await asyncio.sleep(5)
+    print("Start MQTT")
+    from lib.umqtt.simple import MQTTClient
+
+    def sub(topic, msg):
+        def decode_body():
+            try:
+                print(msg.decode('ascii'))
+                mqtt_body = json.loads(msg.decode('ascii'))
+                print(mqtt_body)
+                return mqtt_body
+            except Exception as mqtt_decode_e:
+                print("Failed to decode mqtt message: {msg}, ", mqtt_decode_e)
+            return False
+
+        def check_dose_parameters(cmd):
+            if all(key in cmd for key in ["id", "amount", "duration", "direction"]):
+                # Check the range and validity of each parameter
+                return (1 <= cmd["id"] <= PUMP_NUM and
+                        cmd["amount"] > 0 and
+                        1 <= cmd["duration"] <= 3600 and
+                        cmd["direction"] in [0, 1])
+            return False
+
+        def check_run_parameters(cmd):
+            if all(key in cmd for key in ["id", "rpm", "duration", "direction"]):
+                # Check the range and validity of each parameter
+                return (1 <= cmd["id"] <= PUMP_NUM and
+                        0.5 <= cmd["rpm"] <= 1000 and
+                        1 <= cmd["duration"] <= 3600 and
+                        cmd["direction"] in [0, 1])
+            return False
+
+        print('received message %s on topic %s' % (msg.decode(), topic.decode()))
+        if topic.decode() == f"/ReefRhythm/{unique_id}/dose":
+            command = decode_body()
+            if command and check_dose_parameters(command):
+                print("Dose command ", command)
+                mqtt_dose_buffer.append(command)
+            else:
+                print("error in syntax: ", command)
+
+        elif topic.decode() == f"/ReefRhythm/{unique_id}/run":
+            command = decode_body()
+            if command and check_run_parameters(command):
+                desired_rpm = command['rpm']
+                print("Run command", command)
+                mqtt_run_buffer.append(command)
+            else:
+                print("error in syntax: ", command)
+
+
+    mqtt = MQTTClient(f"ReefRhythm-{unique_id}", mqtt_broker, keepalive=60)
+    mqtt.pswd = mqtt_password
+    mqtt.user = mqtt_login
+
+    mqtt.set_callback(sub)
+    print(f"connect to {mqtt_broker}")
+    mqtt.connect()
+    print(f"subscribe /ReefRhythm/{unique_id}/dose")
+    mqtt.subscribe(f"/ReefRhythm/{unique_id}/dose")
+    print(f"subscribe /ReefRhythm/{unique_id}/run")
+    mqtt.subscribe(f"/ReefRhythm/{unique_id}/run")
+    mqtt.subscribe(f"/test")
+    while True:
+        try:
+            mqtt.check_msg()
+            #print("Non-blocking MQTT poll")
+        except Exception as mqtt_exception:
+            print(mqtt_exception)
+        try:
+            msg = {"free_mem": gc.mem_free() // 1024}
+            mqtt.publish(f"/ReefRhythm/{unique_id}/free_mem", json.dumps(msg))
+        except Exception as mqtt_exception:
+            print(mqtt_exception)
+        await asyncio.sleep(1)
+
+
+mqtt_dose_buffer = []
+mqtt_run_buffer = []
+
+
+async def process_mqtt_cmd():
+    while True:
+        if mqtt_dose_buffer:
+            print("Process mqtt command")
+            command = mqtt_dose_buffer[0]
+            del mqtt_dose_buffer[0]
+            desired_flow = command["amount"] * (60 / command["duration"])
+            print(f"Desired flow: {round(desired_flow, 2)}")
+            print(f"Direction: {command['direction']}")
+            desired_rpm_rate = np.interp(desired_flow, chart_points[f"pump{command['id']}"][1], chart_points[f"pump{command['id']}"][0])
+            print("Calculated RPM: ", desired_rpm_rate)
+            await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate, command['duration'], command['direction'], rpm_table)
+
+        if mqtt_run_buffer:
+            print("Process mqtt command")
+            command = mqtt_run_buffer[0]
+            del mqtt_run_buffer[0]
+            print(f"Direction: {command['direction']}")
+            desired_rpm_rate = command['rpm']
+            print("Desired RPM: ", desired_rpm_rate)
+            await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate, command['duration'], command['direction'], rpm_table)
+
+        await asyncio.sleep(1)
+
+
 async def main():
     print("Start Web server")
     from connect_wifi import maintain_wifi
@@ -727,7 +839,9 @@ async def main():
         asyncio.create_task(sync_time()),
         asyncio.create_task(update_sched_onstart()),
         asyncio.create_task(maintain_wifi(ssid, password)),
-        asyncio.create_task(maintain_memory())
+        asyncio.create_task(maintain_memory()),
+        asyncio.create_task(mqtt_worker()),
+        asyncio.create_task(process_mqtt_cmd())
     ]
 
     # load async tasks from extension

@@ -24,7 +24,7 @@ try:
 
     # unique id:
     import ubinascii
-    unique_id = ubinascii.hexlify(unique_id())
+    unique_id = ubinascii.hexlify(unique_id()).decode('ascii')
 
 except ImportError:
     print("import_config debugging on PC")

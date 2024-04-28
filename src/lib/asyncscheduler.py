@@ -29,6 +29,7 @@ class CommandBuffer:
 
     async def add_command(self, func, callback, *args, **kwargs):
         async with self.lock:
+            print("add command to buffer")
             self.buffer.append((func, callback, args, kwargs))
             if len(self.buffer) == 1:
                 await self.process_commands()
