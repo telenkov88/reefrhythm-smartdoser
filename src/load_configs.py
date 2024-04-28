@@ -1,45 +1,50 @@
 import json
-import binascii
 from lib.stepper_doser_math import *
 from lib.servo42c import *
 from lib.asyncscheduler import *
+from config.pin_config import *
 
 EXTRAPOLATE_ANGLE = 4
-from config.pin_config import *
 
 try:
     import gc
     import utime
-    from machine import UART, Pin, ADC
+    from machine import UART, Pin, ADC, unique_id
     import network
     import machine
+    import asyncio
 
     # Use modified ntptime with timezone support
     import lib.ntptime as ntptime
     import time
 
-    ap = network.WLAN(network.AP_IF)
-    nic = network.WLAN(network.STA_IF)
-    ap = network.WLAN(network.AP_IF)
-    byte_string = nic.config('mac')
-    hex_string = binascii.hexlify(byte_string).decode('utf-8')
-    mac_address = ':'.join(hex_string[i:i+2] for i in range(0, len(hex_string), 2)).upper()
     uart = UART(1)
     uart.init(baudrate=38400, rx=rx_pin, tx=tx_pin, timeout=100)
-except ImportError:
-    # Mocking ADC
-    from unittest.mock import Mock
+    wifi = network.WLAN(network.STA_IF)
 
+    # unique id:
+    import ubinascii
+    unique_id = ubinascii.hexlify(unique_id()).decode('ascii')
+
+except ImportError:
+    print("import_config debugging on PC")
+    # Mocking ADC
+    from unittest.mock import Mock, MagicMock
+    import asyncio
     mac_address = "AA:AA:BB:BB:AA:AA"
+    network = MagicMock()
+    wifi = network.WLAN(network.STA_IF)
+    wifi.config.return_value = b'\xde\xad\xbe\xef\xca\xfe'
 
     ADC = Mock()
     Pin = Mock()
     ntptime = Mock()
-    nic = Mock
-    nic.isconnected = Mock(return_value=False)
+
+    unique_id = 'aaaabbbb'
 
     Pin.return_value = Mock()
     mock_adc = Mock()
+    ubinascii = Mock()
 
     utime = Mock()
     import time
@@ -84,6 +89,8 @@ except ImportError:
     web_compress = False
     web_file_extension = ""
 
+MAX_PUMPS = 9
+
 
 def get_points(from_json):
     if len(from_json) >= 2:
@@ -105,44 +112,84 @@ def get_analog_settings(from_json):
     else:
         return []
 
+
 def get_time():
     _time = utime.localtime()
     print(_time)
     return f"{_time[3]:02}:{_time[4]:02}:{_time[5]:02}"
 
 
-with open("config/calibration_points.json", 'r') as read_file:
-    calibration_points = json.load(read_file)
+# Settings for Calibration
+try:
+    with open("config/calibration_points.json", 'r') as read_file:
+        calibration_points = json.load(read_file)
+except Exception as e:
+    print("Can't load calibration config, load default ", e)
+    calibration_points = {}
+    for _ in range(MAX_PUMPS):
+        if f"calibrationDataPump{_ + 1}" not in calibration_points:
+            calibration_points[f"calibrationDataPump{_ + 1}"] = [{"rpm": 100,"flowRate": 100},{"rpm": 500,"flowRate": 400},{"rpm": 1000,"flowRate": 800}]
 
-with open("config/analog_settings.json", 'r') as read_file:
-    analog_settings = json.load(read_file)
 
-with open("config/settings.json", 'r') as read_file:
-    settings = json.load(read_file)
-    if "hostname" not in settings:
-        hostname = "doser"
-    else:
-        hostname = settings["hostname"]
-    if "timezone" not in settings:
-        timezone = 0.0
-    else:
-        timezone = settings["timezone"]
-    if "timeformat" not in settings:
-        timeformat = 0
-    else:
-        timeformat = settings["timeformat"]
-    if "ntphost" not in settings:
-        ntphost = "time.google.com"
+# Settings for Analog control
+try:
+    with open("config/analog_settings.json", 'r') as read_file:
+        analog_settings = json.load(read_file)
+        for _ in range(MAX_PUMPS):
+            if f"pump{_+1}" not in analog_settings:
+                analog_settings[f"pump{_ + 1}"] = {"enable": False, "pin": 99, "dir": 1,
+                                                   "points": [{"analogInput": 0, "flowRate": 0},
+                                                              {"analogInput": 100, "flowRate": 5}]}
+except Exception as e:
+    print("Can't load analog setting config, load default ", e)
+    analog_settings = {}
+    for _ in range(MAX_PUMPS):
+        analog_settings[f"pump{_+1}"] = {"enable": False, "pin": 99, "dir": 1, "points": [{"analogInput": 0, "flowRate": 0}, {"analogInput": 100, "flowRate": 5}]}
+
+# General device settings
+try:
+    with open("config/settings.json", 'r') as read_file:
+        settings = json.load(read_file)
+except Exception as e:
+    print("Can't load general setting config, load default ", e)
+    settings = {"pump_number": 1, "hostname": "doser", "timezone": 0.0, "timeformat": 0, "ntphost": "time.google.com",
+                "current": 1000, "analog_period": 60}
+
+if "hostname" not in settings:
+    hostname = "doser"
+else:
+    hostname = settings["hostname"]
+if "timezone" not in settings:
+    timezone = 0.0
+else:
+    timezone = settings["timezone"]
+if "timeformat" not in settings:
+    timeformat = 0
+else:
+    timeformat = settings["timeformat"]
+
+if "ntphost" not in settings:
+    ntphost = "time.google.com"
+else:
+    ntphost = settings["ntphost"]
+
+if "current" not in settings:
+    current = 1000
+else:
+    current = settings["current"]
+if "analog_period" not in settings:
+    analog_period = 60
+else:
+    analog_period = settings["analog_period"]
 
 
 PUMP_NUM = settings["pump_number"]
-MAX_PUMPS = 9
 
 try:
     with open("config/schedule.json") as read_file:
         schedule = json.load(read_file)
         print("schedule: ", schedule)
-except OSError as e:
+except Exception as e:
     print("Can't load schedule config, generate new")
     schedule = {}
     for _ in range(1, MAX_PUMPS+1):
@@ -151,16 +198,45 @@ except OSError as e:
 mks_dict = {}
 for stepper in range(1, PUMP_NUM + 1):
     mks_dict[f"mks{stepper}"] = Servo42c(uart, addr=stepper - 1, speed=1)
-    mks_dict[f"mks{stepper}"].set_current(1000)
+    mks_dict[f"mks{stepper}"].set_current(current)
 
 try:
     with open("./config/wifi.json", 'r') as wifi_config:
         wifi_settings = json.load(wifi_config)
-        ssid = wifi_settings["ssid"]
-        password = wifi_settings["password"]
-except OSError as e:
-    ssid = "test"
-    password = "test"
+        if "ssid" in wifi_settings:
+            ssid = wifi_settings["ssid"]
+        else:
+            ssid = ""
+        if "password" in wifi_settings:
+            password = wifi_settings["password"]
+        else:
+            password = ""
+except Exception as e:
+    print("Failed to load config/wifi.json ", e)
+    ssid = ""
+    password = ""
+
+try:
+    with open("./config/mqtt.json", 'r') as mqtt_config:
+        mqtt_settings = json.load(mqtt_config)
+        if "broker" in mqtt_settings:
+            mqtt_broker = mqtt_settings["broker"]
+        else:
+            mqtt_broker = ""
+        if "login" in mqtt_settings:
+            mqtt_login = mqtt_settings["login"]
+        else:
+            mqtt_login = ""
+        if "password" in mqtt_settings:
+            mqtt_password = mqtt_settings["password"]
+        else:
+            mqtt_password = ""
+except Exception as e:
+    print("\nfailed to load confog/mqtt.json, ", e)
+    mqtt_broker = ""
+    mqtt_login = ""
+    mqtt_password = ""
+
 
 chart_points = {}
 for _ in range(1, MAX_PUMPS + 1):

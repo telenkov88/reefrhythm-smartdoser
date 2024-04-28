@@ -34,21 +34,6 @@
         }
 
 
-        #password-with-icon {
-          position: relative;
-        }
-
-        #password-with-icon > i {
-          position: absolute;
-          top: 6px;
-          left: 280px;
-        }
-
-        #password-with-icon > input {
-            padding-right: 40px;
-        }
-
-
     </style>
     <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
 
@@ -86,7 +71,7 @@
         <a class="nav-link" data-bs-toggle="tab" href="#pumpstab" aria-selected="false" role="tab" tabindex="-1">Pumps</a>
       </li>
       <li class="nav-item" role="presentation">
-        <a class="nav-link" data-bs-toggle="tab" href="#analogcontroltab" aria-selected="false" tabindex="-1" role="tab">Analog control</a>
+        <a class="nav-link" data-bs-toggle="tab" href="#mqtttab" aria-selected="false" tabindex="-1" role="tab">MQTT</a>
       </li>
     </ul>
 
@@ -165,7 +150,7 @@
 
               <label for="password" class="form-label mt-4">WIFI password:</label>
 
-              <div class="input-group" id="password-with-icon" style="width: 300px">
+              <div class="input-group" style="width: 300px">
                   <input type="password" id="password" name="password" class="form-control rounded"
                          autocomplete="password"
                          spellcheck="false" autocapitalize="off" required
@@ -178,11 +163,57 @@
         <div class="tab-pane fade container" id="pumpstab" role="tabpanel">
             <h2>Pumps settings</h2>
             <label for="pumpSelector">Number of pumps</label>
-            <select id="pumpSelector"></select>
+            <select id="pumpSelector" class="form-select" style="width: 150px"></select>
+
+            <label for="analogPeriod" class="form-label mt-4">Analog Control Period</label>
+                <select name="analogPeriod" id="analogPeriod" class="form-select" style="width: 150px">
+                    <option value="5">5 sec</option>
+                    <option value="15">15 sec</option>
+                    <option value="30">30 sec</option>
+                    <option value="45">45 sec</option>
+                    <option value="60">60 sec</option>
+                    <option value="90">90 sec</option>
+                    <option value="120">120 sec</option>
+                    <option value="240">240 sec</option>
+                    <option value="300">300 sec</option>
+                </select>
+
+            <label for="pumpCurrent" class="form-label mt-4">Pumps current</label>
+                <select name="pumpCurrent" id="pumpCurrent" class="form-select" style="width: 150px">
+                    <option value="200">0.2A</option>
+                    <option value="400">0.4A</option>
+                    <option value="600">0.6A</option>
+                    <option value="800">0.8A</option>
+                    <option value="1000">1A</option>
+                    <option value="1200">1.2A</option>
+                    <option value="1400">1.4A</option>
+                    <option value="1600">1.6A</option>
+                    <option value="1800">1.8A</option>
+                    <option value="2000">2A</option>
+                </select>
+
         </div>
 
-        <div class="tab-pane fade container" id="analogcontroltab" role="tabpanel">
-            <h2>Analog control settings</h2>
+        <div class="tab-pane fade container" id="mqtttab" role="tabpanel">
+            <h2>MQTT settings</h2>
+            <label for="mqttTopic">MQTT topic:</label>
+            <fieldset>
+                <input id="mqttTopic" name="mqttTopic" style="width: 300px" class="form-control rounded" readonly="">
+            </fieldset>
+            <label for="mqttBrokerInput1">MQTT broker:</label>
+            <input type="text" style="width: 300px" class="form-control" id="mqttBrokerInput1" placeholder="Enter MQTT broker link">
+            <label for="mqttLoginInput1">MQTT login:</label>
+            <input type="text" style="width: 300px" class="form-control" id="mqttLoginInput1" placeholder="Enter MQTT login">
+
+            <label for="mqttPassword" class="form-label mt-4">MQTT password:</label>
+            <div class="input-group" style="width: 300px">
+              <input type="password" id="mqttPassword" name="mqttPassword" class="form-control rounded"
+                     autocomplete="password"
+                     spellcheck="false" autocapitalize="off" required
+                     placeholder="Enter MQTT password">
+            </div>
+
+
         </div>
         <div class="tab-pane fade container active show" role="tabpanel">
         <button type="button" class="btn btn-primary" style="margin-top: 10px" id="uploadDataBtn">Apply</button>
@@ -269,7 +300,13 @@ document.getElementById('uploadDataBtn').addEventListener('click', function() {
         "pumpNum": parseInt(document.getElementById('pumpSelector').value),
         "hostname": document.getElementById('hostName').value,
         "timezone": document.getElementById('timezoneOffset').value,
-        "timeformat": document.getElementById('timeFormat').value
+        "timeformat": document.getElementById('timeFormat').value,
+        "mqttBroker": document.getElementById('mqttBrokerInput1').value,
+        "mqttLogin": document.getElementById('mqttLoginInput1').value,
+        "mqttPassword": document.getElementById('mqttPassword').value,
+        "current": parseInt(document.getElementById("pumpCurrent").value),
+        "analogPeriod": parseInt(document.getElementById("analogPeriod").value)
+
     };
     console.log("upload data", data)
 
@@ -299,8 +336,11 @@ document.addEventListener('DOMContentLoaded', function() {
     PumpNumber = JSON.parse(getCookie('PumpNumber'));
     console.log(PumpNumber)
     numberOfPumps = parseInt(PumpNumber["pump_num"]);
-    CaptivePortal = getCookie('CaptivePortal');
 
+    const current_ssid = getCookie('current_ssid');
+    if (current_ssid===""){
+        CaptivePortal = true
+    }
 
     document.getElementById('hostName').value = getCookie('hostname');
     document.getElementById('mac').value = getCookie('Mac')
@@ -314,7 +354,7 @@ document.addEventListener('DOMContentLoaded', function() {
     checkPattern(document.getElementById('hostName'), /^[a-zA-Z0-9\-]{1,15}$/)
 
     // Load calibration data for Pump 1
-    const current_ssid = getCookie('current_ssid');
+
     console.log("Number of pumps ", numberOfPumps)
     var pumpOptions = [];
     for (let i = 1; i <= maxNumberOfPumps; i++) {
@@ -338,7 +378,32 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Current wifi ssid:', current_ssid);
         document.getElementById('ssidInput1').value = current_ssid
     }
-    //document.getElementById('calibrationPointsList2').style.display = 'none';
+    document.getElementById("mqttTopic").value = getCookie('mqttTopic')
+    document.getElementById("mqttBrokerInput1").value = getCookie('mqttBroker')
+    document.getElementById("mqttLoginInput1").value = getCookie('mqttLogin')
+
+    document.getElementById("pumpCurrent").value = getCookie('current')
+    document.getElementById("analogPeriod").value = getCookie('analogPeriod')
+
+    // Load extension
+    var navbar = document.getElementById('navbarColor01');
+    const navbarExtension = JSON.parse(getCookie('Extension'));
+    console.log("Extension:", navbarExtension)
+    navbarExtension.forEach(addon => {
+        console.log("Add ", addon)
+        var newNavItem = document.createElement('li');
+        newNavItem.className = 'nav-item';
+
+        // Create the link within the list item
+        var navLink = document.createElement('a');
+        navLink.className = 'nav-link';
+        navLink.href = addon["link"];  // Link URL
+        navLink.textContent = addon["name"];  // Link text
+
+        // Append the link to the list item, and the list item to the navbar
+        newNavItem.appendChild(navLink);
+        navbar.querySelector('.navbar-nav').appendChild(newNavItem);
+        });
 });
 
 

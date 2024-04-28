@@ -1,12 +1,25 @@
+import sys
+
 from lib.microdot.microdot import Microdot, redirect, send_file
 from lib.microdot.sse import with_sse
 import re
 import requests
 import lib.mcron as mcron
-
 from load_configs import *
 
 try:
+    # Import 3-part Add-ons
+    import extension
+
+    addon = True
+except ImportError as extension_error:
+    print("Failed to import extension, ", extension_error)
+    addon = False
+
+import binascii
+
+try:
+    import uasyncio as asyncio
     # Micropython
     import gc
     import ota.status
@@ -21,7 +34,10 @@ try:
     print("Release:", RELEASE_TAG)
 
 except ImportError:
+    import asyncio
+
     print("Mocking on PC")
+    from unittest.mock import Mock
     import os
 
     mcron.remove_all = Mock()
@@ -38,11 +54,15 @@ ota_progress = 0
 firmware_size = None
 
 should_continue = True  # Flag for shutdown
-DURATION = 60  # Duration on pump for analog control
 c = 0
 mcron.init_timer()
 mcron_keys = []
 time_synced = False
+
+byte_string = wifi.config('mac')
+print(byte_string)
+hex_string = binascii.hexlify(byte_string).decode('utf-8')
+mac_address = ':'.join(hex_string[i:i + 2] for i in range(0, len(hex_string), 2)).upper()
 
 
 async def download_file_async(url, filename, progress=False):
@@ -105,11 +125,11 @@ async def analog_control_worker():
                         np.interp(desired_flow, chart_points[f"pump{i + 1}"][1], chart_points[f"pump{i + 1}"][0]))
 
                     await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{i + 1}"], desired_rpm_rate,
-                                                     DURATION + 5,
+                                                     analog_period + 5,
                                                      analog_settings[f"pump{i + 1}"]["dir"], rpm_table)
         for _ in range(len(analog_en)):
             adc_buffer_values[_] = []
-        for x in range(0, DURATION):
+        for x in range(0, analog_period):
             for i, en in enumerate(analog_en):
                 if en and analog_settings[f"pump{i + 1}"]["pin"] != 99:
                     adc_buffer_values[i].append(
@@ -159,7 +179,6 @@ async def get_analog_chart_points(request):
 @app.route('/memfree')
 async def get_free_mem(request):
     ret = gc.mem_free() // 1024
-    gc.collect()
     print(f"free mem: {ret}Kb")
     return {"free_mem": ret}
 
@@ -226,7 +245,7 @@ async def run_with_rpm(request):
     id = request.args.get('id', default=1, type=int)
     rpm = request.args.get('rpm', default=1, type=float)
     direction = request.args.get('direction', default=1, type=int)
-    execution_time = request.args.get('time', default=1, type=float)
+    execution_time = request.args.get('duration', default=1, type=float)
 
     print(f"[ID {id}] Run {rpm}RPM for {execution_time}sec Dir={direction}")
 
@@ -251,8 +270,8 @@ async def run_with_rpm(request):
 @app.route('/dose')
 async def dose(request):
     id = request.args.get('id', default=1, type=int)
-    volume = request.args.get('volume', default=0, type=float)
-    execution_time = request.args.get('time', default=0, type=float)
+    volume = request.args.get('amount', default=0, type=float)
+    execution_time = request.args.get('duration', default=0, type=float)
     direction = request.args.get('direction', default=1, type=int)
     print(f"[Pump{id}]")
     print(f"Dose {volume}ml in {execution_time}s ")
@@ -285,13 +304,25 @@ async def dose(request):
 @app.route('/', methods=['GET', 'POST'])
 async def index(request):
     if request.method == 'GET':
+        # Captive portal
+        if not ssid:
+            return setting_responce(request)
+
         response = send_file('./static/doser.html', compressed=web_compress,
                              file_extension=web_file_extension)
         response.set_cookie(f'AnalogPins', json.dumps(analog_pins))
         response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
         response.set_cookie(f'timeformat', timeformat)
+
+        if addon and hasattr(extension, 'extension_navbar'):
+            response.set_cookie("Extension", json.dumps(extension.extension_navbar))
+
         return response
     else:
+        # Captive portal
+        if not ssid:
+            return setting_process_post(request)
+
         response = redirect('/')
         data = request.json
         print(data)
@@ -402,6 +433,9 @@ async def ota_upgrade(request):
         response.set_cookie(f'OtaStarted', ota_lock)
         response.set_cookie(f'firmware', RELEASE_TAG)
 
+        if addon and hasattr(extension, 'extension_navbar'):
+            response.set_cookie("Extension", json.dumps(extension.extension_navbar))
+
     if request.method == 'POST':
         print("process post request")
         link = request.args.get('link', default=None, type=str)
@@ -449,7 +483,6 @@ async def calibration(request):
     if request.method == 'GET':
         return schedule
     else:
-        response = redirect('/')
         data = request.json
         print("Got new schedule")
         print(data)
@@ -467,6 +500,9 @@ async def calibration(request):
             response.set_cookie(f'calibrationDataPump{pump}',
                                 json.dumps(calibration_points[f"calibrationDataPump{pump}"]))
             response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
+
+        if addon and hasattr(extension, 'extension_navbar'):
+            response.set_cookie("Extension", json.dumps(extension.extension_navbar))
 
     else:
         response = redirect('/')
@@ -497,38 +533,76 @@ async def calibration(request):
     return response
 
 
+def setting_responce(request):
+    response = send_file('static/settings.html', compressed=web_compress,
+                         file_extension=web_file_extension)
+    response.set_cookie('hostname', hostname)
+    response.set_cookie(f'Mac', mac_address)
+    response.set_cookie(f'timezone', timezone)
+    response.set_cookie(f'timeformat', timeformat)
+    response.set_cookie("mqttTopic", f"/ReefRhythm/{unique_id}/")
+    response.set_cookie("mqttBroker", mqtt_broker)
+    response.set_cookie("mqttLogin", mqtt_login)
+    response.set_cookie("analogPeriod", analog_period)
+    response.set_cookie("current", current)
+    response.set_cookie("analogPeriod", analog_period)
+
+    if 'ssid' in globals():
+        response.set_cookie('current_ssid', ssid)
+        if addon and hasattr(extension, 'extension_navbar'):
+            response.set_cookie("Extension", json.dumps(extension.extension_navbar))
+    else:
+        response.set_cookie('current_ssid', "")
+    response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
+
+    return response
+
+
+def setting_process_post(request):
+    new_ssid = request.json["ssid"]
+    new_psw = request.json["psw"]
+    new_hostname = request.json["hostname"]
+    new_timezone = float(request.json[f"timezone"])
+    new_timeformat = int(request.json[f"timeformat"])
+
+    new_mqtt_broker = request.json["mqttBroker"]
+    new_mqtt_login = request.json["mqttLogin"]
+    new_mqtt_password = request.json["mqttPassword"]
+
+    new_analog_period = request.json["analogPeriod"]
+
+    new_current = request.json["current"]
+
+    if new_ssid and new_psw:
+        with open("./config/wifi.json", "w") as f:
+            f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
+
+    if new_mqtt_broker and new_mqtt_login and new_mqtt_password:
+        with open("./config/mqtt.json", "w") as f:
+            f.write(json.dumps({"broker": new_mqtt_broker, "login": new_mqtt_login,  "password": new_mqtt_password}))
+
+    new_pump_num = request.json[f"pumpNum"]
+    with open("./config/settings.json", "w") as f:
+        f.write(json.dumps({"pump_number": new_pump_num,
+                            "hostname": new_hostname,
+                            "timezone": new_timezone,
+                            "timeformat": new_timeformat,
+                            "current": new_current,
+                            "analog_period": new_analog_period}))
+
+    with open("./config/analog_settings.json", "w") as f:
+        json.dump(analog_settings, f)
+    print(f"Setting up new wifi {new_ssid}, Reboot...")
+    machine.reset()
+    return redirect("/settings")
+
+
 @app.route('/settings', methods=['GET', 'POST'])
 async def settings(request):
     if request.method == 'GET':
-        response = send_file('static/settings.html', compressed=web_compress,
-                             file_extension=web_file_extension)
-        response.set_cookie('hostname', hostname)
-        response.set_cookie(f'Mac', mac_address)
-        response.set_cookie(f'timezone', timezone)
-        response.set_cookie(f'timeformat', timeformat)
-
-        if 'ssid' in globals():
-            response.set_cookie('current_ssid', ssid)
-        else:
-            response.set_cookie('current_ssid', "")
-        response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
+        response = setting_responce(request)
     else:
-        new_ssid = request.json[f"ssid"]
-        new_psw = request.json[f"psw"]
-        new_hostname = request.json[f"hostname"]
-        new_timezone = float(request.json[f"timezone"])
-        new_timeformat = int(request.json[f"timeformat"])
-        if new_ssid and new_psw:
-            with open("./config/wifi.json", "w") as f:
-                f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
-        new_pump_num = request.json[f"pumpNum"]
-        with open("./config/settings.json", "w") as f:
-            f.write(json.dumps({"pump_number": new_pump_num,
-                                "hostname": new_hostname,
-                                "timezone": new_timezone,
-                                "timeformat": new_timeformat}))
-        print(f"Setting up new wifi {new_ssid}, Reboot...")
-        machine.reset()
+        response = setting_process_post(request)
     return response
 
 
@@ -569,10 +643,10 @@ def update_schedule(data):
 
             if end_time:
                 end_time = int(end_time.split(":")[0]) * 60 * 60 + int(end_time.split(":")[1]) * 60
-                step = (end_time-start_time)//frequency
+                step = (end_time - start_time) // frequency
             else:
                 end_time = mcron.PERIOD_DAY
-                step = end_time//frequency
+                step = end_time // frequency
 
             new_job = create_task_with_args(id, desired_rpm_rate, duration, direction)
             mcron.insert(mcron.PERIOD_DAY, range(start_time, end_time, step),
@@ -586,7 +660,7 @@ def update_schedule(data):
     schedule = data.copy()
 
 
-async def sync_time(wifi):
+async def sync_time():
     ntptime.host = ntphost
     global time_synced
     while not wifi.isconnected():
@@ -634,17 +708,153 @@ async def update_sched_onstart():
     update_schedule(schedule)
 
 
+async def maintain_memory():
+    while True:
+        gc.collect()
+        print(f"free memory {gc.mem_free() // 1024}KB")
+        await asyncio.sleep(120)
+
+
+async def mqtt_worker():
+    if not mqtt_broker:
+        return True
+    while not time_synced:
+        await asyncio.sleep(1)
+    await asyncio.sleep(5)
+    print("Start MQTT")
+    from lib.umqtt.simple import MQTTClient
+
+    def sub(topic, msg):
+        def decode_body():
+            try:
+                print(msg.decode('ascii'))
+                mqtt_body = json.loads(msg.decode('ascii'))
+                print(mqtt_body)
+                return mqtt_body
+            except Exception as mqtt_decode_e:
+                print("Failed to decode mqtt message: {msg}, ", mqtt_decode_e)
+            return False
+
+        def check_dose_parameters(cmd):
+            if all(key in cmd for key in ["id", "amount", "duration", "direction"]):
+                # Check the range and validity of each parameter
+                return (1 <= cmd["id"] <= PUMP_NUM and
+                        cmd["amount"] > 0 and
+                        1 <= cmd["duration"] <= 3600 and
+                        cmd["direction"] in [0, 1])
+            return False
+
+        def check_run_parameters(cmd):
+            if all(key in cmd for key in ["id", "rpm", "duration", "direction"]):
+                # Check the range and validity of each parameter
+                return (1 <= cmd["id"] <= PUMP_NUM and
+                        0.5 <= cmd["rpm"] <= 1000 and
+                        1 <= cmd["duration"] <= 3600 and
+                        cmd["direction"] in [0, 1])
+            return False
+
+        print('received message %s on topic %s' % (msg.decode(), topic.decode()))
+        if topic.decode() == f"/ReefRhythm/{unique_id}/dose":
+            command = decode_body()
+            if command and check_dose_parameters(command):
+                print("Dose command ", command)
+                mqtt_dose_buffer.append(command)
+            else:
+                print("error in syntax: ", command)
+
+        elif topic.decode() == f"/ReefRhythm/{unique_id}/run":
+            command = decode_body()
+            if command and check_run_parameters(command):
+                desired_rpm = command['rpm']
+                print("Run command", command)
+                mqtt_run_buffer.append(command)
+            else:
+                print("error in syntax: ", command)
+
+
+    mqtt = MQTTClient(f"ReefRhythm-{unique_id}", mqtt_broker, keepalive=60)
+    mqtt.pswd = mqtt_password
+    mqtt.user = mqtt_login
+
+    mqtt.set_callback(sub)
+    print(f"connect to {mqtt_broker}")
+    mqtt.connect()
+    print(f"subscribe /ReefRhythm/{unique_id}/dose")
+    mqtt.subscribe(f"/ReefRhythm/{unique_id}/dose")
+    print(f"subscribe /ReefRhythm/{unique_id}/run")
+    mqtt.subscribe(f"/ReefRhythm/{unique_id}/run")
+    mqtt.subscribe(f"/test")
+    while True:
+        try:
+            mqtt.check_msg()
+            #print("Non-blocking MQTT poll")
+        except Exception as mqtt_exception:
+            print(mqtt_exception)
+        try:
+            msg = {"free_mem": gc.mem_free() // 1024}
+            mqtt.publish(f"/ReefRhythm/{unique_id}/free_mem", json.dumps(msg))
+        except Exception as mqtt_exception:
+            print(mqtt_exception)
+        await asyncio.sleep(1)
+
+
+mqtt_dose_buffer = []
+mqtt_run_buffer = []
+
+
+async def process_mqtt_cmd():
+    while True:
+        if mqtt_dose_buffer:
+            print("Process mqtt command")
+            command = mqtt_dose_buffer[0]
+            del mqtt_dose_buffer[0]
+            desired_flow = command["amount"] * (60 / command["duration"])
+            print(f"Desired flow: {round(desired_flow, 2)}")
+            print(f"Direction: {command['direction']}")
+            desired_rpm_rate = np.interp(desired_flow, chart_points[f"pump{command['id']}"][1], chart_points[f"pump{command['id']}"][0])
+            print("Calculated RPM: ", desired_rpm_rate)
+            await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate, command['duration'], command['direction'], rpm_table)
+
+        if mqtt_run_buffer:
+            print("Process mqtt command")
+            command = mqtt_run_buffer[0]
+            del mqtt_run_buffer[0]
+            print(f"Direction: {command['direction']}")
+            desired_rpm_rate = command['rpm']
+            print("Desired RPM: ", desired_rpm_rate)
+            await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate, command['duration'], command['direction'], rpm_table)
+
+        await asyncio.sleep(1)
+
+
 async def main():
     print("Start Web server")
-    print("Time format:", timeformat)
+    from connect_wifi import maintain_wifi
 
-    task1 = asyncio.create_task(analog_control_worker())
-    task2 = asyncio.create_task(start_web_server())
-    task3 = asyncio.create_task(sync_time(nic))
-    task4 = asyncio.create_task(update_sched_onstart())
+    # Importing external @app.route to support add-ons
 
-    # Iterate over the tasks and wait for them to complete one by one
-    await asyncio.gather(task1, task2, task3, task4)
+    tasks = [
+        asyncio.create_task(analog_control_worker()),
+        asyncio.create_task(start_web_server()),
+        asyncio.create_task(sync_time()),
+        asyncio.create_task(update_sched_onstart()),
+        asyncio.create_task(maintain_wifi(ssid, password)),
+        asyncio.create_task(maintain_memory()),
+        asyncio.create_task(mqtt_worker()),
+        asyncio.create_task(process_mqtt_cmd())
+    ]
+
+    # load async tasks from extension
+    if addon:
+        print("Extend tasks")
+        for _ in extension.extension_tasks:
+            task = asyncio.create_task(_())
+            tasks.append(task)
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for result in results:
+        if isinstance(result, Exception):
+            print(f"Task error: {result}")
 
 
 async def start_web_server():
@@ -652,4 +862,5 @@ async def start_web_server():
 
 
 if __name__ == "__main__":
+    print("Debugging web.py")
     asyncio.run(main())
