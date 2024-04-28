@@ -8,6 +8,7 @@ import lib.mcron as mcron
 from load_configs import *
 
 try:
+    # Import 3-part Add-ons
     import extension
 
     addon = True
