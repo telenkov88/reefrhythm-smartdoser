@@ -2,9 +2,9 @@ import json
 from lib.stepper_doser_math import *
 from lib.servo42c import *
 from lib.asyncscheduler import *
+from config.pin_config import *
 
 EXTRAPOLATE_ANGLE = 4
-from config.pin_config import *
 
 try:
     import gc

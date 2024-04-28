@@ -1,10 +1,21 @@
+import sys
+
 from lib.microdot.microdot import Microdot, redirect, send_file
 from lib.microdot.sse import with_sse
 import re
 import requests
 import lib.mcron as mcron
 from load_configs import *
+
+try:
+    import extension
+    addon = True
+except ImportError as extension_error:
+    print("Failed to import extension, ", extension_error)
+    addon = False
+
 import binascii
+
 try:
     import uasyncio as asyncio
     # Micropython
@@ -512,25 +523,6 @@ async def calibration(request):
     return response
 
 
-# Function to dynamically import a module
-def dynamic_import(module_name):
-    try:
-        module = __import__(module_name)
-        return module
-    except ImportError as e:
-        print("Failed to import module:", e)
-        return None
-
-
-# Function to register routes from a module
-def register_module_routes(app, module):
-    for attr_name in dir(module):
-        attr = getattr(module, attr_name)
-        if callable(attr) and hasattr(attr, 'route_decorators'):
-            for route in attr.route_decorators:
-                app.add_url_rule(route.path, attr, methods=route.methods)
-
-
 def setting_responce(request):
     response = send_file('static/settings.html', compressed=web_compress,
                          file_extension=web_file_extension)
@@ -691,6 +683,8 @@ async def main():
     print("Start Web server")
     from connect_wifi import maintain_wifi
 
+    # Importing external @app.route to support add-ons
+
     tasks = [
         asyncio.create_task(analog_control_worker()),
         asyncio.create_task(start_web_server()),
@@ -699,6 +693,13 @@ async def main():
         asyncio.create_task(maintain_wifi(ssid, password)),
         asyncio.create_task(maintain_memory())
     ]
+
+    # load async tasks from extension
+    if addon:
+        print("Extend tasks")
+        for _ in extension.extension_tasks:
+            task = asyncio.create_task(_())
+            tasks.append(task)
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
     for result in results:

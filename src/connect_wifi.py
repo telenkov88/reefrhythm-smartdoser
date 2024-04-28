@@ -1,10 +1,11 @@
 try:
-    import asyncio
+    import uasyncio as asyncio
     import network
 except ImportError:
     import asyncio
-    from unittest.mock import Mock
+    from unittest.mock import MagicMock, Mock
     network = Mock()
+    network.AP_IF = Mock()
 from random import randint
 
 
