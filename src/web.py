@@ -53,7 +53,6 @@ ota_progress = 0
 firmware_size = None
 
 should_continue = True  # Flag for shutdown
-DURATION = 60  # Duration on pump for analog control
 c = 0
 mcron.init_timer()
 mcron_keys = []
@@ -125,11 +124,11 @@ async def analog_control_worker():
                         np.interp(desired_flow, chart_points[f"pump{i + 1}"][1], chart_points[f"pump{i + 1}"][0]))
 
                     await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{i + 1}"], desired_rpm_rate,
-                                                     DURATION + 5,
+                                                     analog_period + 5,
                                                      analog_settings[f"pump{i + 1}"]["dir"], rpm_table)
         for _ in range(len(analog_en)):
             adc_buffer_values[_] = []
-        for x in range(0, DURATION):
+        for x in range(0, analog_period):
             for i, en in enumerate(analog_en):
                 if en and analog_settings[f"pump{i + 1}"]["pin"] != 99:
                     adc_buffer_values[i].append(
@@ -541,7 +540,11 @@ def setting_responce(request):
     response.set_cookie(f'timezone', timezone)
     response.set_cookie(f'timeformat', timeformat)
     response.set_cookie("mqttTopic", f"/ReefRhythm/{unique_id}/")
+    response.set_cookie("mqttBroker", mqtt_broker)
     response.set_cookie("mqttLogin", mqtt_login)
+    response.set_cookie("analogPeriod", analog_period)
+    response.set_cookie("current", current)
+    response.set_cookie("analogPeriod", analog_period)
 
     if 'ssid' in globals():
         response.set_cookie('current_ssid', ssid)
@@ -565,6 +568,10 @@ def setting_process_post(request):
     new_mqtt_login = request.json["mqttLogin"]
     new_mqtt_password = request.json["mqttPassword"]
 
+    new_analog_period = request.json["analogPeriod"]
+
+    new_current = request.json["current"]
+
     if new_ssid and new_psw:
         with open("./config/wifi.json", "w") as f:
             f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
@@ -578,7 +585,10 @@ def setting_process_post(request):
         f.write(json.dumps({"pump_number": new_pump_num,
                             "hostname": new_hostname,
                             "timezone": new_timezone,
-                            "timeformat": new_timeformat}))
+                            "timeformat": new_timeformat,
+                            "current": new_current,
+                            "analog_period": new_analog_period}))
+
     with open("./config/analog_settings.json", "w") as f:
         json.dump(analog_settings, f)
     print(f"Setting up new wifi {new_ssid}, Reboot...")

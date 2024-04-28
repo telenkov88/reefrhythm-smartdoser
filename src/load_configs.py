@@ -135,8 +135,6 @@ except Exception as e:
 try:
     with open("config/analog_settings.json", 'r') as read_file:
         analog_settings = json.load(read_file)
-        if "period" not in analog_settings:
-            analog_settings[f"period"] = 60
         for _ in range(MAX_PUMPS):
             if f"pump{_+1}" not in analog_settings:
                 analog_settings[f"pump{_ + 1}"] = {"enable": False, "pin": 99, "dir": 1,
@@ -147,8 +145,6 @@ except Exception as e:
     analog_settings = {}
     for _ in range(MAX_PUMPS):
         analog_settings[f"pump{_+1}"] = {"enable": False, "pin": 99, "dir": 1, "points": [{"analogInput": 0, "flowRate": 0}, {"analogInput": 100, "flowRate": 5}]}
-        analog_settings[f"period"] = 60
-
 
 # General device settings
 try:
@@ -156,7 +152,8 @@ try:
         settings = json.load(read_file)
 except Exception as e:
     print("Can't load general setting config, load default ", e)
-    settings = {"pump_number": 1, "hostname": "doser", "timezone": 0.0, "timeformat": 0, "ntphost": "time.google.com"}
+    settings = {"pump_number": 1, "hostname": "doser", "timezone": 0.0, "timeformat": 0, "ntphost": "time.google.com",
+                "current": 1000, "analog_period": 60}
 
 if "hostname" not in settings:
     hostname = "doser"
@@ -176,6 +173,16 @@ if "ntphost" not in settings:
 else:
     ntphost = settings["ntphost"]
 
+if "current" not in settings:
+    current = 1000
+else:
+    current = settings["current"]
+if "analog_period" not in settings:
+    analog_period = 60
+else:
+    analog_period = settings["analog_period"]
+
+
 PUMP_NUM = settings["pump_number"]
 
 try:
@@ -191,7 +198,7 @@ except Exception as e:
 mks_dict = {}
 for stepper in range(1, PUMP_NUM + 1):
     mks_dict[f"mks{stepper}"] = Servo42c(uart, addr=stepper - 1, speed=1)
-    mks_dict[f"mks{stepper}"].set_current(1000)
+    mks_dict[f"mks{stepper}"].set_current(current)
 
 try:
     with open("./config/wifi.json", 'r') as wifi_config:

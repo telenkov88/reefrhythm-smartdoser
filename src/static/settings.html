@@ -163,7 +163,35 @@
         <div class="tab-pane fade container" id="pumpstab" role="tabpanel">
             <h2>Pumps settings</h2>
             <label for="pumpSelector">Number of pumps</label>
-            <select id="pumpSelector"></select>
+            <select id="pumpSelector" class="form-select" style="width: 150px"></select>
+
+            <label for="analogPeriod" class="form-label mt-4">Analog Control Period</label>
+                <select name="analogPeriod" id="analogPeriod" class="form-select" style="width: 150px">
+                    <option value="5">5 sec</option>
+                    <option value="15">15 sec</option>
+                    <option value="30">30 sec</option>
+                    <option value="45">45 sec</option>
+                    <option value="60">60 sec</option>
+                    <option value="90">90 sec</option>
+                    <option value="120">120 sec</option>
+                    <option value="240">240 sec</option>
+                    <option value="300">300 sec</option>
+                </select>
+
+            <label for="pumpCurrent" class="form-label mt-4">Pumps current</label>
+                <select name="pumpCurrent" id="pumpCurrent" class="form-select" style="width: 150px">
+                    <option value="200">0.2A</option>
+                    <option value="400">0.4A</option>
+                    <option value="600">0.6A</option>
+                    <option value="800">0.8A</option>
+                    <option value="1000">1A</option>
+                    <option value="1200">1.2A</option>
+                    <option value="1400">1.4A</option>
+                    <option value="1600">1.6A</option>
+                    <option value="1800">1.8A</option>
+                    <option value="2000">2A</option>
+                </select>
+
         </div>
 
         <div class="tab-pane fade container" id="mqtttab" role="tabpanel">
@@ -275,9 +303,12 @@ document.getElementById('uploadDataBtn').addEventListener('click', function() {
         "timeformat": document.getElementById('timeFormat').value,
         "mqttBroker": document.getElementById('mqttBrokerInput1').value,
         "mqttLogin": document.getElementById('mqttLoginInput1').value,
-        "mqttPassword": document.getElementById('mqttPassword').value
+        "mqttPassword": document.getElementById('mqttPassword').value,
+        "current": parseInt(document.getElementById("pumpCurrent").value),
+        "analogPeriod": parseInt(document.getElementById("analogPeriod").value)
+
     };
-    //console.log("upload data", data)
+    console.log("upload data", data)
 
     fetch(url, {
         method: 'POST',
@@ -347,9 +378,12 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Current wifi ssid:', current_ssid);
         document.getElementById('ssidInput1').value = current_ssid
     }
-
     document.getElementById("mqttTopic").value = getCookie('mqttTopic')
+    document.getElementById("mqttBrokerInput1").value = getCookie('mqttBroker')
     document.getElementById("mqttLoginInput1").value = getCookie('mqttLogin')
+
+    document.getElementById("pumpCurrent").value = getCookie('current')
+    document.getElementById("analogPeriod").value = getCookie('analogPeriod')
 
     // Load extension
     var navbar = document.getElementById('navbarColor01');
