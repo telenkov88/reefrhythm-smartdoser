@@ -34,21 +34,6 @@
         }
 
 
-        #password-with-icon {
-          position: relative;
-        }
-
-        #password-with-icon > i {
-          position: absolute;
-          top: 6px;
-          left: 280px;
-        }
-
-        #password-with-icon > input {
-            padding-right: 40px;
-        }
-
-
     </style>
     <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
 
@@ -86,7 +71,7 @@
         <a class="nav-link" data-bs-toggle="tab" href="#pumpstab" aria-selected="false" role="tab" tabindex="-1">Pumps</a>
       </li>
       <li class="nav-item" role="presentation">
-        <a class="nav-link" data-bs-toggle="tab" href="#analogcontroltab" aria-selected="false" tabindex="-1" role="tab">Analog control</a>
+        <a class="nav-link" data-bs-toggle="tab" href="#mqtttab" aria-selected="false" tabindex="-1" role="tab">MQTT</a>
       </li>
     </ul>
 
@@ -165,7 +150,7 @@
 
               <label for="password" class="form-label mt-4">WIFI password:</label>
 
-              <div class="input-group" id="password-with-icon" style="width: 300px">
+              <div class="input-group" style="width: 300px">
                   <input type="password" id="password" name="password" class="form-control rounded"
                          autocomplete="password"
                          spellcheck="false" autocapitalize="off" required
@@ -181,8 +166,26 @@
             <select id="pumpSelector"></select>
         </div>
 
-        <div class="tab-pane fade container" id="analogcontroltab" role="tabpanel">
-            <h2>Analog control settings</h2>
+        <div class="tab-pane fade container" id="mqtttab" role="tabpanel">
+            <h2>MQTT settings</h2>
+            <label for="mqttTopic">MQTT topic:</label>
+            <fieldset>
+                <input id="mqttTopic" name="mqttTopic" style="width: 300px" class="form-control rounded" readonly="">
+            </fieldset>
+            <label for="mqttBrokerInput1">MQTT broker:</label>
+            <input type="text" style="width: 300px" class="form-control" id="mqttBrokerInput1" placeholder="Enter MQTT broker link">
+            <label for="mqttLoginInput1">MQTT login:</label>
+            <input type="text" style="width: 300px" class="form-control" id="mqttLoginInput1" placeholder="Enter MQTT login">
+
+            <label for="mqttPassword" class="form-label mt-4">MQTT password:</label>
+            <div class="input-group" style="width: 300px">
+              <input type="password" id="mqttPassword" name="mqttPassword" class="form-control rounded"
+                     autocomplete="password"
+                     spellcheck="false" autocapitalize="off" required
+                     placeholder="Enter MQTT password">
+            </div>
+
+
         </div>
         <div class="tab-pane fade container active show" role="tabpanel">
         <button type="button" class="btn btn-primary" style="margin-top: 10px" id="uploadDataBtn">Apply</button>
@@ -269,9 +272,12 @@ document.getElementById('uploadDataBtn').addEventListener('click', function() {
         "pumpNum": parseInt(document.getElementById('pumpSelector').value),
         "hostname": document.getElementById('hostName').value,
         "timezone": document.getElementById('timezoneOffset').value,
-        "timeformat": document.getElementById('timeFormat').value
+        "timeformat": document.getElementById('timeFormat').value,
+        "mqttBroker": document.getElementById('mqttBrokerInput1').value,
+        "mqttLogin": document.getElementById('mqttLoginInput1').value,
+        "mqttPassword": document.getElementById('mqttPassword').value
     };
-    console.log("upload data", data)
+    //console.log("upload data", data)
 
     fetch(url, {
         method: 'POST',
@@ -341,6 +347,9 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Current wifi ssid:', current_ssid);
         document.getElementById('ssidInput1').value = current_ssid
     }
+
+    document.getElementById("mqttTopic").value = getCookie('mqttTopic')
+    document.getElementById("mqttLoginInput1").value = getCookie('mqttLogin')
 
     // Load extension
     var navbar = document.getElementById('navbarColor01');

@@ -9,7 +9,7 @@ EXTRAPOLATE_ANGLE = 4
 try:
     import gc
     import utime
-    from machine import UART, Pin, ADC
+    from machine import UART, Pin, ADC, unique_id
     import network
     import machine
     import asyncio
@@ -21,6 +21,10 @@ try:
     uart = UART(1)
     uart.init(baudrate=38400, rx=rx_pin, tx=tx_pin, timeout=100)
     wifi = network.WLAN(network.STA_IF)
+
+    # unique id:
+    import ubinascii
+    unique_id = ubinascii.hexlify(unique_id())
 
 except ImportError:
     print("import_config debugging on PC")
@@ -36,9 +40,11 @@ except ImportError:
     Pin = Mock()
     ntptime = Mock()
 
+    unique_id = 'aaaabbbb'
 
     Pin.return_value = Mock()
     mock_adc = Mock()
+    ubinascii = Mock()
 
     utime = Mock()
     import time
@@ -136,8 +142,6 @@ try:
                 analog_settings[f"pump{_ + 1}"] = {"enable": False, "pin": 99, "dir": 1,
                                                    "points": [{"analogInput": 0, "flowRate": 0},
                                                               {"analogInput": 100, "flowRate": 5}]}
-
-
 except Exception as e:
     print("Can't load analog setting config, load default ", e)
     analog_settings = {}
@@ -204,6 +208,27 @@ except Exception as e:
     print("Failed to load config/wifi.json ", e)
     ssid = ""
     password = ""
+
+try:
+    with open("./config/mqtt.json", 'r') as mqtt_config:
+        mqtt_settings = json.load(mqtt_config)
+        if "broker" in mqtt_settings:
+            mqtt_broker = mqtt_settings["broker"]
+        else:
+            mqtt_broker = ""
+        if "login" in mqtt_settings:
+            mqtt_login = mqtt_settings["login"]
+        else:
+            mqtt_login = ""
+        if "password" in mqtt_settings:
+            mqtt_password = mqtt_settings["password"]
+        else:
+            mqtt_password = ""
+except Exception as e:
+    print("\nfailed to load confog/mqtt.json, ", e)
+    mqtt_broker = ""
+    mqtt_login = ""
+    mqtt_password = ""
 
 
 chart_points = {}

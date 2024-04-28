@@ -9,6 +9,7 @@ from load_configs import *
 
 try:
     import extension
+
     addon = True
 except ImportError as extension_error:
     print("Failed to import extension, ", extension_error)
@@ -33,6 +34,7 @@ try:
 
 except ImportError:
     import asyncio
+
     print("Mocking on PC")
     from unittest.mock import Mock
     import os
@@ -57,11 +59,10 @@ mcron.init_timer()
 mcron_keys = []
 time_synced = False
 
-
 byte_string = wifi.config('mac')
 print(byte_string)
 hex_string = binascii.hexlify(byte_string).decode('utf-8')
-mac_address = ':'.join(hex_string[i:i+2] for i in range(0, len(hex_string), 2)).upper()
+mac_address = ':'.join(hex_string[i:i + 2] for i in range(0, len(hex_string), 2)).upper()
 
 
 async def download_file_async(url, filename, progress=False):
@@ -539,24 +540,39 @@ def setting_responce(request):
     response.set_cookie(f'Mac', mac_address)
     response.set_cookie(f'timezone', timezone)
     response.set_cookie(f'timeformat', timeformat)
+    response.set_cookie("mqttTopic", f"/ReefRhythm/{unique_id}/")
+    response.set_cookie("mqttLogin", mqtt_login)
 
     if 'ssid' in globals():
         response.set_cookie('current_ssid', ssid)
+        if addon and hasattr(extension, 'extension_navbar'):
+            response.set_cookie("Extension", json.dumps(extension.extension_navbar))
     else:
         response.set_cookie('current_ssid', "")
     response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
+
     return response
 
 
 def setting_process_post(request):
-    new_ssid = request.json[f"ssid"]
-    new_psw = request.json[f"psw"]
-    new_hostname = request.json[f"hostname"]
+    new_ssid = request.json["ssid"]
+    new_psw = request.json["psw"]
+    new_hostname = request.json["hostname"]
     new_timezone = float(request.json[f"timezone"])
     new_timeformat = int(request.json[f"timeformat"])
+
+    new_mqtt_broker = request.json["mqttBroker"]
+    new_mqtt_login = request.json["mqttLogin"]
+    new_mqtt_password = request.json["mqttPassword"]
+
     if new_ssid and new_psw:
         with open("./config/wifi.json", "w") as f:
             f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
+
+    if new_mqtt_broker and new_mqtt_login and new_mqtt_password:
+        with open("./config/mqtt.json", "w") as f:
+            f.write(json.dumps({"broker": new_mqtt_broker, "login": new_mqtt_login,  "password": new_mqtt_password}))
+
     new_pump_num = request.json[f"pumpNum"]
     with open("./config/settings.json", "w") as f:
         f.write(json.dumps({"pump_number": new_pump_num,
@@ -574,10 +590,6 @@ def setting_process_post(request):
 async def settings(request):
     if request.method == 'GET':
         response = setting_responce(request)
-
-        if addon and hasattr(extension, 'extension_navbar'):
-            response.set_cookie("Extension", json.dumps(extension.extension_navbar))
-
     else:
         response = setting_process_post(request)
     return response
@@ -620,10 +632,10 @@ def update_schedule(data):
 
             if end_time:
                 end_time = int(end_time.split(":")[0]) * 60 * 60 + int(end_time.split(":")[1]) * 60
-                step = (end_time-start_time)//frequency
+                step = (end_time - start_time) // frequency
             else:
                 end_time = mcron.PERIOD_DAY
-                step = end_time//frequency
+                step = end_time // frequency
 
             new_job = create_task_with_args(id, desired_rpm_rate, duration, direction)
             mcron.insert(mcron.PERIOD_DAY, range(start_time, end_time, step),
