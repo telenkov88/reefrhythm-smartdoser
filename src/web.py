@@ -778,8 +778,6 @@ async def mqtt_worker():
 
     mqtt_client.pswd = mqtt_password
     mqtt_client.user = mqtt_login
-    mqtt_client.DEBUG = True
-    mqtt_client.keepalive = 5
 
     # Option, limits the possibility of only one unique message being queued.
     mqtt_client.NO_QUEUE_DUPS = True
