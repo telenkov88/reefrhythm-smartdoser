@@ -801,10 +801,7 @@ async def mqtt_worker():
     mqtt_client.subscribe(f"{doser_topic}/run")
     mqtt_client.publish(last_will_topic, 'Connected', retain=True)
 
-    mqtt_client.subscribe("test")
-
     while 1:
-        await asyncio.sleep(1)
         # At this point in the code you must consider how to handle
         # connection errors.  And how often to resume the connection.
         if mqtt_client.is_conn_issue():
@@ -837,6 +834,7 @@ async def mqtt_worker():
             if not mqtt_client.things_to_do():
                 break
             await asyncio.sleep(1)
+        await asyncio.sleep(0.5)
 
 
 mqtt_dose_buffer = []
