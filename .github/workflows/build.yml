@@ -53,7 +53,7 @@ jobs:
               python3 ./scripts/compress_web.py
               rm -rf ./src/static/*.html
               rm -rf ./src/static/styles/*.css
-              rm -rf ./src/javascript/*.js
+              rm -rf ./src/static/javascript/*.js
           
 
       # Checkout necessary submodules or projects

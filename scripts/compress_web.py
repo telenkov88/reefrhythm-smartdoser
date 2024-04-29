@@ -57,7 +57,6 @@ replacements = {
 args = parser.parse_args()
 
 
-import shutil
 shutil.copy(f"{args.path}/static/settings.html", f"{args.path}/static/settings-captive.html")
 replace_lines_in_file(f"{args.path}/static/settings-captive.html", replacements)
 compress(f"{args.path}/static/javascript", "*.js")
