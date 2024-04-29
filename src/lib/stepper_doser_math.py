@@ -39,7 +39,7 @@ def calc_real_rpm(mstep, speed):
 
 
 # Generate buffer with RPM at MSTEP & Speed combinations
-def make_rpm_table(regenerate=False):
+def make_rpm_table(regenerate=False, validate=False):
     print("Start generating rpm table")
 
     def crc8_8_atm(msg):
@@ -75,14 +75,16 @@ def make_rpm_table(regenerate=False):
 
         array = np.load(filename)
 
-        # Load and validate checksum
-        with open(f"{filename}.crc", "r") as read_file:
-            stored_checksum = int(read_file.read())
-        data = array.tobytes()
-        checksum = crc8_8_atm(data)
+        if validate:
+            print(f"Validate {filename}.crc")
+            # Load and validate checksum
+            with open(f"{filename}.crc", "r") as read_file:
+                stored_checksum = int(read_file.read())
+            data = array.tobytes()
+            checksum = crc8_8_atm(data)
 
-        if checksum != stored_checksum:
-            raise ValueError(f"Data validation failed for {filename}")
+            if checksum != stored_checksum:
+                raise ValueError(f"Data validation failed for {filename}")
 
         return array
 
@@ -96,16 +98,18 @@ def make_rpm_table(regenerate=False):
 
     if not regenerate:
         try:
-            print("Validate constants check sum")
+            print("Load constants check sum")
             validate_constants_checksum()
-            print("validate closest_msteps.npy")
+            print("Load closest_msteps.npy")
             closest_msteps = load_with_checksum('closest_msteps.npy')
+            print("Load closest_speeds.npy")
             closest_speeds = load_with_checksum('closest_speeds.npy')
+            print("Load closest_rpms.npy")
             closest_rpms = load_with_checksum('closest_rpms.npy')
             print("tables loaded from disk")
             return closest_rpms, closest_msteps, closest_speeds
-        except:
-            print("Failed to load, calculate from sratch")
+        except Exception as e:
+            print("Failed to load, calculate from sratch, ", e)
     files = ["closest_msteps.npy", "closest_msteps.npy.crc",
              "closest_speeds.npy", "closest_speeds.npy.crc",
              "closest_rpms.npy", "closest_rpms.npy.crc",

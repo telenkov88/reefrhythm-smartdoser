@@ -30,6 +30,10 @@ try:
     web_file_extension = ".gz"
 
     from release_tag import *
+    from lib.umqtt.robust2 import MQTTClient
+
+    mqtt_client = MQTTClient(f"ReefRhythm-{unique_id}", mqtt_broker, keepalive=60, socket_timeout=1)
+
 
     print("Release:", RELEASE_TAG)
 
@@ -42,7 +46,7 @@ except ImportError:
 
     mcron.remove_all = Mock()
     mcron.insert = Mock()
-
+    mqtt_client = Mock()
     RELEASE_TAG = "local_debug"
     os.system("python ../scripts/compress_web.py --path ./")
 
@@ -724,9 +728,8 @@ async def mqtt_worker():
         await asyncio.sleep(1)
     await asyncio.sleep(5)
     print("Start MQTT")
-    from lib.umqtt.simple import MQTTClient
 
-    def sub(topic, msg):
+    def sub(topic, msg, retain, dup):
         def decode_body():
             try:
                 print(msg.decode('ascii'))
@@ -773,31 +776,69 @@ async def mqtt_worker():
             else:
                 print("error in syntax: ", command)
 
+    mqtt_client.pswd = mqtt_password
+    mqtt_client.user = mqtt_login
+    mqtt_client.DEBUG = True
+    mqtt_client.keepalive = 5
 
-    mqtt = MQTTClient(f"ReefRhythm-{unique_id}", mqtt_broker, keepalive=60)
-    mqtt.pswd = mqtt_password
-    mqtt.user = mqtt_login
+    # Option, limits the possibility of only one unique message being queued.
+    mqtt_client.NO_QUEUE_DUPS = True
+    # Limit the number of unsent messages in the queue.
+    mqtt_client.MSG_QUEUE_MAX = 5
 
-    mqtt.set_callback(sub)
+    last_will_topic = f"/ReefRhythm/{unique_id}/status"
+    doser_topic = f"/ReefRhythm/{unique_id}"
+    print("MQTT last will topic: ", last_will_topic)
+    mqtt_client.set_last_will(last_will_topic, 'Disconnected', retain=True)
+
+    def sub_cb(topic, msg, retain, dup):
+        print((topic, msg, retain, dup))
+
+    mqtt_client.set_callback(sub)
     print(f"connect to {mqtt_broker}")
-    mqtt.connect()
-    print(f"subscribe /ReefRhythm/{unique_id}/dose")
-    mqtt.subscribe(f"/ReefRhythm/{unique_id}/dose")
-    print(f"subscribe /ReefRhythm/{unique_id}/run")
-    mqtt.subscribe(f"/ReefRhythm/{unique_id}/run")
-    mqtt.subscribe(f"/test")
-    while True:
-        try:
-            mqtt.check_msg()
-            #print("Non-blocking MQTT poll")
-        except Exception as mqtt_exception:
-            print(mqtt_exception)
-        try:
-            msg = {"free_mem": gc.mem_free() // 1024}
-            mqtt.publish(f"/ReefRhythm/{unique_id}/free_mem", json.dumps(msg))
-        except Exception as mqtt_exception:
-            print(mqtt_exception)
+    mqtt_client.connect()
+    print(f"subscribe {doser_topic}/dose")
+    mqtt_client.subscribe(f"{doser_topic}/dose")
+    print(f"subscribe {doser_topic}/run")
+    mqtt_client.subscribe(f"{doser_topic}/run")
+    mqtt_client.publish(last_will_topic, 'Connected', retain=True)
+
+    mqtt_client.subscribe("test")
+
+    while 1:
         await asyncio.sleep(1)
+        # At this point in the code you must consider how to handle
+        # connection errors.  And how often to resume the connection.
+        if mqtt_client.is_conn_issue():
+            while mqtt_client.is_conn_issue():
+                # If the connection is successful, the is_conn_issue
+                # method will not return a connection error.
+                print("mqtt reconnect")
+                mqtt_client.reconnect()
+                if not mqtt_client.is_conn_issue():
+                    print("mqtt publush status")
+                    mqtt_client.publish(last_will_topic, 'Connected', retain=True)
+                    print("mqtt resubscribe")
+                    mqtt_client.resubscribe()
+                    break
+                await asyncio.sleep(60)
+
+        msg = {"free_mem": gc.mem_free() // 1024}
+        mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
+
+        # WARNING!!!
+        # The below functions should be run as often as possible.
+        # There may be a problem with the connection. (MQTTException(7,), 9)
+        # In the following way, we clear the queue.
+        for _ in range(50):
+            #print("mqtt check_msg")
+            if mqtt_client.is_conn_issue():
+                break
+            mqtt_client.check_msg()  # needed when publish(qos=1), ping(), subscribe()
+            mqtt_client.send_queue()  # needed when using the caching capabilities for unsent messages
+            if not mqtt_client.things_to_do():
+                break
+            await asyncio.sleep(1)
 
 
 mqtt_dose_buffer = []

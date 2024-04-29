@@ -4,8 +4,6 @@ from lib.servo42c import *
 from lib.asyncscheduler import *
 from config.pin_config import *
 
-EXTRAPOLATE_ANGLE = 4
-
 try:
     import gc
     import utime
@@ -90,6 +88,7 @@ except ImportError:
     web_file_extension = ""
 
 MAX_PUMPS = 9
+EXTRAPOLATE_ANGLE = 4
 
 
 def get_points(from_json):
