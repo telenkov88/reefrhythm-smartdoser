@@ -23,6 +23,8 @@ try:
     # unique id:
     import ubinascii
     unique_id = ubinascii.hexlify(unique_id()).decode('ascii')
+    web_compress = True
+    web_file_extension = ".gz"
 
 except ImportError:
     print("import_config debugging on PC")
@@ -84,6 +86,7 @@ except ImportError:
 
     machine = Mock()
     machine.reset = Mock(return_value=True)
+
     web_compress = False
     web_file_extension = ""
 
@@ -270,3 +273,22 @@ for _ in range(1, MAX_PUMPS + 1):
 
 rpm_table = make_rpm_table()
 command_buffer = CommandBuffer()
+
+
+def load_files_to_ram(directory, filenames, pattern):
+    # Dictionary to store the content of files
+    files_content = {}
+    # Manually specified list of filenames to load
+    for filename in filenames:
+        # Check if the filename ends with pattern
+        full_path = directory + '/' + filename + pattern
+
+        # Open the file
+        with open(full_path, 'rb') as f:
+            # Read the file content
+            content = f.read()
+
+        # Store the content in the dictionary
+        files_content[filename] = content
+
+    return files_content

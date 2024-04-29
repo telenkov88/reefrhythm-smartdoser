@@ -26,9 +26,6 @@ try:
     import ota.update
     import ota.rollback
 
-    web_compress = True
-    web_file_extension = ".gz"
-
     from release_tag import *
     from lib.umqtt.robust2 import MQTTClient
 
@@ -49,6 +46,31 @@ except ImportError:
     mqtt_client = Mock()
     RELEASE_TAG = "local_debug"
     os.system("python ../scripts/compress_web.py --path ./")
+
+
+print("\nload html to memory")
+# Usage example
+filenames = ['calibration.html', 'doser.html', 'ota-upgrade.html', 'settings.html', 'settings-captive.html']  # List your .html.gz files here
+html_files = load_files_to_ram('static/', filenames, f'{web_file_extension}')
+for file in html_files:
+    print(file)
+
+print("\nload javascripts to memory")
+filenames = ['bootstrap.bundle.min.js', 'chart.min.js']
+js_files = load_files_to_ram('static/javascript/', filenames, f'{web_file_extension}')
+
+for file in js_files:
+    print(file)
+
+
+print("\nload css to memory")
+filenames = ['bootstrap.min.css']
+css_files = load_files_to_ram('static/styles/', filenames, f'{web_file_extension}')
+
+for file in css_files:
+    print(file)
+
+
 
 app = Microdot()
 
@@ -207,6 +229,11 @@ async def styles(request, path):
     if '..' in path:
         # directory traversal is not allowed
         return 'Not found', 404
+
+    if path in css_files:
+        print(f"send css {path} from RAM")
+        return send_file(path, compressed=web_compress,
+                         file_extension=web_file_extension, stream=css_files[path])
     return send_file('static/styles/' + path, compressed=web_compress,
                      file_extension=web_file_extension)
 
@@ -217,8 +244,14 @@ async def javascript(request, path):
         # directory traversal is not allowed
         return 'Not found', 404
     print(f"Send file static/javascript/{path}")
-    return send_file('static/javascript/' + path, compressed=web_compress,
-                     file_extension=web_file_extension)
+    if path in js_files:
+        print(f"send js {path} from RAM")
+        return send_file(path, compressed=web_compress,
+                         file_extension=web_file_extension, stream=js_files[path])
+    else:
+        print(f"send js {path} from DISK")
+        return send_file('static/javascript/' + path, compressed=web_compress,
+                         file_extension=web_file_extension)
 
 
 @app.route('/static/<path:path>')
@@ -314,8 +347,14 @@ async def index(request):
         if not ssid:
             return setting_responce(request)
 
-        response = send_file('./static/doser.html', compressed=web_compress,
-                             file_extension=web_file_extension)
+        if "doser.html" in html_files:
+            print("Send doser.html.gz from RAM")
+            response = send_file("doser.html", compressed=web_compress,
+                                 file_extension=web_file_extension, stream=html_files["doser.html"])
+        else:
+            response = send_file('./static/doser.html', compressed=web_compress,
+                                 file_extension=web_file_extension)
+
         response.set_cookie(f'AnalogPins', json.dumps(analog_pins))
         response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
         response.set_cookie(f'timeformat', timeformat)
@@ -419,8 +458,14 @@ async def ota_events(request, sse):
 async def ota_upgrade(request):
     if request.method == 'GET':
         global ota_lock
-        response = send_file('./static/ota-upgrade.html', compressed=web_compress,
-                             file_extension=web_file_extension)
+
+        if "ota-upgrade.html" in html_files:
+            print("Send ota-upgrade.html from RAM")
+            response = send_file("ota-upgrade.html", compressed=web_compress,
+                                 file_extension=web_file_extension, stream=html_files["ota-upgrade.html"])
+        else:
+            response = send_file('./static/ota-upgrade.html', compressed=web_compress,
+                                 file_extension=web_file_extension)
 
         # Define a regular expression pattern to find "ota_" followed by digits
         pattern = r"ota_(\d+)"
@@ -499,7 +544,13 @@ async def calibration(request):
 @app.route('/calibration', methods=['GET', 'POST'])
 async def calibration(request):
     if request.method == 'GET':
-        response = send_file('./static/calibration.html', compressed=web_compress,
+
+        if "calibration.html" in html_files:
+            print("Send calibration.html from RAM")
+            response = send_file("calibration.html", compressed=web_compress,
+                                 file_extension=web_file_extension, stream=html_files["calibration.html"])
+        else:
+            response = send_file('./static/calibration.html', compressed=web_compress,
                              file_extension=web_file_extension)
 
         for pump in range(1, PUMP_NUM + 1):
@@ -540,7 +591,19 @@ async def calibration(request):
 
 
 def setting_responce(request):
-    response = send_file('static/settings.html', compressed=web_compress,
+    if not 'ssid' in globals():
+        src = "settings-captive.html"
+    else:
+        src = "settings-captive.html"
+
+    if src in html_files:
+        print(f"Send {src} from RAM")
+        response = send_file(src, compressed=web_compress,
+                             file_extension=web_file_extension, stream=html_files[src])
+    else:
+        print(f"Send {src} from DISK")
+        print(html_files)
+        response = send_file(f'static/{src}', compressed=web_compress,
                          file_extension=web_file_extension)
     response.set_cookie('hostname', hostname)
     response.set_cookie(f'Mac', mac_address)
@@ -800,7 +863,8 @@ async def mqtt_worker():
     print(f"subscribe {doser_topic}/run")
     mqtt_client.subscribe(f"{doser_topic}/run")
     mqtt_client.publish(last_will_topic, 'Connected', retain=True)
-
+    msg = {"free_mem": gc.mem_free() // 1024}
+    mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
     while 1:
         # At this point in the code you must consider how to handle
         # connection errors.  And how often to resume the connection.
@@ -815,11 +879,10 @@ async def mqtt_worker():
                     mqtt_client.publish(last_will_topic, 'Connected', retain=True)
                     print("mqtt resubscribe")
                     mqtt_client.resubscribe()
+                    msg = {"free_mem": gc.mem_free() // 1024}
+                    mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
                     break
                 await asyncio.sleep(60)
-
-        msg = {"free_mem": gc.mem_free() // 1024}
-        mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
 
         # WARNING!!!
         # The below functions should be run as often as possible.

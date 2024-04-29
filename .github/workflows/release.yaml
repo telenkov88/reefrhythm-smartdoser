@@ -49,7 +49,11 @@ jobs:
 
       # Compress web for better performance
       - name: Compress web resources
-        run: python3 ./scripts/compress_web.py
+        run: |
+              python3 ./scripts/compress_web.py
+              rm -rf ./src/static/*.html
+              rm -rf ./src/static/styles/*.css
+              rm -rf ./src/javascript/*.js
 
       # Checkout necessary submodules or projects
       - name: Checkout ulab/micropython
