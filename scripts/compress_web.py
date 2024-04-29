@@ -29,8 +29,37 @@ def compress(directory_path, pattern):
         print(f"Compressed: {file} -> {output_file}")
 
 
+def replace_lines_in_file(file_path, replacements):
+    # Read the contents of the file
+    with open(file_path, 'r', encoding='utf-8') as file:
+        lines = file.readlines()
+
+    # Replace lines as specified in the replacements dictionary
+    new_lines = []
+    for line in lines:
+        for old, new in replacements.items():
+            if old in line:
+                line = new
+        new_lines.append(line)
+
+    # Write the modified content back to the file
+    with open(file_path, 'w', encoding='utf-8') as file:
+        file.writelines(new_lines)
+
+replacements = {
+    'bootstrap.min.css':
+    '    <link rel="stylesheet" href="styles/bootstrap.min.css">'+os.linesep,
+    'bootstrap.bundle.min.js':
+    '    <script src="javascript/bootstrap.bundle.min.js"></script>'+os.linesep
+}
+
+
 args = parser.parse_args()
 
+
+import shutil
+shutil.copy(f"{args.path}/static/settings.html", f"{args.path}/static/settings-captive.html")
+replace_lines_in_file(f"{args.path}/static/settings-captive.html", replacements)
 compress(f"{args.path}/static/javascript", "*.js")
 compress(f"{args.path}/static/styles", "*.css")
 compress(f"{args.path}/static/", "*.html")
