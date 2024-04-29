@@ -71,7 +71,6 @@ for file in css_files:
     print(file)
 
 
-
 app = Microdot()
 
 gc.collect()
@@ -136,6 +135,9 @@ async def analog_control_worker():
                 adc_buffer_values[i].append(4095)
 
     while True:
+        while ota_lock:
+            await asyncio.sleep(200)
+
         for i, en in enumerate(analog_en):
             if en and len(analog_settings[f"pump{i + 1}"]["points"]) >= 2:
                 print(f"\r\n================\r\nRun pump{i + 1}, PIN", analog_settings[f"pump{i + 1}"]["pin"])
@@ -866,6 +868,8 @@ async def mqtt_worker():
     msg = {"free_mem": gc.mem_free() // 1024}
     mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
     while 1:
+        while ota_lock:
+            await asyncio.sleep(200)
         # At this point in the code you must consider how to handle
         # connection errors.  And how often to resume the connection.
         if mqtt_client.is_conn_issue():
