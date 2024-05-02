@@ -33,11 +33,11 @@ def evaluate_expression(expression, allowed_vars={}):
     # Remove unwanted modules from allowed_vars
     allowed_vars = {key: val for key, val in allowed_vars.items() if key not in sensetive_keys}  # Explicitly blocking some modules
     #print(allowed_vars.keys())
-    log_capture_string = io.StringIO()
-    old_stdout = sys.stdout
-    old_stderr = sys.stderr
-    sys.stdout = log_capture_string
-    sys.stderr = log_capture_string
+    #log_capture_string = io.StringIO()
+    #old_stdout = sys.stdout
+    #old_stderr = sys.stderr
+    #sys.stdout = log_capture_string
+    #sys.stderr = log_capture_string
 
     result = None
     try:
@@ -47,13 +47,14 @@ def evaluate_expression(expression, allowed_vars={}):
         print(f"Error evaluating expression: {e}")
     finally:
         # Restore stdout and stderr to their original states
-        sys.stdout = old_stdout
-        sys.stderr = old_stderr
+        print("evaluation finished")
+        #sys.stdout = old_stdout
+        #sys.stderr = old_stderr
 
     # Get all logged output
-    logs = log_capture_string.getvalue()
-    log_capture_string.close()
-
+    #logs = log_capture_string.getvalue()
+    #log_capture_string.close()
+    logs = ""
     return result, logs
 
 
@@ -76,42 +77,6 @@ class ProtectedNamespace(dict):
         self.local_vars[key] = value
 
 
-def execute_code_with_protection(code, local_vars=None):
-    # Fetch all global variables from the caller's environment automatically
-    global_vars = globals()
-
-    if local_vars is None:
-        local_vars = {}
-
-    # Create a StringIO object to capture output
-    log_capture_string = io.StringIO()
-    old_stdout = sys.stdout
-    old_stderr = sys.stderr
-    sys.stdout = log_capture_string
-    sys.stderr = log_capture_string
-
-    # Namespace setup
-    namespace = ProtectedNamespace(global_vars, local_vars)
-
-    try:
-        # Execute code within the protected namespace
-        exec(code, {}, namespace)
-        execution_result = True
-    except Exception as e:
-        print(f"Error: {e}")
-        execution_result = False
-
-    # Restore stdout and stderr
-    sys.stdout = old_stdout
-    sys.stderr = old_stderr
-
-    # Get the log output
-    logs = log_capture_string.getvalue()
-    log_capture_string.close()
-
-    return execution_result, logs
-
-
 if __name__ == '__main__':
     x = 10
     code = f"""
@@ -124,6 +89,7 @@ print("Global var x = ",x)
 x= 123
 """
 
-    result, logs = execute_code_with_protection(code)
+    result, logs = evaluate_expression("1>2")
     print("Execution result:", result)
     print("Logs:\n", logs)
+
