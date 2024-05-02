@@ -169,7 +169,9 @@ async def adc_worker():
 
 async def analog_control_worker():
     while not adc_sampler_started:
+        print("Wait for adc sampler finish firts cycle")
         await asyncio.sleep(0.1)
+    print("Init adc worker")
     # Init Pumps
     adc_buffer_values = []
     for i, en in enumerate(analog_en):
@@ -374,7 +376,7 @@ async def dose(request):
 
     task = asyncio.create_task(
         command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], desired_rpm_rate, execution_time,
-                                   direction, rpm_table, limits_dict[id]))
+                                   direction, rpm_table))
     # await uart_buffer.process_commands()
     await task
 
