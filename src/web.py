@@ -6,11 +6,11 @@ import re
 import requests
 import lib.mcron as mcron
 from load_configs import *
+from lib.exec_code import evaluate_expression
 
 try:
     # Import 3-part Add-ons
     import extension
-
     addon = True
 except ImportError as extension_error:
     print("Failed to import extension, ", extension_error)
@@ -31,8 +31,7 @@ try:
 
     mqtt_client = MQTTClient(f"ReefRhythm-{unique_id}", mqtt_broker, keepalive=60, socket_timeout=1)
 
-
-    print("Release:", RELEASE_TAG)
+    USE_RAM = True
 
 except ImportError:
     import asyncio
@@ -46,14 +45,30 @@ except ImportError:
     mqtt_client = Mock()
     RELEASE_TAG = "local_debug"
     os.system("python ../scripts/compress_web.py --path ./")
+    USE_RAM = False
+
+    # Dummy decorator to simulate @micropython.native
+    # Creating a more structured mock for micropython module
+    class Micropython:
+        @staticmethod
+        def native(func):
+            # Decorator that simply returns the function unchanged
+            return func
 
 
-print("\nload html to memory")
-# Usage example
-filenames = ['calibration.html', 'doser.html', 'ota-upgrade.html', 'settings.html', 'settings-captive.html']  # List your .html.gz files here
-html_files = load_files_to_ram('static/', filenames, f'{web_file_extension}')
-for file in html_files:
-    print(file)
+    # Assign the mock class to a variable with the module's name
+    micropython = Micropython()
+
+if USE_RAM:
+    print("\nload html to memory")
+    # Usage example
+    filenames = ['calibration.html', 'doser.html', 'ota-upgrade.html', 'settings.html',
+                 'settings-captive.html']  # List your .html.gz files here
+    html_files = load_files_to_ram('static/', filenames, f'{web_file_extension}')
+    for file in html_files:
+        print(file)
+else:
+    html_files = []
 
 print("\nload javascripts to memory")
 filenames = ['bootstrap.bundle.min.js', 'chart.min.js']
@@ -62,14 +77,12 @@ js_files = load_files_to_ram('static/javascript/', filenames, f'{web_file_extens
 for file in js_files:
     print(file)
 
-
 print("\nload css to memory")
 filenames = ['bootstrap.min.css']
 css_files = load_files_to_ram('static/styles/', filenames, f'{web_file_extension}')
 
 for file in css_files:
     print(file)
-
 
 app = Microdot()
 
@@ -88,6 +101,34 @@ byte_string = wifi.config('mac')
 print(byte_string)
 hex_string = binascii.hexlify(byte_string).decode('utf-8')
 mac_address = ':'.join(hex_string[i:i + 2] for i in range(0, len(hex_string), 2)).upper()
+
+adc_dict = {}
+for _ in analog_pins:
+    adc_dict[_] = 0
+
+adc_sampler_started = False
+
+
+@micropython.native
+async def adc_sampling():
+    sampling_size = 5
+    sampling_delay = 1/sampling_size
+    global adc_sampler_started
+    adc_buffer = {}
+    for _ in analog_pins:
+        adc_buffer[_] = array.array('I', (0 for _ in range(sampling_size)))
+        Pin(_, mode=Pin.IN, pull=Pin.PULL_UP)
+
+    while True:
+        for _ in range(sampling_size):
+            for pin in analog_pins:
+                adc_buffer[pin][_] = ADC(Pin(pin)).read()
+            await asyncio.sleep(sampling_delay)
+        for pin in analog_pins:
+            adc_dict[pin] = sum(adc_buffer[pin]) // sampling_size
+        adc_sampler_started = True
+            # print(f"Pin{pin} buffer {[int(x) for x in adc_buffer[pin]]}")
+        #print(adc_dict)
 
 
 async def download_file_async(url, filename, progress=False):
@@ -122,17 +163,20 @@ def to_float(arr):
         return arr
 
 
+async def adc_worker():
+    print()
+
+
 async def analog_control_worker():
+    while not adc_sampler_started:
+        await asyncio.sleep(0.1)
     # Init Pumps
     adc_buffer_values = []
     for i, en in enumerate(analog_en):
         adc_buffer_values.append([])
         if en and len(analog_settings[f"pump{i + 1}"]["points"]) >= 2:
             if analog_settings[f"pump{i + 1}"]["pin"] != 99:
-                adc_buffer_values[i].append(
-                    ADC(Pin(analog_settings[f"pump{i + 1}"]["pin"], Pin.IN, Pin.PULL_DOWN)).read())
-            elif en:
-                adc_buffer_values[i].append(4095)
+                adc_buffer_values[i].append(adc_dict[analog_settings[f"pump{i + 1}"]["pin"]])
 
     while True:
         while ota_lock:
@@ -142,9 +186,9 @@ async def analog_control_worker():
             if en and len(analog_settings[f"pump{i + 1}"]["points"]) >= 2:
                 print(f"\r\n================\r\nRun pump{i + 1}, PIN", analog_settings[f"pump{i + 1}"]["pin"])
 
-                adc_average = sum(adc_buffer_values[i]) / len(adc_buffer_values[i])
+                adc_average = sum(adc_buffer_values[i]) // len(adc_buffer_values[i])
                 print("ADC value: ", adc_average)
-                adc_signal = adc_average / 4095 * 100
+                adc_signal = adc_average / 40.95
                 print(f"Signal: {adc_signal}")
                 signals, flow_rates = zip(*analog_chart_points[f"pump{i + 1}"])
                 desired_flow = to_float(np.interp(adc_signal, signals, flow_rates))
@@ -155,16 +199,15 @@ async def analog_control_worker():
 
                     await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{i + 1}"], desired_rpm_rate,
                                                      analog_period + 5,
-                                                     analog_settings[f"pump{i + 1}"]["dir"], rpm_table)
+                                                     analog_settings[f"pump{i + 1}"]["dir"], rpm_table,
+                                                     limits_dict[i + 1])
         for _ in range(len(analog_en)):
             adc_buffer_values[_] = []
         for x in range(0, analog_period):
             for i, en in enumerate(analog_en):
                 if en and analog_settings[f"pump{i + 1}"]["pin"] != 99:
-                    adc_buffer_values[i].append(
-                        ADC(Pin(analog_settings[f"pump{i + 1}"]["pin"], Pin.IN, Pin.PULL_DOWN)).read())
-                elif en:
-                    adc_buffer_values[i].append(4095)
+                    adc_buffer_values[i].append(adc_dict[analog_settings[f"pump{i + 1}"]["pin"]])
+
             await asyncio.sleep(1)
 
 
@@ -297,7 +340,7 @@ async def run_with_rpm(request):
 
     task = asyncio.create_task(
         command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], rpm, execution_time, direction,
-                                   rpm_table))
+                                   rpm_table, limits_dict[id]))
     await task
 
     await callback_result_future.wait()
@@ -331,7 +374,7 @@ async def dose(request):
 
     task = asyncio.create_task(
         command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], desired_rpm_rate, execution_time,
-                                   direction, rpm_table))
+                                   direction, rpm_table, limits_dict[id]))
     # await uart_buffer.process_commands()
     await task
 
@@ -426,6 +469,28 @@ async def dose_sse(request, sse):
                 })
 
                 print("send Analog Control settigs")
+                await sse.send(event)  # unnamed event
+                await asyncio.sleep(1)
+            else:
+                # print("No updates, skip")
+                await asyncio.sleep(1)
+    except Exception as e:
+        print(f"Error in SSE loop: {e}")
+    print("SSE closed")
+
+
+@app.route('/dose-limits-sse')
+@with_sse
+async def dose_limits_sse(request, sse):
+    print("Got connection")
+    _old_limits_settings = None
+    try:
+        while "eof" not in str(request.sock[0]):
+            if _old_limits_settings != limits_dict:
+                _old_limits_settings = limits_dict.copy()
+                event = json.dumps(_old_limits_settings)
+
+                print("send limits Control settigs")
                 await sse.send(event)  # unnamed event
                 await asyncio.sleep(1)
             else:
@@ -553,7 +618,7 @@ async def calibration(request):
                                  file_extension=web_file_extension, stream=html_files["calibration.html"])
         else:
             response = send_file('./static/calibration.html', compressed=web_compress,
-                             file_extension=web_file_extension)
+                                 file_extension=web_file_extension)
 
         for pump in range(1, PUMP_NUM + 1):
             response.set_cookie(f'calibrationDataPump{pump}',
@@ -606,7 +671,7 @@ def setting_responce(request):
         print(f"Send {src} from DISK")
         print(html_files)
         response = send_file(f'static/{src}', compressed=web_compress,
-                         file_extension=web_file_extension)
+                             file_extension=web_file_extension)
     response.set_cookie('hostname', hostname)
     response.set_cookie(f'Mac', mac_address)
     response.set_cookie(f'timezone', timezone)
@@ -650,7 +715,7 @@ def setting_process_post(request):
 
     if new_mqtt_broker and new_mqtt_login and new_mqtt_password:
         with open("./config/mqtt.json", "w") as f:
-            f.write(json.dumps({"broker": new_mqtt_broker, "login": new_mqtt_login,  "password": new_mqtt_password}))
+            f.write(json.dumps({"broker": new_mqtt_broker, "login": new_mqtt_login, "password": new_mqtt_password}))
 
     new_pump_num = request.json[f"pumpNum"]
     with open("./config/settings.json", "w") as f:
@@ -677,6 +742,30 @@ async def settings(request):
     return response
 
 
+@app.route('/exec', methods=['POST'])
+async def settings(request):
+    code = request.json["code"]
+    pump = request.json["pump"]
+    print(f"[pump{pump}]Testing code:\n", code)
+    result, logs = evaluate_expression(code, globals())
+    result = True if result is True else False
+    print("Result", result)
+    return {"result": result, "logs": logs}
+
+
+@app.route('/exec_save', methods=['POST'])
+async def settings(request):
+    code = request.json["code"]
+    pump = int(request.json["pump"])
+
+    limits_dict[pump] = code
+    print("Save new limits config, ", limits_dict)
+    with open("./config/limits.json", 'w') as _limits_config:
+        _limits_config.write(json.dumps(limits_dict))
+    update_schedule(schedule)
+    return {'logs': 'Success'}
+
+
 def update_schedule(data):
     if mcron_keys:
         mcron.remove_all()
@@ -685,7 +774,7 @@ def update_schedule(data):
         def task(callback_id, current_time, callback_memory):
             print(f"[{get_time()}] Callback id:", callback_id)
             asyncio.run(command_buffer.add_command(stepper_run, None, mks_dict[f"mks" + id], rpm, duration, direction,
-                                                   rpm_table))
+                                                   rpm_table, limits_dict[id]))
 
         return task
 
@@ -854,9 +943,6 @@ async def mqtt_worker():
     print("MQTT last will topic: ", last_will_topic)
     mqtt_client.set_last_will(last_will_topic, 'Disconnected', retain=True)
 
-    def sub_cb(topic, msg, retain, dup):
-        print((topic, msg, retain, dup))
-
     mqtt_client.set_callback(sub)
     print(f"connect to {mqtt_broker}")
     mqtt_client.connect()
@@ -893,7 +979,7 @@ async def mqtt_worker():
         # There may be a problem with the connection. (MQTTException(7,), 9)
         # In the following way, we clear the queue.
         for _ in range(50):
-            #print("mqtt check_msg")
+            # print("mqtt check_msg")
             if mqtt_client.is_conn_issue():
                 break
             mqtt_client.check_msg()  # needed when publish(qos=1), ping(), subscribe()
@@ -917,9 +1003,12 @@ async def process_mqtt_cmd():
             desired_flow = command["amount"] * (60 / command["duration"])
             print(f"Desired flow: {round(desired_flow, 2)}")
             print(f"Direction: {command['direction']}")
-            desired_rpm_rate = np.interp(desired_flow, chart_points[f"pump{command['id']}"][1], chart_points[f"pump{command['id']}"][0])
+            desired_rpm_rate = np.interp(desired_flow, chart_points[f"pump{command['id']}"][1],
+                                         chart_points[f"pump{command['id']}"][0])
             print("Calculated RPM: ", desired_rpm_rate)
-            await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate, command['duration'], command['direction'], rpm_table)
+            await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate,
+                                             command['duration'], command['direction'], rpm_table,
+                                             limits_dict[command['id']])
 
         if mqtt_run_buffer:
             print("Process mqtt command")
@@ -928,7 +1017,9 @@ async def process_mqtt_cmd():
             print(f"Direction: {command['direction']}")
             desired_rpm_rate = command['rpm']
             print("Desired RPM: ", desired_rpm_rate)
-            await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate, command['duration'], command['direction'], rpm_table)
+            await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate,
+                                             command['duration'], command['direction'], rpm_table,
+                                             limits_dict[command['id']])
 
         await asyncio.sleep(1)
 
@@ -940,6 +1031,7 @@ async def main():
     # Importing external @app.route to support add-ons
 
     tasks = [
+        asyncio.create_task(adc_sampling()),
         asyncio.create_task(analog_control_worker()),
         asyncio.create_task(start_web_server()),
         asyncio.create_task(sync_time()),
@@ -954,6 +1046,7 @@ async def main():
     if addon:
         print("Extend tasks")
         for _ in extension.extension_tasks:
+            print("Add extension task", _.__qualname__)
             task = asyncio.create_task(_())
             tasks.append(task)
 

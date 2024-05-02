@@ -179,7 +179,14 @@
 
 
         <div class="tab-pane fade container" id="limittab">
-          <p>Dosing pump limits.</p>
+            <p>Dosing pump limits.</p>
+            <button type="button" onclick="testCodeExec()" class="btn btn-warning">Test</button>
+            <button type="button" onclick="saveCodeExec()" class="btn btn-success">Save</button>
+            <label for="codeTextarea" class="form-label mt-4">Python evaluation expression</label>
+            <input type="text" class="form-control" id="codeTextarea" placeholder="Input evaluation expression">
+
+            <label for="logTextarea" class="form-label mt-4">Result</label>
+            <textarea class="form-control" id="logTextarea" rows="10"></textarea>
         </div>
 
         <div class="tab-pane fade container" id="analoginputtab">
@@ -197,6 +204,8 @@
         let numberOfPumps;
 
         let scheduleData = {};
+
+        let limitsData = {};
 
         let analog_chart_points = {}
         let analogInpData = {}
@@ -221,6 +230,94 @@
                 console.log("SSE Error occurred: ", event);
             }
         };
+
+        let limitsSource = new EventSource("/dose-limits-sse");
+        limitsSource.onopen = function(event) {
+            console.log("SSE connection to server opened.");
+        };
+
+        limitsSource.onerror = function(event) {
+            if (event.currentTarget.readyState === limitsSource.CLOSED) {
+                console.log("SSE connection was closed.");
+            } else {
+                console.log("SSE Error occurred: ", event);
+            }
+        };
+
+
+        function testCodeExec() {
+            document.getElementById("logTextarea").value = ""
+            const code = document.getElementById("codeTextarea").value;
+            const url = window.location.href + 'exec';
+            const data = {
+                "pump": document.getElementById("pumpSelector").value,
+                "code": code
+            };
+
+            console.log("Test code:", code);
+            console.log("URL:", url);
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                console.log("Response:", response);
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json(); // Here we convert the response body to JSON
+            })
+            .then(data => {
+                console.log('Success:', data);
+                document.getElementById("logTextarea").value = "Result: " + data["result"] + "\r\n\r\n" + data["logs"]
+                // Optionally, you can directly show a specific part of the response:
+                // document.getElementById("logTextarea").textContent = data.someSpecificField;
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+                document.getElementById("logTextarea").value = 'Error: ' + error.message;
+            });
+        }
+
+        function saveCodeExec() {
+            const pumpSelect = document.getElementById("pumpSelector").value
+            const code = document.getElementById("codeTextarea").value
+            const url = window.location.href + 'exec_save';
+            console.log("Save code for Pump"+ pumpSelect," ", code)
+
+            const data = {
+                "pump": document.getElementById("pumpSelector").value,
+                "code": code
+            };
+
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                console.log("Response:", response);
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json(); // Here we convert the response body to JSON
+            })
+            .then(data => {
+                console.log('Success:', data);
+                document.getElementById("logTextarea").value = 'Setting saved'
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+                document.getElementById("logTextarea").value = 'Error: ' + error.message;
+            });
+        }
 
         function convertTo12HFormat(time) {
             // Split the time string into hours and minutes
@@ -302,6 +399,15 @@
                 applyButton.className = "btn btn-primary";
                 applyButton.setAttribute('aria-disabled', 'false');
             }
+        }
+
+        limitsSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            console.log("got sse data: ", data)
+            limitsData = data
+            const pumpSelected = document.getElementById("pumpSelector").value
+            document.getElementById("codeTextarea").value = limitsData[pumpSelected]
+            document.getElementById("logTextarea").value = ""
         }
 
         eventSource.onmessage = function(event) {
@@ -654,8 +760,8 @@
                 },
                 options: {
                     scales: {
-                        x: { title: { display: true, text: 'Flow Rate (ml/min)' } },
-                        y: { title: { display: true, text: 'Signal %' } }
+                        x: { title: { display: true, text: 'Signal %' } },
+                        y: { title: { display: true, text:  'Flow Rate (ml/min)'} }
                     }
                 }
             });
@@ -997,6 +1103,9 @@
 
             updateAnalogInpPointsList(pumpNumber)
             updateAnalogInpChart(pumpNumber);
+
+            document.getElementById("codeTextarea").value = limitsData[pumpNumber]
+            document.getElementById("logTextarea").value = ""
 
             for (let i=1; i<maxNumberOfPumps+1; i++ ){
                 document.getElementById(`schedulePointsList${i}`).style.display = 'none';
