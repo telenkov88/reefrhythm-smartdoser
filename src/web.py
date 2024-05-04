@@ -1048,7 +1048,6 @@ async def main():
     if addon:
         print("Extend tasks")
         for _ in extension.extension_tasks:
-            print("Add extension task", _.__qualname__)
             task = asyncio.create_task(_())
             tasks.append(task)
 
