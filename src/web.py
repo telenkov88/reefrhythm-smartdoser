@@ -208,7 +208,7 @@ async def analog_control_worker():
                     await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{i + 1}"], desired_rpm_rate,
                                                      analog_period + 5,
                                                      analog_settings[f"pump{i + 1}"]["dir"], rpm_table,
-                                                     limits_dict[i + 1])
+                                                     False)
         for _ in range(len(analog_en)):
             adc_buffer_values[_] = []
         for x in range(0, analog_period):
@@ -782,7 +782,7 @@ def update_schedule(data):
         def task(callback_id, current_time, callback_memory):
             print(f"[{get_time()}] Callback id:", callback_id)
             asyncio.run(command_buffer.add_command(stepper_run, None, mks_dict[f"mks" + id], rpm, duration, direction,
-                                                   rpm_table, limits_dict[id]))
+                                                   rpm_table, False))
 
         return task
 
@@ -1016,7 +1016,7 @@ async def process_mqtt_cmd():
             print("Calculated RPM: ", desired_rpm_rate)
             await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate,
                                              command['duration'], command['direction'], rpm_table,
-                                             limits_dict[command['id']])
+                                             False)
 
         if mqtt_run_buffer:
             print("Process mqtt command")
@@ -1025,9 +1025,12 @@ async def process_mqtt_cmd():
             print(f"Direction: {command['direction']}")
             desired_rpm_rate = command['rpm']
             print("Desired RPM: ", desired_rpm_rate)
+            #await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate,
+            #                                 command['duration'], command['direction'], rpm_table,
+            #                                 limits_dict[command['id']])
             await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate,
                                              command['duration'], command['direction'], rpm_table,
-                                             limits_dict[command['id']])
+                                             False)
 
         await asyncio.sleep(1)
 
