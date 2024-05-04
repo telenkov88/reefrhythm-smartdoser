@@ -593,7 +593,7 @@ async def ota_upgrade(request):
             print("Cancel firmware rollback")
             ota.rollback.cancel()
 
-        response = 200
+        response = {}
 
     return response
 
