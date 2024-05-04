@@ -1,7 +1,3 @@
-import io
-import sys
-
-
 sensetive_keys = ['time', 'os', 'sys', 'Microdot', 'redirect', 'send_file', 'with_sse', 're', 'requests', 'mcron',
                   'json', 'calc_steps', 'np', 'file_or_dir_exists', 'calc_real_rpm', 'make_rpm_table',
                   'find_combination', 'extrapolate_flow_rate', 'linear_interpolation', 'move_with_rpm', 'stepper_run',
@@ -22,22 +18,13 @@ sensetive_keys = ['time', 'os', 'sys', 'Microdot', 'redirect', 'send_file', 'wit
                   'calibration', 'setting_responce', 'setting_process_post', 'update_schedule', 'sync_time',
                   'update_sched_onstart', 'maintain_memory', 'mqtt_worker', 'mqtt_dose_buffer', 'mqtt_run_buffer',
                   'process_mqtt_cmd', 'main', 'start_web_server', 'wifi_config', 'wifi_settings', 'password',
-                  'rpm_table', 'time']
-
-
-def get_filtered_vars(global_vars, keys):
-    return {k: v for k, v in global_vars.items() if k not in keys and not k.startswith('__')}
+                  'rpm_table', 'time', 'UART', 'adc_worker', 'MQTTClient', 'array', '__file__', '__name__', '_']
 
 
 def evaluate_expression(expression, allowed_vars={}):
     # Remove unwanted modules from allowed_vars
     allowed_vars = {key: val for key, val in allowed_vars.items() if key not in sensetive_keys}  # Explicitly blocking some modules
-    #print(allowed_vars.keys())
-    #log_capture_string = io.StringIO()
-    #old_stdout = sys.stdout
-    #old_stderr = sys.stderr
-    #sys.stdout = log_capture_string
-    #sys.stderr = log_capture_string
+    print("Allowed keys:", allowed_vars.keys())
 
     result = None
     try:
@@ -48,12 +35,7 @@ def evaluate_expression(expression, allowed_vars={}):
     finally:
         # Restore stdout and stderr to their original states
         print("evaluation finished")
-        #sys.stdout = old_stdout
-        #sys.stderr = old_stderr
 
-    # Get all logged output
-    #logs = log_capture_string.getvalue()
-    #log_capture_string.close()
     logs = ""
     return result, logs
 

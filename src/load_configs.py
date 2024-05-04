@@ -246,7 +246,7 @@ try:
     with open("./config/limits.json", 'r') as limits_config:
         limits_settings = json.load(limits_config)
         for _ in range(1, MAX_PUMPS + 1):
-            if _ in limits_settings:
+            if f"{_}" in limits_settings:
                 limits_dict[_] = limits_settings[f"{_}"]
             else:
                 limits_dict[_] = "True"
@@ -255,7 +255,6 @@ except Exception as e:
     print("\nfailed to load ./config/limits.json, ", e)
     for _ in range(1, MAX_PUMPS + 1):
         limits_dict[_] = "True"
-
 
 chart_points = {}
 for _ in range(1, MAX_PUMPS + 1):

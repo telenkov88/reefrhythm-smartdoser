@@ -79,7 +79,7 @@
         <p id="firmwareVesrion"></p>
 
         <label for="firmwareLinkInput">Firmware Link:</label>
-        <input type="text" id="firmwareLinkInput" placeholder="Enter firmware download link" value="http://github.com/telenkov88/reefrhythm-smartdoser/releases/download/latest/micropython.bin">
+        <input type="text" id="firmwareLinkInput" placeholder="Enter firmware download link" value="">
 
         <button id="startUpgradeButton">Start Upgrade</button>
         <button id="cancelButton">Cancel Rollback</button>
@@ -99,7 +99,7 @@
             console.log("Cookie update event")
             document.getElementById('otaPartitionInfo').textContent = 'OTA Partition: ' + getCookie('otaPartition');
             document.getElementById('firmwareVesrion').textContent = 'Firmware Version: ' + getCookie('firmware');
-
+            document.getElementById("firmwareLinkInput").value = getCookie("firmwareLink")
             // Load extension
             var navbar = document.getElementById('navbarColor01');
             const navbarExtension = JSON.parse(getCookie('Extension'));

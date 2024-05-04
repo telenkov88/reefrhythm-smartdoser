@@ -96,6 +96,7 @@ gc.collect()
 ota_lock = False
 ota_progress = 0
 firmware_size = None
+firmware_link = "http://github.com/telenkov88/reefrhythm-smartdoser/releases/download/latest/micropython.bin"
 
 should_continue = True  # Flag for shutdown
 c = 0
@@ -114,6 +115,21 @@ for _ in analog_pins:
 
 adc_sampler_started = False
 
+
+async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_table, expression=False):
+    print(f"Desired {to_float(desired_rpm_rate)}rpm, mstep")
+    if expression:
+        print("Check expression: ", expression)
+        result, logs = evaluate_expression(expression, globals())
+        if result:
+            print(f"Limits check pass")
+            calc_time = move_with_rpm(mks, desired_rpm_rate, execution_time, rpm_table, direction)
+            return [calc_time]
+    else:
+        calc_time = move_with_rpm(mks, desired_rpm_rate, execution_time, rpm_table, direction)
+        return [calc_time]
+    print(f"Limits check not pass, skip dosing")
+    return False
 
 @micropython.native
 async def adc_sampling():
@@ -208,7 +224,7 @@ async def analog_control_worker():
                     await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{i + 1}"], desired_rpm_rate,
                                                      analog_period + 5,
                                                      analog_settings[f"pump{i + 1}"]["dir"], rpm_table,
-                                                     False)
+                                                     limits_dict[i + 1])
         for _ in range(len(analog_en)):
             adc_buffer_values[_] = []
         for x in range(0, analog_period):
@@ -348,7 +364,7 @@ async def run_with_rpm(request):
 
     task = asyncio.create_task(
         command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], rpm, execution_time, direction,
-                                   rpm_table, limits_dict[id]))
+                                   rpm_table))
     await task
 
     await callback_result_future.wait()
@@ -541,7 +557,7 @@ async def ota_upgrade(request):
         else:
             response = send_file('./static/ota-upgrade.html', compressed=web_compress,
                                  file_extension=web_file_extension)
-
+        response.set_cookie("firmwareLink", firmware_link)
         # Define a regular expression pattern to find "ota_" followed by digits
         pattern = r"ota_(\d+)"
 
@@ -605,7 +621,7 @@ async def ota_upgrade(request):
 
 
 @app.route('/schedule', methods=['GET', 'POST'])
-async def calibration(request):
+async def schedule_web(request):
     if request.method == 'GET':
         return schedule
     else:
@@ -662,6 +678,7 @@ async def calibration(request):
                                         json.dumps(calibration_points[f"calibrationDataPump{_}"]))
         with open("config/calibration_points.json", 'w') as write_file:
             write_file.write(json.dumps(calibration_points))
+        update_schedule(schedule)
     return response
 
 
@@ -782,7 +799,7 @@ def update_schedule(data):
         def task(callback_id, current_time, callback_memory):
             print(f"[{get_time()}] Callback id:", callback_id)
             asyncio.run(command_buffer.add_command(stepper_run, None, mks_dict[f"mks" + id], rpm, duration, direction,
-                                                   rpm_table, False))
+                                                   rpm_table, limits_dict[int(id)]))
 
         return task
 
@@ -1016,7 +1033,7 @@ async def process_mqtt_cmd():
             print("Calculated RPM: ", desired_rpm_rate)
             await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate,
                                              command['duration'], command['direction'], rpm_table,
-                                             False)
+                                             limits_dict[int(command['id'])])
 
         if mqtt_run_buffer:
             print("Process mqtt command")
@@ -1025,12 +1042,9 @@ async def process_mqtt_cmd():
             print(f"Direction: {command['direction']}")
             desired_rpm_rate = command['rpm']
             print("Desired RPM: ", desired_rpm_rate)
-            #await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate,
-            #                                 command['duration'], command['direction'], rpm_table,
-            #                                 limits_dict[command['id']])
             await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate,
                                              command['duration'], command['direction'], rpm_table,
-                                             False)
+                                             limits_dict[int(command['id'])])
 
         await asyncio.sleep(1)
 
