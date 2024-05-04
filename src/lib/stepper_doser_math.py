@@ -218,8 +218,16 @@ def move_with_rpm(mks, rpm, runtime, rpm_table, direction=0):
         return False
 
 
+def to_float(arr):
+    if isinstance(arr, np.ndarray):
+        # If it's a single-item NumPy array, extract the item and return
+        return arr[0]
+    else:
+        return arr
+
+
 async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_table, expression=False):
-    print(f"Desired {desired_rpm_rate}rpm, mstep")
+    print(f"Desired {to_float(desired_rpm_rate)}rpm, mstep")
     print("Limits expression: ", expression)
     if expression:
         result, logs = evaluate_expression(expression)
