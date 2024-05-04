@@ -31,7 +31,7 @@ try:
 
     mqtt_client = MQTTClient(f"ReefRhythm-{unique_id}", mqtt_broker, keepalive=60, socket_timeout=1)
 
-    USE_RAM = True
+    USE_RAM = False
 
 except ImportError:
     import asyncio
@@ -70,16 +70,22 @@ if USE_RAM:
 else:
     html_files = []
 
-print("\nload javascripts to memory")
-filenames = ['bootstrap.bundle.min.js', 'chart.min.js']
-js_files = load_files_to_ram('static/javascript/', filenames, f'{web_file_extension}')
+if USE_RAM:
+    print("\nload javascripts to memory")
+    filenames = ['bootstrap.bundle.min.js', 'chart.min.js']
+    js_files = load_files_to_ram('static/javascript/', filenames, f'{web_file_extension}')
+else:
+    js_files = []
 
 for file in js_files:
     print(file)
 
-print("\nload css to memory")
-filenames = ['bootstrap.min.css']
-css_files = load_files_to_ram('static/styles/', filenames, f'{web_file_extension}')
+if USE_RAM:
+    print("\nload css to memory")
+    filenames = ['bootstrap.min.css']
+    css_files = load_files_to_ram('static/styles/', filenames, f'{web_file_extension}')
+else:
+    css_files = []
 
 for file in css_files:
     print(file)
