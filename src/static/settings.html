@@ -13,6 +13,7 @@
             link.href = local_css; // URL to your local CSS file
             document.head.appendChild(link);
         }
+
         function loadLocalScript(local_js) {
             console.log("Load local js ", local_js)
             var script = document.createElement('script');
@@ -23,8 +24,10 @@
 
     </script>
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" onerror="loadLocalCSS('styles/bootstrap.min.css')">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" onerror="loadLocalScript('javascript/bootstrap.bundle.min.js')"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          onerror="loadLocalCSS('styles/bootstrap.min.css')">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            onerror="loadLocalScript('javascript/bootstrap.bundle.min.js')"></script>
 
     <title>wifi settings</title>
     <style>
@@ -40,387 +43,449 @@
 </head>
 <body>
 
-    <nav class="navbar navbar-expand-lg bg-primary" id="navbar" data-bs-theme="dark">
-      <div class="container-fluid">
+<nav class="navbar navbar-expand-lg bg-primary" id="navbar" data-bs-theme="dark">
+    <div class="container-fluid">
         <a class="navbar-brand" href="/">Dosing</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01" aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
-          <span class="navbar-toggler-icon"></span>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01"
+                aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarColor01">
-          <ul class="navbar-nav me-auto">
-            <li class="nav-item">
-              <a class="nav-link" href="/calibration">Calibration</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/settings">Settings</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/ota-upgrade">OTA</a>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </nav>
-
-
-    <ul class="nav nav-tabs" role="tablist">
-      <li class="nav-item" role="presentation">
-        <a class="nav-link active" data-bs-toggle="tab" href="#wifitab" aria-selected="true" role="tab">Wi-Fi</a>
-      </li>
-      <li class="nav-item" role="presentation">
-        <a class="nav-link" data-bs-toggle="tab" href="#pumpstab" aria-selected="false" role="tab" tabindex="-1">Pumps</a>
-      </li>
-      <li class="nav-item" role="presentation">
-        <a class="nav-link" data-bs-toggle="tab" href="#mqtttab" aria-selected="false" tabindex="-1" role="tab">MQTT</a>
-      </li>
-    </ul>
-
-    <div id="myTabContent" class="tab-content">
-          <div class="tab-pane fade container active show" id="wifitab" role="tabpanel">
-              <h2>Time settings</h2>
-              <label for="timeFormat" class="form-label mt-4">Clock format</label>
-              <select name="timeFormat" id="timeFormat" class="form-select" style="width: 300px">
-                  <option value="0">24 hour clock</option>
-                  <option value="1">12 hour clock</option>
-              </select>
-
-              <label for="timezoneOffset" class="form-label mt-4">Timezone</label>
-              <select name="timezoneOffset" id="timezoneOffset" class="form-select" style="width: 300px">
-                <option value="-12.0">(GMT -12:00) Eniwetok, Kwajalein</option>
-                <option value="-11.0">(GMT -11:00) Midway Island, Samoa</option>
-                <option value="-10.0">(GMT -10:00) Hawaii</option>
-                <option value="-9.5">(GMT -9:30) Taiohae</option>
-                <option value="-9.0">(GMT -9:00) Alaska</option>
-                <option value="-8.0">(GMT -8:00) Pacific Time (US &amp; Canada)</option>
-                <option value="-7.0">(GMT -7:00) Mountain Time (US &amp; Canada)</option>
-                <option value="-6.0">(GMT -6:00) Central Time (US &amp; Canada), Mexico City</option>
-                <option value="-5.0">(GMT -5:00) Eastern Time (US &amp; Canada), Bogota, Lima</option>
-                <option value="-4.5">(GMT -4:30) Caracas</option>
-                <option value="-4.0">(GMT -4:00) Atlantic Time (Canada), Caracas, La Paz</option>
-                <option value="-3.5">(GMT -3:30) Newfoundland</option>
-                <option value="-3.0">(GMT -3:00) Brazil, Buenos Aires, Georgetown</option>
-                <option value="-2.0">(GMT -2:00) Mid-Atlantic</option>
-                <option value="-1.0">(GMT -1:00) Azores, Cape Verde Islands</option>
-                <option value="0.0" selected="selected">(GMT) Western Europe Time, London, Lisbon, Casablanca</option>
-                <option value="1.0">(GMT +1:00) Brussels, Copenhagen, Madrid, Paris</option>
-                <option value="2.0">(GMT +2:00) Kaliningrad, South Africa</option>
-                <option value="3.0">(GMT +3:00) Baghdad, Riyadh, Moscow, St. Petersburg</option>
-                <option value="3.5">(GMT +3:30) Tehran</option>
-                <option value="4.0">(GMT +4:00) Abu Dhabi, Muscat, Baku, Tbilisi</option>
-                <option value="4.5">(GMT +4:30) Kabul</option>
-                <option value="5.0">(GMT +5:00) Ekaterinburg, Islamabad, Karachi, Tashkent</option>
-                <option value="5.5">(GMT +5:30) Bombay, Calcutta, Madras, New Delhi</option>
-                <option value="5.75">(GMT +5:45) Kathmandu, Pokhara</option>
-                <option value="6.0">(GMT +6:00) Almaty, Dhaka, Colombo</option>
-                <option value="6.5">(GMT +6:30) Yangon, Mandalay</option>
-                <option value="7.0">(GMT +7:00) Bangkok, Hanoi, Jakarta</option>
-                <option value="8.0">(GMT +8:00) Beijing, Perth, Singapore, Hong Kong</option>
-                <option value="8.75">(GMT +8:45) Eucla</option>
-                <option value="9.0">(GMT +9:00) Tokyo, Seoul, Osaka, Sapporo, Yakutsk</option>
-                <option value="9.5">(GMT +9:30) Adelaide, Darwin</option>
-                <option value="10.0">(GMT +10:00) Eastern Australia, Guam, Vladivostok</option>
-                <option value="10.5">(GMT +10:30) Lord Howe Island</option>
-                <option value="11.0">(GMT +11:00) Magadan, Solomon Islands, New Caledonia</option>
-                <option value="11.5">(GMT +11:30) Norfolk Island</option>
-                <option value="12.0">(GMT +12:00) Auckland, Wellington, Fiji, Kamchatka</option>
-                <option value="12.75">(GMT +12:45) Chatham Islands</option>
-                <option value="13.0">(GMT +13:00) Apia, Nukualofa</option>
-                <option value="14.0">(GMT +14:00) Line Islands, Tokelau</option>
-            </select>
-            <label for="currentTime">Current Time:</label>
-              <fieldset>
-                  <input type="currentTime" id="currentTime" name="currentTime" style="width: 300px" class="form-control rounded" readonly="">
-              </fieldset>
-
-            <h2>Wifi settings</h2>
-              <label for="mac">Mac Address:</label>
-              <fieldset>
-                  <input type="mac" id="mac" name="mac" style="width: 300px" class="form-control rounded" readonly="">
-              </fieldset>
-
-              <label for="hostName">Hostname:</label>
-              <input type="text" style="width: 300px" id="hostName" name="hostName" pattern="[a-zA-Z0-9\-\.]{1,15}"
-                     class="form-control is-valid"
-                     title="Hostname must be 1-15 characters long and contain only letters, numbers, hyphens"
-              oninput="checkPattern(document.getElementById('hostName'), /^[a-zA-Z0-9\-]{1,15}$/)">
-
-            <!-- Form for wi-fi settings -->
-            <label for="ssidInput1">SSID Name:</label>
-            <input type="text" style="width: 300px" class="form-control" id="ssidInput1" placeholder="Enter SSID name">
-
-              <label for="password" class="form-label mt-4">WIFI password:</label>
-
-              <div class="input-group" style="width: 300px">
-                  <input type="password" id="password" name="password" class="form-control rounded"
-                         autocomplete="password"
-                         spellcheck="false" autocapitalize="off" required
-                         placeholder="Enter Wifi password">
-              </div>
-
-          </div>
-
-
-        <div class="tab-pane fade container" id="pumpstab" role="tabpanel">
-            <h2>Pumps settings</h2>
-            <label for="pumpSelector">Number of pumps</label>
-            <select id="pumpSelector" class="form-select" style="width: 150px"></select>
-
-            <label for="analogPeriod" class="form-label mt-4">Analog Control Period</label>
-                <select name="analogPeriod" id="analogPeriod" class="form-select" style="width: 150px">
-                    <option value="5">5 sec</option>
-                    <option value="15">15 sec</option>
-                    <option value="30">30 sec</option>
-                    <option value="45">45 sec</option>
-                    <option value="60">60 sec</option>
-                    <option value="90">90 sec</option>
-                    <option value="120">120 sec</option>
-                    <option value="240">240 sec</option>
-                    <option value="300">300 sec</option>
-                </select>
-
-            <label for="pumpCurrent" class="form-label mt-4">Pumps current</label>
-                <select name="pumpCurrent" id="pumpCurrent" class="form-select" style="width: 150px">
-                    <option value="200">0.2A</option>
-                    <option value="400">0.4A</option>
-                    <option value="600">0.6A</option>
-                    <option value="800">0.8A</option>
-                    <option value="1000">1A</option>
-                    <option value="1200">1.2A</option>
-                    <option value="1400">1.4A</option>
-                    <option value="1600">1.6A</option>
-                    <option value="1800">1.8A</option>
-                    <option value="2000">2A</option>
-                </select>
-
-        </div>
-
-        <div class="tab-pane fade container" id="mqtttab" role="tabpanel">
-            <h2>MQTT settings</h2>
-            <label for="mqttTopic">MQTT topic:</label>
-            <fieldset>
-                <input id="mqttTopic" name="mqttTopic" style="width: 300px" class="form-control rounded" readonly="">
-            </fieldset>
-            <label for="mqttBrokerInput1">MQTT broker:</label>
-            <input type="text" style="width: 300px" class="form-control" id="mqttBrokerInput1" placeholder="Enter MQTT broker link">
-            <label for="mqttLoginInput1">MQTT login:</label>
-            <input type="text" style="width: 300px" class="form-control" id="mqttLoginInput1" placeholder="Enter MQTT login">
-
-            <label for="mqttPassword" class="form-label mt-4">MQTT password:</label>
-            <div class="input-group" style="width: 300px">
-              <input type="password" id="mqttPassword" name="mqttPassword" class="form-control rounded"
-                     autocomplete="password"
-                     spellcheck="false" autocapitalize="off" required
-                     placeholder="Enter MQTT password">
-            </div>
-
-
-        </div>
-        <div class="tab-pane fade container active show" role="tabpanel">
-        <button type="button" class="btn btn-primary" style="margin-top: 10px" id="uploadDataBtn">Apply</button>
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="/calibration">Calibration</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/settings">Settings</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/ota-upgrade">OTA</a>
+                </li>
+            </ul>
         </div>
     </div>
+</nav>
+
+
+<ul class="nav nav-tabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <a class="nav-link active" data-bs-toggle="tab" href="#wifitab" aria-selected="true" role="tab">Wi-Fi</a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#timetab" aria-selected="false" tabindex="-1" role="tab">Time</a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#pumpstab" aria-selected="false" role="tab"
+           tabindex="-1">Pumps</a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#mqtttab" aria-selected="false" tabindex="-1" role="tab">MQTT</a>
+    </li>
+</ul>
+
+<div id="myTabContent" class="tab-content">
+
+
+    <div class="tab-pane fade container active show" id="wifitab" role="tabpanel">
+        <h2>Wifi settings</h2>
+        <label for="mac">Mac Address:</label>
+        <fieldset>
+            <input type="mac" id="mac" name="mac" style="width: 300px" class="form-control rounded" readonly="">
+        </fieldset>
+
+        <label for="hostName">Hostname:</label>
+        <input type="text" style="width: 300px" id="hostName" name="hostName" pattern="[a-zA-Z0-9\-\.]{1,15}"
+               class="form-control is-valid"
+               title="Hostname must be 1-15 characters long and contain only letters, numbers, hyphens"
+               oninput="checkPattern(document.getElementById('hostName'), /^[a-zA-Z0-9\-]{1,15}$/)">
+
+        <!-- Form for wi-fi settings -->
+        <label for="ssidInput1">SSID Name:</label>
+        <input type="text" style="width: 300px" class="form-control" id="ssidInput1" placeholder="Enter SSID name">
+
+        <label for="password" class="form-label mt-4">WIFI password:</label>
+
+        <div class="input-group" style="width: 300px">
+            <input type="password" id="password" name="password" class="form-control rounded"
+                   autocomplete="password"
+                   spellcheck="false" autocapitalize="off" required
+                   placeholder="Enter Wifi password">
+        </div>
+
+    </div>
+
+
+    <div class="tab-pane fade container" id="timetab" role="tabpanel">
+        <h2>Time settings</h2>
+        <label for="timeFormat" class="form-label mt-4">Clock format</label>
+        <select name="timeFormat" id="timeFormat" class="form-select" style="width: 300px">
+            <option value="0">24 hour clock</option>
+            <option value="1">12 hour clock</option>
+        </select>
+
+        <label for="timezoneOffset" class="form-label mt-4">Timezone</label>
+        <select name="timezoneOffset" id="timezoneOffset" class="form-select" style="width: 300px">
+            <option value="-12.0">(GMT -12:00) Eniwetok, Kwajalein</option>
+            <option value="-11.0">(GMT -11:00) Midway Island, Samoa</option>
+            <option value="-10.0">(GMT -10:00) Hawaii</option>
+            <option value="-9.5">(GMT -9:30) Taiohae</option>
+            <option value="-9.0">(GMT -9:00) Alaska</option>
+            <option value="-8.0">(GMT -8:00) Pacific Time (US &amp; Canada)</option>
+            <option value="-7.0">(GMT -7:00) Mountain Time (US &amp; Canada)</option>
+            <option value="-6.0">(GMT -6:00) Central Time (US &amp; Canada), Mexico City</option>
+            <option value="-5.0">(GMT -5:00) Eastern Time (US &amp; Canada), Bogota, Lima</option>
+            <option value="-4.5">(GMT -4:30) Caracas</option>
+            <option value="-4.0">(GMT -4:00) Atlantic Time (Canada), Caracas, La Paz</option>
+            <option value="-3.5">(GMT -3:30) Newfoundland</option>
+            <option value="-3.0">(GMT -3:00) Brazil, Buenos Aires, Georgetown</option>
+            <option value="-2.0">(GMT -2:00) Mid-Atlantic</option>
+            <option value="-1.0">(GMT -1:00) Azores, Cape Verde Islands</option>
+            <option value="0.0" selected="selected">(GMT) Western Europe Time, London, Lisbon, Casablanca</option>
+            <option value="1.0">(GMT +1:00) Brussels, Copenhagen, Madrid, Paris</option>
+            <option value="2.0">(GMT +2:00) Kaliningrad, South Africa</option>
+            <option value="3.0">(GMT +3:00) Baghdad, Riyadh, Moscow, St. Petersburg</option>
+            <option value="3.5">(GMT +3:30) Tehran</option>
+            <option value="4.0">(GMT +4:00) Abu Dhabi, Muscat, Baku, Tbilisi</option>
+            <option value="4.5">(GMT +4:30) Kabul</option>
+            <option value="5.0">(GMT +5:00) Ekaterinburg, Islamabad, Karachi, Tashkent</option>
+            <option value="5.5">(GMT +5:30) Bombay, Calcutta, Madras, New Delhi</option>
+            <option value="5.75">(GMT +5:45) Kathmandu, Pokhara</option>
+            <option value="6.0">(GMT +6:00) Almaty, Dhaka, Colombo</option>
+            <option value="6.5">(GMT +6:30) Yangon, Mandalay</option>
+            <option value="7.0">(GMT +7:00) Bangkok, Hanoi, Jakarta</option>
+            <option value="8.0">(GMT +8:00) Beijing, Perth, Singapore, Hong Kong</option>
+            <option value="8.75">(GMT +8:45) Eucla</option>
+            <option value="9.0">(GMT +9:00) Tokyo, Seoul, Osaka, Sapporo, Yakutsk</option>
+            <option value="9.5">(GMT +9:30) Adelaide, Darwin</option>
+            <option value="10.0">(GMT +10:00) Eastern Australia, Guam, Vladivostok</option>
+            <option value="10.5">(GMT +10:30) Lord Howe Island</option>
+            <option value="11.0">(GMT +11:00) Magadan, Solomon Islands, New Caledonia</option>
+            <option value="11.5">(GMT +11:30) Norfolk Island</option>
+            <option value="12.0">(GMT +12:00) Auckland, Wellington, Fiji, Kamchatka</option>
+            <option value="12.75">(GMT +12:45) Chatham Islands</option>
+            <option value="13.0">(GMT +13:00) Apia, Nukualofa</option>
+            <option value="14.0">(GMT +14:00) Line Islands, Tokelau</option>
+        </select>
+        <label for="currentTime">Current Time:</label>
+        <fieldset>
+            <input type="currentTime" id="currentTime" name="currentTime" style="width: 300px"
+                   class="form-control rounded" readonly="">
+        </fieldset>
+    </div>
+
+    <div class="tab-pane fade container" id="pumpstab" role="tabpanel">
+        <h2>Pumps settings</h2>
+        <label for="pumpSelector">Number of pumps</label>
+        <select id="pumpSelector" class="form-select" style="width: 150px"></select>
+
+        <label for="analogPeriod" class="form-label mt-4">Analog Control Period</label>
+        <select name="analogPeriod" id="analogPeriod" class="form-select" style="width: 150px">
+            <option value="5">5 sec</option>
+            <option value="15">15 sec</option>
+            <option value="30">30 sec</option>
+            <option value="45">45 sec</option>
+            <option value="60">60 sec</option>
+            <option value="90">90 sec</option>
+            <option value="120">120 sec</option>
+            <option value="240">240 sec</option>
+            <option value="300">300 sec</option>
+        </select>
+
+        <h2>Custom pump settings</h2>
+        <label for="customPumpSettingsSelector">Pump</label>
+        <select id="customPumpSettingsSelector" class="form-select" style="width: 150px" onchange="customPumpSelectorChange()"></select>
+
+        <label for="pumpCurrent" class="form-label mt-4">Current</label>
+        <select name="pumpCurrent" id="pumpCurrent" class="form-select" style="width: 150px" onchange="customPumpCurrentChange()">
+            <option value="200">0.2A</option>
+            <option value="400">0.4A</option>
+            <option value="600">0.6A</option>
+            <option value="800">0.8A</option>
+            <option value="1000">1A</option>
+            <option value="1200">1.2A</option>
+            <option value="1400">1.4A</option>
+            <option value="1600">1.6A</option>
+            <option value="1800">1.8A</option>
+            <option value="2000">2A</option>
+        </select>
+
+        <label for="customPumpSettingsInversion">Inversion:</label>
+        <select name="customPumpSettingsInversion" id="customPumpSettingsInversion" class="form-select" style="width: 150px"
+        onchange="customPumpInversionChange()">
+            <option value="0">Off</option>
+            <option value="1">On</option>
+        </select>
+        <input type="text" style="width: 300px" class="form-control" id="customPumpSettingsName"
+               placeholder="Enter Pump Name">
+
+
+
+
+    </div>
+
+    <div class="tab-pane fade container" id="mqtttab" role="tabpanel">
+        <h2>MQTT settings</h2>
+        <label for="mqttTopic">MQTT topic:</label>
+        <fieldset>
+            <input id="mqttTopic" name="mqttTopic" style="width: 300px" class="form-control rounded" readonly="">
+        </fieldset>
+        <label for="mqttBrokerInput1">MQTT broker:</label>
+        <input type="text" style="width: 300px" class="form-control" id="mqttBrokerInput1"
+               placeholder="Enter MQTT broker link">
+        <label for="mqttLoginInput1">MQTT login:</label>
+        <input type="text" style="width: 300px" class="form-control" id="mqttLoginInput1"
+               placeholder="Enter MQTT login">
+
+        <label for="mqttPassword" class="form-label mt-4">MQTT password:</label>
+        <div class="input-group" style="width: 300px">
+            <input type="password" id="mqttPassword" name="mqttPassword" class="form-control rounded"
+                   autocomplete="password"
+                   spellcheck="false" autocapitalize="off" required
+                   placeholder="Enter MQTT password">
+        </div>
+
+
+    </div>
+    <div class="tab-pane fade container active show" role="tabpanel">
+        <button type="button" class="btn btn-primary" style="margin-top: 10px" id="uploadDataBtn">Apply</button>
+    </div>
+</div>
 
 <script>
-const maxNumberOfPumps = 9; // Total number of pumps
-let numberOfPumps;
-let CaptivePortal;
+    const maxNumberOfPumps = 9; // Total number of pumps
+    let numberOfPumps;
+    let CaptivePortal;
+    let pumpNames;
+    let pumpInversion
+    let pumpsCurrent
 
+    function convertTo12HFormat(time) {
+        // Split the time string into hours and minutes
+        if (time === "") {
+            return ""
+        }
+        console.log("convert time to 12H format: ", time)
+        const [hours24, minutes] = time.split(':');
 
-function convertTo12HFormat(time) {
-    // Split the time string into hours and minutes
-    if (time===""){
-        return ""
-    }
-    console.log("convert time to 12H format: ", time)
-    const [hours24, minutes] = time.split(':');
+        // Parse the hour component to an integer
+        const hours = parseInt(hours24, 10);
 
-    // Parse the hour component to an integer
-    const hours = parseInt(hours24, 10);
+        // Determine the AM/PM suffix and adjust the hour if necessary
+        const suffix = hours >= 12 ? 'PM' : 'AM';
+        const hours12 = hours % 12 === 0 ? 12 : hours % 12; // Converts 0 to 12 for 12 AM, and 12 to 12 for 12 PM
 
-    // Determine the AM/PM suffix and adjust the hour if necessary
-    const suffix = hours >= 12 ? 'PM' : 'AM';
-    const hours12 = hours % 12 === 0 ? 12 : hours % 12; // Converts 0 to 12 for 12 AM, and 12 to 12 for 12 PM
+        // Format minutes to ensure two digits
+        const formattedMinutes = minutes.padStart(2, '0');
 
-    // Format minutes to ensure two digits
-    const formattedMinutes = minutes.padStart(2, '0');
-
-    // Return the formatted time string in 12-hour format
-    console.log("New format:", `${hours12}:${formattedMinutes} ${suffix}`)
-    return `${hours12}:${formattedMinutes} ${suffix}`;
-}
-
-
-let eventSource = new EventSource("/time");
-        eventSource.onopen = function(event) {
-            console.log("SSE connection to server opened.");
-        };
-
-        eventSource.onerror = function(event) {
-            if (event.currentTarget.readyState === EventSource.CLOSED) {
-                console.log("SSE connection was closed.");
-            } else {
-                console.log("SSE Error occurred: ", event);
-            }
-        };
-
-eventSource.onmessage = function(event) {
-    const data = JSON.parse(event.data);
-    console.log("got sse data: ", data)
-    let time = data["time"]
-    console.log("time format:", document.getElementById("timeFormat").value)
-    if (document.getElementById("timeFormat").value ==="1"){
-        time = convertTo12HFormat(data["time"])
+        // Return the formatted time string in 12-hour format
+        console.log("New format:", `${hours12}:${formattedMinutes} ${suffix}`)
+        return `${hours12}:${formattedMinutes} ${suffix}`;
     }
 
-    document.getElementById("currentTime").value = time
-}
 
-
-function checkPattern(inputElement, pattern) {
-    value = inputElement.value
-    const applyButton = document.getElementById("uploadDataBtn")
-    if (!pattern.test(value)){
-        inputElement.className  = "form-control is-invalid"
-        applyButton.className = "btn btn-primary disabled"
-    }else {
-        inputElement.className  = "form-control is-valid"
-        applyButton.className = "btn btn-primary"
-    }
-    return pattern.test(value)
-}
-
-
-
-
-document.getElementById('uploadDataBtn').addEventListener('click', function() {
-    const url = window.location.href;
-    const data = {
-        "ssid": document.getElementById('ssidInput1').value,
-        "psw": document.getElementById('password').value,
-        "pumpNum": parseInt(document.getElementById('pumpSelector').value),
-        "hostname": document.getElementById('hostName').value,
-        "timezone": document.getElementById('timezoneOffset').value,
-        "timeformat": document.getElementById('timeFormat').value,
-        "mqttBroker": document.getElementById('mqttBrokerInput1').value,
-        "mqttLogin": document.getElementById('mqttLoginInput1').value,
-        "mqttPassword": document.getElementById('mqttPassword').value,
-        "current": parseInt(document.getElementById("pumpCurrent").value),
-        "analogPeriod": parseInt(document.getElementById("analogPeriod").value)
-
+    let eventSource = new EventSource("/time");
+    eventSource.onopen = function (event) {
+        console.log("SSE connection to server opened.");
     };
-    console.log("upload data", data)
 
-    fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-    })
-    .then(response => {
-        console.log("Response:", response)
-    })
-    .then(data => {
-        console.log('Upload success:', data);
-        //updateCalibrationPointsList(1);
-    })
-    .catch((error) => {
-        console.error('Error:', error);
+    eventSource.onerror = function (event) {
+        if (event.currentTarget.readyState === EventSource.CLOSED) {
+            console.log("SSE connection was closed.");
+        } else {
+            console.log("SSE Error occurred: ", event);
+        }
+    };
+
+    eventSource.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+        console.log("got sse data: ", data)
+        let time = data["time"]
+        console.log("time format:", document.getElementById("timeFormat").value)
+        if (document.getElementById("timeFormat").value === "1") {
+            time = convertTo12HFormat(data["time"])
+        }
+
+        document.getElementById("currentTime").value = time
+    }
+
+
+    function checkPattern(inputElement, pattern) {
+        value = inputElement.value
+        const applyButton = document.getElementById("uploadDataBtn")
+        if (!pattern.test(value)) {
+            inputElement.className = "form-control is-invalid"
+            applyButton.className = "btn btn-primary disabled"
+        } else {
+            inputElement.className = "form-control is-valid"
+            applyButton.className = "btn btn-primary"
+        }
+        return pattern.test(value)
+    }
+
+
+    document.getElementById('uploadDataBtn').addEventListener('click', function () {
+        const url = window.location.href;
+        const data = {
+            "ssid": document.getElementById('ssidInput1').value,
+            "psw": document.getElementById('password').value,
+            "pumpNum": parseInt(document.getElementById('pumpSelector').value),
+            "hostname": document.getElementById('hostName').value,
+            "timezone": document.getElementById('timezoneOffset').value,
+            "timeformat": document.getElementById('timeFormat').value,
+            "mqttBroker": document.getElementById('mqttBrokerInput1').value,
+            "mqttLogin": document.getElementById('mqttLoginInput1').value,
+            "mqttPassword": document.getElementById('mqttPassword').value,
+            "current": parseInt(document.getElementById("pumpCurrent").value),
+            "analogPeriod": parseInt(document.getElementById("analogPeriod").value),
+            "pumpNames": "",
+            "pumpInversion": ""
+        };
+        console.log("upload data", data)
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        })
+            .then(response => {
+                console.log("Response:", response)
+            })
+            .then(data => {
+                console.log('Upload success:', data);
+                //updateCalibrationPointsList(1);
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
     });
-});
 
+    function customPumpSelectorChange(){
+        const pumpSelected = Number(document.getElementById('customPumpSettingsSelector').value)
+        console.log(">>>> ", pumpSelected)
+        document.getElementById("pumpCurrent").value = pumpsCurrent[pumpSelected-1].toString()
+        document.getElementById('customPumpSettingsInversion').value = pumpInversion[pumpSelected-1].toString()
+        document.getElementById('customPumpSettingsName').value = pumpNames[pumpSelected-1].toString()
 
-
-document.addEventListener('DOMContentLoaded', function() {
-    console.log("Cookie update event")
-    PumpNumber = JSON.parse(getCookie('PumpNumber'));
-    console.log(PumpNumber)
-    numberOfPumps = parseInt(PumpNumber["pump_num"]);
-
-    const current_ssid = getCookie('current_ssid');
-    if (current_ssid===""){
-        CaptivePortal = true
     }
 
-    document.getElementById('hostName').value = getCookie('hostname');
-    document.getElementById('mac').value = getCookie('Mac')
-    document.getElementById('timezoneOffset').value = getCookie('timezone')
-    console.log("time format:",getCookie('timeformat'))
-    document.getElementById('timeFormat').value = getCookie('timeformat')
-    if (CaptivePortal){
-        document.getElementById("navbar").style.display="none"
+    function customPumpCurrentChange(){
+        const pumpSelected = Number(document.getElementById('customPumpSettingsSelector').value)
+        const current = Number(document.getElementById('pumpCurrent').value)
+        console.log(">>>> ", pumpSelected)
+        pumpsCurrent[pumpSelected-1] = current
     }
 
-    checkPattern(document.getElementById('hostName'), /^[a-zA-Z0-9\-]{1,15}$/)
-
-    // Load calibration data for Pump 1
-
-    console.log("Number of pumps ", numberOfPumps)
-    var pumpOptions = [];
-    for (let i = 1; i <= maxNumberOfPumps; i++) {
-        pumpOptions.push(i.toString());
+    function customPumpInversionChange(){
+        const pumpSelected = Number(document.getElementById('customPumpSettingsSelector').value)
+        const inversion = Number(document.getElementById('customPumpSettingsInversion').value)
+        console.log(">>>> ", pumpSelected)
+        pumpInversion[pumpSelected-1] = inversion
     }
 
+    document.addEventListener('DOMContentLoaded', function () {
+        console.log("Cookie update event")
+        PumpNumber = JSON.parse(getCookie('PumpNumber'));
+        console.log(PumpNumber)
+        numberOfPumps = parseInt(PumpNumber["pump_num"]);
+        pumpNames = JSON.parse(getCookie("pumpNames"))["pumpNames"]
+        pumpInversion = JSON.parse(getCookie("pumpInversion"))["inversion"]
+        pumpsCurrent = JSON.parse(getCookie('pumpsCurrent'))["current"]
+        console.log(">>>>>>>>>>", pumpsCurrent)
 
-    // Dynamically add pump selectors
-    const pumpSelector = document.getElementById('pumpSelector');
+        const current_ssid = getCookie('current_ssid');
+        if (current_ssid === "") {
+            CaptivePortal = true
+        }
 
-    for (let i = 1; i <= maxNumberOfPumps; i++) {
-        const option = document.createElement('option');
-        option.value = i;
-        option.text = 'Pump ' + i;
-        pumpSelector.appendChild(option);
-    }
-    pumpSelector.value= numberOfPumps
+        document.getElementById('hostName').value = getCookie('hostname');
+        document.getElementById('mac').value = getCookie('Mac')
+        document.getElementById('timezoneOffset').value = getCookie('timezone')
+        console.log("time format:", getCookie('timeformat'))
+        document.getElementById('timeFormat').value = getCookie('timeformat')
+        if (CaptivePortal) {
+            document.getElementById("navbar").style.display = "none"
+        }
+
+        checkPattern(document.getElementById('hostName'), /^[a-zA-Z0-9\-]{1,15}$/)
+
+        // Load calibration data for Pump 1
+
+        console.log("Number of pumps ", numberOfPumps)
+        var pumpOptions = [];
+        for (let i = 1; i <= maxNumberOfPumps; i++) {
+            pumpOptions.push(i.toString());
+        }
 
 
-    if (current_ssid) {
-        console.log('Current wifi ssid:', current_ssid);
-        document.getElementById('ssidInput1').value = current_ssid
-    }
-    document.getElementById("mqttTopic").value = getCookie('mqttTopic')
-    document.getElementById("mqttBrokerInput1").value = getCookie('mqttBroker')
-    document.getElementById("mqttLoginInput1").value = getCookie('mqttLogin')
+        // Dynamically add pump selectors
+        const pumpSelector = document.getElementById('pumpSelector');
+        const customPumpSettingsSelector = document.getElementById('customPumpSettingsSelector')
+        for (let i = 1; i <= maxNumberOfPumps; i++) {
+            let option = document.createElement('option');
+            option.value = i;
+            option.text = i;
+            pumpSelector.appendChild(option);
+            option = document.createElement('option');
+            option.value = i;
+            option.text = 'Pump ' + i;
+            customPumpSettingsSelector.appendChild(option);
+        }
+        pumpSelector.value = numberOfPumps
+        customPumpSettingsSelector.value = '1'
+        document.getElementById("pumpCurrent").value = pumpsCurrent[0].toString()
+        document.getElementById('customPumpSettingsInversion').value = pumpInversion[0].toString()
+        document.getElementById('customPumpSettingsName').value = pumpNames[0].toString()
 
-    document.getElementById("pumpCurrent").value = getCookie('current')
-    document.getElementById("analogPeriod").value = getCookie('analogPeriod')
 
-    // Load extension
-    var navbar = document.getElementById('navbarColor01');
-    const navbarExtension = JSON.parse(getCookie('Extension'));
-    console.log("Extension:", navbarExtension)
-    navbarExtension.forEach(addon => {
-        console.log("Add ", addon)
-        var newNavItem = document.createElement('li');
-        newNavItem.className = 'nav-item';
+        if (current_ssid) {
+            console.log('Current wifi ssid:', current_ssid);
+            document.getElementById('ssidInput1').value = current_ssid
+        }
+        document.getElementById("mqttTopic").value = getCookie('mqttTopic')
+        document.getElementById("mqttBrokerInput1").value = getCookie('mqttBroker')
+        document.getElementById("mqttLoginInput1").value = getCookie('mqttLogin')
 
-        // Create the link within the list item
-        var navLink = document.createElement('a');
-        navLink.className = 'nav-link';
-        navLink.href = addon["link"];  // Link URL
-        navLink.textContent = addon["name"];  // Link text
 
-        // Append the link to the list item, and the list item to the navbar
-        newNavItem.appendChild(navLink);
-        navbar.querySelector('.navbar-nav').appendChild(newNavItem);
+        document.getElementById("analogPeriod").value = getCookie('analogPeriod')
+
+        // Load extension
+        var navbar = document.getElementById('navbarColor01');
+        const navbarExtension = JSON.parse(getCookie('Extension'));
+        console.log("Extension:", navbarExtension)
+        navbarExtension.forEach(addon => {
+            console.log("Add ", addon)
+            var newNavItem = document.createElement('li');
+            newNavItem.className = 'nav-item';
+
+            // Create the link within the list item
+            var navLink = document.createElement('a');
+            navLink.className = 'nav-link';
+            navLink.href = addon["link"];  // Link URL
+            navLink.textContent = addon["name"];  // Link text
+
+            // Append the link to the list item, and the list item to the navbar
+            newNavItem.appendChild(navLink);
+            navbar.querySelector('.navbar-nav').appendChild(newNavItem);
         });
-});
+    });
 
 
-function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
             }
         }
+        return cookieValue;
     }
-    return cookieValue;
-}
 
 </script>
 

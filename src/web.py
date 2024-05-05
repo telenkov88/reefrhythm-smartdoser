@@ -686,7 +686,7 @@ def setting_responce(request):
     if not 'ssid' in globals():
         src = "settings-captive.html"
     else:
-        src = "settings-captive.html"
+        src = "settings.html"
 
     if src in html_files:
         print(f"Send {src} from RAM")
@@ -705,8 +705,10 @@ def setting_responce(request):
     response.set_cookie("mqttBroker", mqtt_broker)
     response.set_cookie("mqttLogin", mqtt_login)
     response.set_cookie("analogPeriod", analog_period)
-    response.set_cookie("current", current)
+    response.set_cookie("pumpsCurrent", json.dumps({"current": pumps_current}))
     response.set_cookie("analogPeriod", analog_period)
+    response.set_cookie("pumpInversion", json.dumps({"inversion": inversion}))
+    response.set_cookie("pumpNames", json.dumps({"pumpNames": pump_names}))
 
     if 'ssid' in globals():
         response.set_cookie('current_ssid', ssid)
@@ -734,6 +736,10 @@ def setting_process_post(request):
 
     new_current = request.json["current"]
 
+    new_names = request.json["names"]
+
+    new_inversion = request.json["inversion"]
+
     if new_ssid and new_psw:
         with open("./config/wifi.json", "w") as f:
             f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
@@ -749,7 +755,9 @@ def setting_process_post(request):
                             "timezone": new_timezone,
                             "timeformat": new_timeformat,
                             "current": new_current,
-                            "analog_period": new_analog_period}))
+                            "analog_period": new_analog_period,
+                            "names": new_names,
+                            "inversion": new_inversion}))
 
     with open("./config/analog_settings.json", "w") as f:
         json.dump(analog_settings, f)

@@ -156,7 +156,10 @@ try:
 except Exception as e:
     print("Can't load general setting config, load default ", e)
     settings = {"pump_number": 1, "hostname": "doser", "timezone": 0.0, "timeformat": 0, "ntphost": "time.google.com",
-                "current": 1000, "analog_period": 60}
+                "analog_period": 60,
+                "pumps_current": [1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000],
+                "inversion": [False, False, False, False, False, False, False, False, False],
+                "names": ["Pump 1", "Pump 2", "Pump 3", "Pump 4", "Pump 5", "Pump 6", "Pump 7", "Pump 8", "Pump 9"]}
 
 if "hostname" not in settings:
     hostname = "doser"
@@ -176,14 +179,23 @@ if "ntphost" not in settings:
 else:
     ntphost = settings["ntphost"]
 
-if "current" not in settings:
-    current = 1000
+if "pumps_current" not in settings:
+    pumps_current = [1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000]
 else:
-    current = settings["current"]
+    pumps_current = settings["pumps_current"]
 if "analog_period" not in settings:
     analog_period = 60
 else:
     analog_period = settings["analog_period"]
+
+if "inversion" not in settings:
+    inversion = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+else:
+    inversion = settings["inversion"]
+if "names" not in settings:
+    pump_names = ["Pump 1", "Pump 2", "Pump 3", "Pump 4", "Pump 5", "Pump 6", "Pump 7", "Pump 8", "Pump 9"]
+else:
+    pump_names = settings["names"]
 
 
 PUMP_NUM = settings["pump_number"]
@@ -201,7 +213,7 @@ except Exception as e:
 mks_dict = {}
 for stepper in range(1, PUMP_NUM + 1):
     mks_dict[f"mks{stepper}"] = Servo42c(uart, addr=stepper - 1, speed=1)
-    mks_dict[f"mks{stepper}"].set_current(current)
+    mks_dict[f"mks{stepper}"].set_current(pumps_current[stepper-1])
 
 try:
     with open("./config/wifi.json", 'r') as wifi_config:
