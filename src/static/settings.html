@@ -176,10 +176,10 @@
     <div class="tab-pane fade container" id="pumpstab" role="tabpanel">
         <h2>Pumps settings</h2>
         <label for="pumpSelector">Number of pumps</label>
-        <select id="pumpSelector" class="form-select" style="width: 150px"></select>
+        <select id="pumpSelector" class="form-select" style="width: 200px"></select>
 
         <label for="analogPeriod" class="form-label mt-4">Analog Control Period</label>
-        <select name="analogPeriod" id="analogPeriod" class="form-select" style="width: 150px">
+        <select name="analogPeriod" id="analogPeriod" class="form-select" style="width: 200px">
             <option value="5">5 sec</option>
             <option value="15">15 sec</option>
             <option value="30">30 sec</option>
@@ -193,10 +193,12 @@
 
         <h2>Custom pump settings</h2>
         <label for="customPumpSettingsSelector">Pump</label>
-        <select id="customPumpSettingsSelector" class="form-select" style="width: 150px" onchange="customPumpSelectorChange()"></select>
+        <select id="customPumpSettingsSelector" class="form-select" style="width: 200px"
+                onchange="customPumpSelectorChange()"></select>
 
         <label for="pumpCurrent" class="form-label mt-4">Current</label>
-        <select name="pumpCurrent" id="pumpCurrent" class="form-select" style="width: 150px" onchange="customPumpCurrentChange()">
+        <select name="pumpCurrent" id="pumpCurrent" class="form-select" style="width: 200px"
+                onchange="customPumpCurrentChange()">
             <option value="200">0.2A</option>
             <option value="400">0.4A</option>
             <option value="600">0.6A</option>
@@ -210,15 +212,16 @@
         </select>
 
         <label for="customPumpSettingsInversion">Inversion:</label>
-        <select name="customPumpSettingsInversion" id="customPumpSettingsInversion" class="form-select" style="width: 150px"
-        onchange="customPumpInversionChange()">
+        <select name="customPumpSettingsInversion" id="customPumpSettingsInversion" class="form-select"
+                style="width: 150px"
+                onchange="customPumpInversionChange()">
             <option value="0">Off</option>
             <option value="1">On</option>
         </select>
-        <input type="text" style="width: 300px" class="form-control" id="customPumpSettingsName"
-               placeholder="Enter Pump Name">
-
-
+        <input type="text" style="width: 200px" class="form-control" id="customPumpSettingsName"
+               placeholder="Enter Pump Name",
+               title="Pump name must be 1-30 characters long"
+               oninput="checkCustomPumpNameChange()">
 
 
     </div>
@@ -247,7 +250,7 @@
 
     </div>
     <div class="tab-pane fade container active show" role="tabpanel">
-        <button type="button" class="btn btn-primary" style="margin-top: 10px" id="uploadDataBtn">Apply</button>
+        <button type="button" class="btn btn-warning" style="margin-top: 10px" id="uploadDataBtn">Apply</button>
     </div>
 </div>
 
@@ -314,10 +317,10 @@
         const applyButton = document.getElementById("uploadDataBtn")
         if (!pattern.test(value)) {
             inputElement.className = "form-control is-invalid"
-            applyButton.className = "btn btn-primary disabled"
+            applyButton.className = "btn btn-warning disabled"
         } else {
             inputElement.className = "form-control is-valid"
-            applyButton.className = "btn btn-primary"
+            applyButton.className = "btn btn-warning"
         }
         return pattern.test(value)
     }
@@ -335,10 +338,10 @@
             "mqttBroker": document.getElementById('mqttBrokerInput1').value,
             "mqttLogin": document.getElementById('mqttLoginInput1').value,
             "mqttPassword": document.getElementById('mqttPassword').value,
-            "current": parseInt(document.getElementById("pumpCurrent").value),
             "analogPeriod": parseInt(document.getElementById("analogPeriod").value),
-            "pumpNames": "",
-            "pumpInversion": ""
+            "pumpNames": JSON.stringify(pumpNames),
+            "pumpInversion": pumpInversion,
+            "pumpsCurrent": pumpsCurrent
         };
         console.log("upload data", data)
 
@@ -361,27 +364,39 @@
             });
     });
 
-    function customPumpSelectorChange(){
+    function customPumpSelectorChange() {
         const pumpSelected = Number(document.getElementById('customPumpSettingsSelector').value)
         console.log(">>>> ", pumpSelected)
-        document.getElementById("pumpCurrent").value = pumpsCurrent[pumpSelected-1].toString()
-        document.getElementById('customPumpSettingsInversion').value = pumpInversion[pumpSelected-1].toString()
-        document.getElementById('customPumpSettingsName').value = pumpNames[pumpSelected-1].toString()
+        document.getElementById("pumpCurrent").value = pumpsCurrent[pumpSelected - 1].toString()
+        document.getElementById('customPumpSettingsInversion').value = pumpInversion[pumpSelected - 1].toString()
+        document.getElementById('customPumpSettingsName').value = pumpNames[pumpSelected - 1].toString()
 
     }
 
-    function customPumpCurrentChange(){
+    function customPumpCurrentChange() {
         const pumpSelected = Number(document.getElementById('customPumpSettingsSelector').value)
-        const current = Number(document.getElementById('pumpCurrent').value)
-        console.log(">>>> ", pumpSelected)
-        pumpsCurrent[pumpSelected-1] = current
+        pumpsCurrent[pumpSelected - 1] = Number(document.getElementById('pumpCurrent').value)
     }
 
-    function customPumpInversionChange(){
+    function customPumpInversionChange() {
         const pumpSelected = Number(document.getElementById('customPumpSettingsSelector').value)
         const inversion = Number(document.getElementById('customPumpSettingsInversion').value)
-        console.log(">>>> ", pumpSelected)
-        pumpInversion[pumpSelected-1] = inversion
+        pumpInversion[pumpSelected - 1] = inversion
+    }
+
+    function checkCustomPumpNameChange() {
+        const name = document.getElementById('customPumpSettingsName')
+
+
+        const utf8EncodedBytes = new TextEncoder().encode(name.value);
+        // Check if the decoded string matches the original input
+        const decodedString = new TextDecoder().decode(utf8EncodedBytes);
+        if (name.value === decodedString && name.value.length <= 20 && name.value.length >0){
+            name.classList.remove("is-invalid")
+            pumpNames[Number(document.getElementById('customPumpSettingsSelector').value) -1] = name.value
+        } else {
+            name.classList.add("is-invalid")
+        }
     }
 
     document.addEventListener('DOMContentLoaded', function () {

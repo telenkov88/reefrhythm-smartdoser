@@ -131,6 +131,12 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
     print(f"Limits check not pass, skip dosing")
     return False
 
+
+async def stepper_stop(mks):
+    print(f"Stop {id} stepper")
+    return mks.stop()
+
+
 @micropython.native
 async def adc_sampling():
     sampling_size = 5
@@ -347,6 +353,28 @@ async def static(request, path):
     return send_file('static/icon/' + path)
 
 
+@app.route('/stop')
+async def stop(request):
+    _id = request.args.get('id', default=1, type=int)
+
+    print(f"[ID {_id}] Stop")
+    callback_result_future = CustomFuture()
+
+    def callback(result):
+        print(f"Callback received result: {result}")
+        callback_result_future.set_result({"time": result[0]})
+
+    task = asyncio.create_task(
+        command_buffer.add_command(stepper_stop, callback, mks_dict[f"mks{_id}"]))
+    await task
+
+    await callback_result_future.wait()
+    callback_result = await callback_result_future.wait()
+    print("Result of callback:", callback_result)
+
+    return {callback_result}
+
+
 @app.route('/run')
 async def run_with_rpm(request):
     id = request.args.get('id', default=1, type=int)
@@ -427,6 +455,8 @@ async def index(request):
         response.set_cookie(f'AnalogPins', json.dumps(analog_pins))
         response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
         response.set_cookie(f'timeformat', timeformat)
+        response.set_cookie("pumpNames", json.dumps({"pumpNames": pump_names}))
+
 
         if addon and hasattr(extension, 'extension_navbar'):
             response.set_cookie("Extension", json.dumps(extension.extension_navbar))
@@ -652,6 +682,8 @@ async def calibration(request):
         if addon and hasattr(extension, 'extension_navbar'):
             response.set_cookie("Extension", json.dumps(extension.extension_navbar))
 
+        response.set_cookie("pumpNames", json.dumps({"pumpNames": pump_names}))
+
     else:
         response = redirect('/')
         data = request.json
@@ -734,11 +766,11 @@ def setting_process_post(request):
 
     new_analog_period = request.json["analogPeriod"]
 
-    new_current = request.json["current"]
+    new_pumps_current = request.json["pumpsCurrent"]
 
-    new_names = request.json["names"]
+    new_names = json.loads(request.json["pumpNames"])
 
-    new_inversion = request.json["inversion"]
+    new_inversion = request.json["pumpInversion"]
 
     if new_ssid and new_psw:
         with open("./config/wifi.json", "w") as f:
@@ -754,7 +786,7 @@ def setting_process_post(request):
                             "hostname": new_hostname,
                             "timezone": new_timezone,
                             "timeformat": new_timeformat,
-                            "current": new_current,
+                            "pumps_current": new_pumps_current,
                             "analog_period": new_analog_period,
                             "names": new_names,
                             "inversion": new_inversion}))
