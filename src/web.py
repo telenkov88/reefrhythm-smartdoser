@@ -234,6 +234,7 @@ async def analog_control_worker():
                 print(f"Signal: {adc_signal}")
                 signals, flow_rates = zip(*analog_chart_points[f"pump{i + 1}"])
                 desired_flow = to_float(np.interp(adc_signal, signals, flow_rates))
+                amount = desired_flow * analog_period
                 print("Desired flow", desired_flow)
                 if desired_flow >= 0.01:
                     desired_rpm_rate = to_float(
@@ -242,7 +243,7 @@ async def analog_control_worker():
                     await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{i + 1}"], desired_rpm_rate,
                                                      analog_period + 5,
                                                      analog_settings[f"pump{i + 1}"]["dir"], rpm_table,
-                                                     limits_dict[i + 1])
+                                                     limits_dict[i + 1], pump_dose=amount, pump_id=(i + 1))
         for _ in range(len(analog_en)):
             adc_buffer_values[_] = []
         for x in range(0, analog_period):
@@ -895,11 +896,11 @@ def update_schedule(data):
     if mcron_keys:
         mcron.remove_all()
 
-    def create_task_with_args(id, rpm, duration, direction):
+    def create_task_with_args(id, rpm, duration, direction, amount):
         def task(callback_id, current_time, callback_memory):
             print(f"[{get_time()}] Callback id:", callback_id)
             asyncio.run(command_buffer.add_command(stepper_run, None, mks_dict[f"mks" + id], rpm, duration, direction,
-                                                   rpm_table, limits_dict[int(id)]))
+                                                   rpm_table, limits_dict[int(id)], pump_dose=amount, pump_id=id))
 
         return task
 
@@ -933,7 +934,7 @@ def update_schedule(data):
                 end_time = mcron.PERIOD_DAY
                 step = end_time // frequency
 
-            new_job = create_task_with_args(id, desired_rpm_rate, duration, direction)
+            new_job = create_task_with_args(id, desired_rpm_rate, duration, direction, amount)
             mcron.insert(mcron.PERIOD_DAY, range(start_time, end_time, step),
                          f'mcron_{mcron_job_number}', new_job)
             mcron_keys.append(f'mcron_{mcron_job_number}')
@@ -1139,7 +1140,7 @@ async def process_mqtt_cmd():
             print("Calculated RPM: ", desired_rpm_rate)
             await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate,
                                              command['duration'], command['direction'], rpm_table,
-                                             limits_dict[int(command['id'])])
+                                             limits_dict[int(command['id'])], pump_dose=command["amount"], pump_id=id)
 
         if mqtt_run_buffer:
             print("Process mqtt command")
