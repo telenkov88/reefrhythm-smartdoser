@@ -378,7 +378,7 @@ async def stop(request):
 
     def callback(result):
         print(f"Callback received result: {result}")
-        callback_result_future.set_result({"time": result[0]})
+        callback_result_future.set_result({"result": result})
 
     task = asyncio.create_task(
         command_buffer.add_command(stepper_stop, callback, mks_dict[f"mks{_id}"]))
@@ -388,7 +388,7 @@ async def stop(request):
     callback_result = await callback_result_future.wait()
     print("Result of callback:", callback_result)
 
-    return {callback_result}
+    return callback_result
 
 
 @app.route('/run')
