@@ -204,14 +204,15 @@
             <option value="2000">2A</option>
         </select>
 
-        <label for="customPumpSettingsInversion">Inversion:</label>
+        <label for="customPumpSettingsInversion" class="mt-2">Inversion:</label>
         <select name="customPumpSettingsInversion" id="customPumpSettingsInversion" class="form-select"
                 style="width: 120px"
                 onchange="customPumpInversionChange()">
             <option value="0">Off</option>
             <option value="1">On</option>
         </select>
-        <input type="text" style="width: 250px" class="form-control mt-2" id="customPumpSettingsName"
+        <label for="customPumpSettingsName" class="mt-2">Pump name:</label>
+        <input type="text" style="width: 250px" class="form-control" id="customPumpSettingsName"
                placeholder="Enter Pump Name" ,
                title="Pump name must be 1-30 characters long"
                oninput="checkCustomPumpNameChange()">
