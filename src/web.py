@@ -137,9 +137,12 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
             storage_remaining[pump_id-1] = _remaining
 
             if mqtt_broker:
+                print("Publish to mqtt")
                 _topic = f"{doser_topic}/pump{pump_id}"
                 _data = {"id": pump_id, "name": pump_names[pump_id-1], "dose": pump_dose,
-                         "remain": storage_remaining[pump_id-1], "storage": storage["pump"+pump_id]}
+                         "remain": storage_remaining[pump_id-1], "storage": storage[f"pump{pump_id}"]}
+                print("data", _data)
+                print({"topic": _topic, "data": _data})
                 mqtt_publish_buffer.append({"topic": _topic, "data": _data})
 
         return [calc_time]
@@ -800,9 +803,8 @@ def setting_process_post(request):
         with open("./config/wifi.json", "w") as f:
             f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
 
-    if new_mqtt_broker and new_mqtt_login and new_mqtt_password:
-        with open("./config/mqtt.json", "w") as f:
-            f.write(json.dumps({"broker": new_mqtt_broker, "login": new_mqtt_login, "password": new_mqtt_password}))
+    with open("./config/mqtt.json", "w") as f:
+        f.write(json.dumps({"broker": new_mqtt_broker, "login": new_mqtt_login, "password": new_mqtt_password}))
 
     new_pump_num = request.json[f"pumpNum"]
     with open("./config/settings.json", "w") as f:
