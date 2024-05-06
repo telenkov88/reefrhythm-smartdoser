@@ -119,6 +119,9 @@ adc_sampler_started = False
 async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_table, expression=False,
                       pump_dose=0, pump_id=None):
     print(f"Desired {to_float(desired_rpm_rate)}rpm, mstep")
+    if inversion[pump_id-1]:
+        direction = 0 if direction == 1 else 1
+
     if expression:
         print("Check expression: ", expression)
         result, logs = evaluate_expression(expression, globals())
@@ -405,7 +408,7 @@ async def run_with_rpm(request):
 
     task = asyncio.create_task(
         command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], rpm, execution_time, direction,
-                                   rpm_table))
+                                   rpm_table, pump_id=id))
     await task
 
     await callback_result_future.wait()
@@ -900,7 +903,7 @@ def update_schedule(data):
         def task(callback_id, current_time, callback_memory):
             print(f"[{get_time()}] Callback id:", callback_id)
             asyncio.run(command_buffer.add_command(stepper_run, None, mks_dict[f"mks" + id], rpm, duration, direction,
-                                                   rpm_table, limits_dict[int(id)], pump_dose=amount, pump_id=id))
+                                                   rpm_table, limits_dict[int(id)], pump_dose=amount, pump_id=int(id)))
 
         return task
 
@@ -1140,7 +1143,8 @@ async def process_mqtt_cmd():
             print("Calculated RPM: ", desired_rpm_rate)
             await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate,
                                              command['duration'], command['direction'], rpm_table,
-                                             limits_dict[int(command['id'])], pump_dose=command["amount"], pump_id=id)
+                                             limits_dict[int(command['id'])], pump_dose=command["amount"],
+                                             pump_id=int(command['id']))
 
         if mqtt_run_buffer:
             print("Process mqtt command")
