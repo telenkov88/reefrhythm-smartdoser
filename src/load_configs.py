@@ -159,7 +159,9 @@ except Exception as e:
                 "analog_period": 60,
                 "pumps_current": [1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000],
                 "inversion": [False, False, False, False, False, False, False, False, False],
-                "names": ["Pump 1", "Pump 2", "Pump 3", "Pump 4", "Pump 5", "Pump 6", "Pump 7", "Pump 8", "Pump 9"]}
+                "names": ["Pump 1", "Pump 2", "Pump 3", "Pump 4", "Pump 5", "Pump 6", "Pump 7", "Pump 8", "Pump 9"],
+                "color": "dark",
+                "theme": "cerulean"}
 
 if "hostname" not in settings:
     hostname = "doser"
@@ -196,7 +198,14 @@ if "names" not in settings:
     pump_names = ["Pump 1", "Pump 2", "Pump 3", "Pump 4", "Pump 5", "Pump 6", "Pump 7", "Pump 8", "Pump 9"]
 else:
     pump_names = settings["names"]
-
+if "color" not in settings:
+    color = "dark"
+else:
+    color = settings["color"]
+if "theme" not in settings:
+    theme = "cerulean"
+else:
+    theme = settings["theme"]
 
 PUMP_NUM = settings["pump_number"]
 

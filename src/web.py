@@ -604,6 +604,8 @@ async def ota_upgrade(request):
         response.set_cookie(f'otaPartition', boot_partition)
         response.set_cookie(f'OtaStarted', ota_lock)
         response.set_cookie(f'firmware', RELEASE_TAG)
+        response.set_cookie("color", color)
+        response.set_cookie("theme", theme)
 
         if addon and hasattr(extension, 'extension_navbar'):
             response.set_cookie("Extension", json.dumps(extension.extension_navbar))
@@ -683,6 +685,8 @@ async def calibration(request):
             response.set_cookie("Extension", json.dumps(extension.extension_navbar))
 
         response.set_cookie("pumpNames", json.dumps({"pumpNames": pump_names}))
+        response.set_cookie("color", color)
+        response.set_cookie("theme", theme)
 
     else:
         response = redirect('/')
@@ -741,6 +745,8 @@ def setting_responce(request):
     response.set_cookie("analogPeriod", analog_period)
     response.set_cookie("pumpInversion", json.dumps({"inversion": inversion}))
     response.set_cookie("pumpNames", json.dumps({"pumpNames": pump_names}))
+    response.set_cookie("color", color)
+    response.set_cookie("theme", theme)
 
     if 'ssid' in globals():
         response.set_cookie('current_ssid', ssid)
@@ -772,6 +778,9 @@ def setting_process_post(request):
 
     new_inversion = request.json["pumpInversion"]
 
+    new_color = request.json["color"]
+    new_theme = request.json["theme"]
+
     if new_ssid and new_psw:
         with open("./config/wifi.json", "w") as f:
             f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
@@ -789,7 +798,9 @@ def setting_process_post(request):
                             "pumps_current": new_pumps_current,
                             "analog_period": new_analog_period,
                             "names": new_names,
-                            "inversion": new_inversion}))
+                            "inversion": new_inversion,
+                            "color": new_color,
+                            "theme": new_theme}))
 
     with open("./config/analog_settings.json", "w") as f:
         json.dump(analog_settings, f)

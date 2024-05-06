@@ -6,26 +6,15 @@
 
 
     <script>
-        function loadLocalCSS(local_css) {
-            console.log("Load local css ", local_css)
-            var link = document.createElement('link');
-            link.rel = 'stylesheet';
-            link.href = local_css; // URL to your local CSS file
-            document.head.appendChild(link);
-        }
-
         function loadLocalScript(local_js) {
-            console.log("Load local js ", local_js)
+            console.log("Loading local JS: ", local_js)
             var script = document.createElement('script');
-            script.src = local_js; // URL to your local script
+            script.src = local_js;
             document.head.appendChild(script);
         }
 
-
     </script>
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-          onerror="loadLocalCSS('styles/bootstrap.min.css')">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
             onerror="loadLocalScript('javascript/bootstrap.bundle.min.js')"></script>
 
@@ -72,14 +61,18 @@
         <a class="nav-link active" data-bs-toggle="tab" href="#wifitab" aria-selected="true" role="tab">Wi-Fi</a>
     </li>
     <li class="nav-item" role="presentation">
-        <a class="nav-link" data-bs-toggle="tab" href="#timetab" aria-selected="false" tabindex="-1" role="tab">Time</a>
+        <a class="nav-link" data-bs-toggle="tab" href="#timetab" aria-selected="false" role="tab">Time</a>
     </li>
     <li class="nav-item" role="presentation">
         <a class="nav-link" data-bs-toggle="tab" href="#pumpstab" aria-selected="false" role="tab"
            tabindex="-1">Pumps</a>
     </li>
     <li class="nav-item" role="presentation">
-        <a class="nav-link" data-bs-toggle="tab" href="#mqtttab" aria-selected="false" tabindex="-1" role="tab">MQTT</a>
+        <a class="nav-link" data-bs-toggle="tab" href="#mqtttab" aria-selected="false" role="tab">MQTT</a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#othertab" aria-selected="false" tabindex="-1"
+           role="tab">Other</a>
     </li>
 </ul>
 
@@ -103,7 +96,7 @@
         <label for="ssidInput1">SSID Name:</label>
         <input type="text" style="width: 300px" class="form-control" id="ssidInput1" placeholder="Enter SSID name">
 
-        <label for="password" class="form-label mt-4">WIFI password:</label>
+        <label for="password" class="form-label mt-2">WIFI password:</label>
 
         <div class="input-group" style="width: 300px">
             <input type="password" id="password" name="password" class="form-control rounded"
@@ -117,13 +110,13 @@
 
     <div class="tab-pane fade container" id="timetab" role="tabpanel">
         <h2>Time settings</h2>
-        <label for="timeFormat" class="form-label mt-4">Clock format</label>
+        <label for="timeFormat" class="form-label mt-2">Clock format</label>
         <select name="timeFormat" id="timeFormat" class="form-select" style="width: 300px">
             <option value="0">24 hour clock</option>
             <option value="1">12 hour clock</option>
         </select>
 
-        <label for="timezoneOffset" class="form-label mt-4">Timezone</label>
+        <label for="timezoneOffset" class="form-label mt-2">Timezone</label>
         <select name="timezoneOffset" id="timezoneOffset" class="form-select" style="width: 300px">
             <option value="-12.0">(GMT -12:00) Eniwetok, Kwajalein</option>
             <option value="-11.0">(GMT -11:00) Midway Island, Samoa</option>
@@ -178,7 +171,7 @@
         <label for="pumpSelector">Number of pumps</label>
         <select id="pumpSelector" class="form-select" style="width: 200px"></select>
 
-        <label for="analogPeriod" class="form-label mt-4">Analog Control Period</label>
+        <label for="analogPeriod" class="form-label mt-2">Analog Control Period</label>
         <select name="analogPeriod" id="analogPeriod" class="form-select" style="width: 200px">
             <option value="5">5 sec</option>
             <option value="15">15 sec</option>
@@ -196,7 +189,7 @@
         <select id="customPumpSettingsSelector" class="form-select" style="width: 200px"
                 onchange="customPumpSelectorChange()"></select>
 
-        <label for="pumpCurrent" class="form-label mt-4">Current</label>
+        <label for="pumpCurrent" class="form-label mt-2">Current</label>
         <select name="pumpCurrent" id="pumpCurrent" class="form-select" style="width: 200px"
                 onchange="customPumpCurrentChange()">
             <option value="200">0.2A</option>
@@ -219,7 +212,7 @@
             <option value="1">On</option>
         </select>
         <input type="text" style="width: 200px" class="form-control" id="customPumpSettingsName"
-               placeholder="Enter Pump Name",
+               placeholder="Enter Pump Name" ,
                title="Pump name must be 1-30 characters long"
                oninput="checkCustomPumpNameChange()">
 
@@ -239,7 +232,7 @@
         <input type="text" style="width: 300px" class="form-control" id="mqttLoginInput1"
                placeholder="Enter MQTT login">
 
-        <label for="mqttPassword" class="form-label mt-4">MQTT password:</label>
+        <label for="mqttPassword" class="form-label mt-2">MQTT password:</label>
         <div class="input-group" style="width: 300px">
             <input type="password" id="mqttPassword" name="mqttPassword" class="form-control rounded"
                    autocomplete="password"
@@ -249,6 +242,29 @@
 
 
     </div>
+
+
+    <div class="tab-pane fade container" id="othertab" role="tabpanel">
+        <h2>Other settings</h2>
+        <label for="modeSelect" class="form-label mt-1">Color mode</label>
+        <select class="form-select" id="colorSelect" style="width: 200px" onchange="switchColor()">
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+            <option value="auto">Auto</option>
+        </select>
+        <label for="themeSelect" class="form-label mt-1">Theme</label>
+        <select class="form-select" id="themeSelect" style="width: 200px" onchange="switchTheme()">
+            <option value="cerulean">Cerulean</option>
+            <option value="vapor">Vapor</option>
+            <option value="cyborg">Cyborg</option>
+            <option value="darkly">Darkly</option>
+            <option value="minty">Minty</option>
+            <option value="pulse">Pulse</option>
+            <option value="united">United</option>
+        </select>
+    </div>
+
+
     <div class="tab-pane fade container active show" role="tabpanel">
         <button type="button" class="btn btn-warning" style="margin-top: 10px" id="uploadDataBtn">Apply</button>
     </div>
@@ -283,6 +299,27 @@
         // Return the formatted time string in 12-hour format
         console.log("New format:", `${hours12}:${formattedMinutes} ${suffix}`)
         return `${hours12}:${formattedMinutes} ${suffix}`;
+    }
+
+    function switchColor() {
+        console.log(this.value)
+        let theme
+        if (document.getElementById("colorSelect").value === 'auto') {
+            const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
+            if (prefersDarkScheme.matches) {
+                theme = "dark"
+            } else {
+                theme = "light"
+            }
+        } else {
+            theme = document.getElementById("colorSelect").value
+        }
+        document.documentElement.setAttribute('data-bs-theme', theme)
+    }
+
+    function switchTheme() {
+        const theme = document.getElementById("themeSelect").value
+        loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/'+theme+'/bootstrap.min.css', 'styles/'+theme+'bootstrap.min.css');
     }
 
 
@@ -341,7 +378,9 @@
             "analogPeriod": parseInt(document.getElementById("analogPeriod").value),
             "pumpNames": JSON.stringify(pumpNames),
             "pumpInversion": pumpInversion,
-            "pumpsCurrent": pumpsCurrent
+            "pumpsCurrent": pumpsCurrent,
+            "color": document.getElementById("colorSelect").value,
+            "theme": document.getElementById("themeSelect").value
         };
         console.log("upload data", data)
 
@@ -391,16 +430,51 @@
         const utf8EncodedBytes = new TextEncoder().encode(name.value);
         // Check if the decoded string matches the original input
         const decodedString = new TextDecoder().decode(utf8EncodedBytes);
-        if (name.value === decodedString && name.value.length <= 20 && name.value.length >0){
+        if (name.value === decodedString && name.value.length <= 20 && name.value.length > 0) {
             name.classList.remove("is-invalid")
-            pumpNames[Number(document.getElementById('customPumpSettingsSelector').value) -1] = name.value
+            pumpNames[Number(document.getElementById('customPumpSettingsSelector').value) - 1] = name.value
         } else {
             name.classList.add("is-invalid")
         }
     }
 
+    function loadCdnCSS(cdn_css, fallback_css) {
+        // Remove existing stylesheet if it exists
+        var existingLink = document.querySelector("link[rel='stylesheet']");
+        if (existingLink) {
+            document.head.removeChild(existingLink);
+        }
+
+        // Create new link for the new CSS
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = cdn_css;
+        link.onerror = function () {
+            console.error("Failed to load CDN CSS. Loading fallback.");
+            loadLocalCSS(fallback_css);
+        };
+        document.head.appendChild(link);
+    }
+
+    function loadLocalCSS(local_css) {
+        console.log("Loading local CSS: ", local_css)
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = local_css;
+        document.head.appendChild(link);
+    }
+
+
     document.addEventListener('DOMContentLoaded', function () {
         console.log("Cookie update event")
+        const color = getCookie("color")
+        const theme = getCookie("theme")
+        // Initiate loading CDN CSS with fallback
+        document.getElementById("colorSelect").value = color
+        document.getElementById("themeSelect").value = theme
+        loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/'+ theme +'/bootstrap.min.css', 'styles/'+ theme +'/bootstrap.min.css');
+        switchColor()
+
         PumpNumber = JSON.parse(getCookie('PumpNumber'));
         console.log(PumpNumber)
         numberOfPumps = parseInt(PumpNumber["pump_num"]);

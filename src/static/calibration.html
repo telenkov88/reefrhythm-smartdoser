@@ -5,14 +5,6 @@
 
 
     <script>
-        function loadLocalCSS(local_css) {
-            console.log("Load local css ", local_css)
-            var link = document.createElement('link');
-            link.rel = 'stylesheet';
-            link.href = local_css; // URL to your local CSS file
-            document.head.appendChild(link);
-        }
-
         function loadLocalScript(local_js) {
             console.log("Load local js ", local_js)
             var script = document.createElement('script');
@@ -22,9 +14,6 @@
 
 
     </script>
-
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-          onerror="loadLocalCSS('styles/bootstrap.min.css')">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
             onerror="loadLocalScript('javascript/bootstrap.bundle.min.js')"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"
@@ -103,20 +92,21 @@
 
     <h4 id="pumpNameCalibration" style="margin-top: 15px"></h4>
     <!-- Pump selection dropdown -->
-    <label for="pumpSelector" class="form-label mt-4">Select Pump:</label>
+    <label for="pumpSelector" class="form-label mt-2">Select Pump:</label>
     <select id="pumpSelector" class="form-select" style="width: 200px"></select>
 
-    <button id="uploadDataBtn" class="btn btn-warning">Upload Calibration Data</button>
+    <button id="uploadDataBtn" class="btn btn-warning mt-2">Upload Calibration Data</button>
 
-    <div class="form-border">
+    <div class="form-border mt-2">
         <div class="form-row">
             <label for="RpmTestInput">RPM</label>
-            <input type="number" id="RpmTestInput" placeholder="Enter RPM" class="form-control"  style="width: 200px">
+            <input type="number" id="RpmTestInput" placeholder="Enter RPM" class="form-control" style="width: 200px">
         </div>
 
         <div class="form-row">
             <label for="timeInput">Duration</label>
-            <input type="number" id="timeInput" placeholder="Enter time in sec" class="form-control"  style="width: 200px">
+            <input type="number" id="timeInput" placeholder="Enter time in sec" class="form-control"
+                   style="width: 200px">
         </div>
 
         <div class="form-row">
@@ -127,7 +117,7 @@
             </select>
         </div>
 
-        <div class="form-row">
+        <div class="form-row mt-2">
             <button id="runButton" class="btn btn-primary" disabled>Run with rpm</button>
             <button id="stopButton" class="btn btn-warning" onclick="stopPump()" style="margin-left: 10px">Stop</button>
         </div>
@@ -155,6 +145,51 @@
         calibrationData[`pump${i}`] = [];
         rpmData[`pump${i}`] = [];
         flowData[`pump${i}`] = [];
+    }
+
+    function switchColor(color) {
+        let color_mod
+        if (color === 'auto') {
+            const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
+            if (prefersDarkScheme.matches) {
+                color_mod = "dark"
+            } else {
+                color_mod = "light"
+            }
+        } else {
+            color_mod = color
+        }
+        document.documentElement.setAttribute('data-bs-theme', color_mod)
+    }
+
+    function loadCdnCSS(cdn_css, fallback_css) {
+        // Remove existing stylesheet if it exists
+        var existingLink = document.querySelector("link[rel='stylesheet']");
+        if (existingLink) {
+            document.head.removeChild(existingLink);
+        }
+
+        // Create new link for the new CSS
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = cdn_css;
+        link.onerror = function () {
+            console.error("Failed to load CDN CSS. Loading fallback.");
+            loadLocalCSS(fallback_css);
+        };
+        document.head.appendChild(link);
+    }
+
+    function loadLocalCSS(local_css) {
+        console.log("Loading local CSS: ", local_css)
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = local_css;
+        document.head.appendChild(link);
+    }
+
+    function switchTheme(theme) {
+        loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/' + theme + '/bootstrap.min.css', 'styles/' + theme + 'bootstrap.min.css');
     }
 
 
@@ -227,7 +262,7 @@
             });
     });
 
-    function stopPump(){
+    function stopPump() {
         const pumpNumber = document.getElementById('pumpSelector').value;
         // use API to stop pump
         const url = `/stop?id=${pumpNumber}`;
@@ -280,6 +315,12 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         console.log("Cookie update event")
+
+        const color = getCookie("color")
+        const theme = getCookie("theme")
+        switchTheme(theme)
+        switchColor(color)
+
         PumpNumber = JSON.parse(getCookie('PumpNumber'));
         console.log(PumpNumber)
         numberOfPumps = parseInt(PumpNumber["pump_num"]);
@@ -299,7 +340,7 @@
             option.text = 'Pump ' + i;
             pumpSelector.appendChild(option);
         }
-        document.getElementById("pumpNameCalibration").innerText = pumpNames[pumpSelector.value-1] + " calibration"
+        document.getElementById("pumpNameCalibration").innerText = pumpNames[pumpSelector.value - 1] + " calibration"
 
         // Dynamically add form for Pumps chart
         const container = document.getElementById('calibrationFormsContainer');
@@ -322,7 +363,7 @@
             <label for="flowRateInput${i}">ml/min</label>
             <input type="number" id="flowRateInput${i}" placeholder="Enter Flow Rate" class="form-control" style="width: 200px">
             </div>
-            <button type="button" onclick="addCalibrationPoint(${i})" class="btn btn-success">Add Calibration Point</button>
+            <button type="button" onclick="addCalibrationPoint(${i})" class="btn btn-success mt-2">Add</button>
             </div>
         `;
 
@@ -392,7 +433,7 @@
 
     document.getElementById('pumpSelector').addEventListener('change', function () {
         const pumpNumber = this.value;
-        document.getElementById("pumpNameCalibration").innerText = pumpNames[pumpNumber-1] + " calibration"
+        document.getElementById("pumpNameCalibration").innerText = pumpNames[pumpNumber - 1] + " calibration"
 
         console.log("Pump selected ", pumpNumber)
         fetchDataAndUpdateChart(pumpNumber);
@@ -461,14 +502,14 @@
             const deleteCell = row.insertCell(2);
             deleteCell.style.paddingLeft = "15px"
             deleteCell.style.height = "20px"
-            deleteCell.style.paddingTop="0px"
-            deleteCell.style.paddingBottom="0px"
+            deleteCell.style.paddingTop = "0px"
+            deleteCell.style.paddingBottom = "0px"
             const deleteButton = document.createElement('button');
             deleteButton.style.height = "25px"
-            deleteButton.style.paddingTop="0px"
-            deleteButton.style.paddingBottom="0px"
+            deleteButton.style.paddingTop = "0px"
+            deleteButton.style.paddingBottom = "0px"
             deleteButton.textContent = 'Del';
-            deleteButton.classList= "btn btn-outline-warning"
+            deleteButton.classList = "btn btn-outline-warning"
             deleteButton.onclick = function () {
                 deleteCalibrationPoint(pumpNumber, index);
             };

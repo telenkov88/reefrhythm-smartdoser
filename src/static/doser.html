@@ -6,14 +6,6 @@
     <title>Dosing Control</title>
 
     <script>
-        function loadLocalCSS(local_css) {
-            console.log("Load local css ", local_css)
-            var link = document.createElement('link');
-            link.rel = 'stylesheet';
-            link.href = local_css; // URL to your local CSS file
-            document.head.appendChild(link);
-        }
-
         function loadLocalScript(local_js) {
             console.log("Load local js ", local_js)
             var script = document.createElement('script');
@@ -24,8 +16,6 @@
 
     </script>
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-          onerror="loadLocalCSS('styles/bootstrap.min.css')">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
             onerror="loadLocalScript('javascript/bootstrap.bundle.min.js')"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"
@@ -71,6 +61,7 @@
 
 </head>
 <body>
+
 <nav class="navbar navbar-expand-lg bg-primary" data-bs-theme="dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="/">Dosing</a>
@@ -122,27 +113,33 @@
     <div class="tab-pane fade container active show" id="dosetab" role="tabpanel">
         <h4 id="pumpNameDosing" style="margin-top: 15px"></h4>
         <label for="amountInput" class="col-form-label mt-2">Amount (ml) to Dose:</label>
-        <input type="number" id="amountInput" style="width: 250px" class="form-control" placeholder="Enter amount in ml">
+        <input type="number" id="amountInput" style="width: 250px" class="form-control"
+               placeholder="Enter amount in ml">
 
-        <label for="timeInput" class="col-form-label">Duration sec:</label>
-        <input type="number" id="timeInput" value="60" style="width: 250px" class="form-control" placeholder="Enter time in seconds">
+        <label for="timeInput" class="col-form-label mt-1">Duration sec:</label>
+        <input type="number" id="timeInput" value="60" style="width: 250px" class="form-control"
+               placeholder="Enter time in seconds">
 
-        <label for="directionInput" class="col-form-label">Direction:</label>
+        <label for="directionInput" class="col-form-label mt-1">Direction:</label>
         <select id="directionInput" class="form-select" style="width: 250px">
             <option value="1">Clockwise</option>
             <option value="0">Counterclockwise</option>
         </select>
-
+        <div class="mt-2">
         <button id="doseButton" class="btn btn-success" disabled>Start Dosing</button>
         <button id="stopButton" class="btn btn-warning" onclick="stopPump()">Stop</button>
+        </div>
+        <label for="containerVolume" class="col-form-label mt-1">Container volume:</label>
+        <input type="number" id="containerVolume" value="" style="width: 250px" class="form-control"
+               placeholder="Enter container volume">
 
-        <label for="containerVolume" class="col-form-label">Container volume:</label>
-        <input type="number" id="containerVolume" value="" style="width: 250px" class="form-control" placeholder="Enter container volume">
-
-        <label for="containerRefill" class="col-form-label">Remaining volume:</label>
-        <input type="number" id="containerRefill" value="" style="width: 250px" class="form-control" placeholder="Enter the remaining volume">
+        <label for="containerRefill" class="col-form-label mt-1">Remaining volume:</label>
+        <input type="number" id="containerRefill" value="" style="width: 250px" class="form-control mt-2"
+               placeholder="Enter the remaining volume">
+        <div class="mt-2">
         <button id="refillContainerBtn" class="btn btn-success" disabled>Refill container</button>
-        <div class="progress" style="margin-top: 10px; width: 250px">
+    </div>
+        <div class="progress mt-2" style="margin-top: 10px; width: 250px">
             <div class="progress-bar progress-bar-striped bg-info" role="progressbar" style="width: 0%;"
                  aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
         </div>
@@ -151,7 +148,7 @@
 
     <div class="tab-pane fade container" id="schedtab" role="tabpanel">
         <h4 id="pumpNameSchedule" style="margin-top: 15px"></h4>
-        <label for="schedDir" class="form-label mt-4">Pump direction:</label>
+        <label for="schedDir" class="form-label mt-2">Pump direction:</label>
         <select class="form-select" id="schedDir" style="width: 200px">
             <option value="1">Clockwise</option>
             <option value="0">Counterclockwise</option>
@@ -170,7 +167,7 @@
                oninput="checkSchedInput()">
 
         <div class="has-danger" id="startTimeDiv" style="width: 200px">
-            <label class="form-label mt-4" for="startTime">Start time:</label>
+            <label class="form-label mt-2" for="startTime">Start time:</label>
             <input type="text" value="" class="form-control is-invalid" id="startTime" placeholder="HH:MM"
                    oninput="checkSchedInput()">
             <div class="invalid-feedback" id="schedFromFeedback">default error message</div>
@@ -178,23 +175,24 @@
 
 
         <div class="has-danger" id="endTimeDiv" style="width: 200px">
-            <label class="form-label mt-4" for="endTime">End time:</label>
+            <label class="form-label mt-2" for="endTime">End time:</label>
             <input type="text" value="" class="form-control is-invalid" id="endTime" placeholder="HH:MM"
                    oninput="checkSchedInput()">
             <div class="invalid-feedback" id="schedToFeedback">default error message</div>
         </div>
 
-        <label for="freqSelect" class="form-label mt-4">Frequency</label>
+        <label for="freqSelect" class="form-label mt-2">Frequency</label>
         <input type="text" id="freqSelect" style="width: 200px"
                class="form-control is-valid"
                title="Frequency must be bigger than 15sec"
                value="1"
                oninput="checkSchedInput()">
-
+        <div class="mt-2">
         <button type="button" id="schedAddBtn" onclick="addSchedPoint()" class="btn btn-success disabled">Add schedule
             dose
         </button>
         <button type="button" onclick="uploadSchedule()" class="btn btn-warning">Apply</button>
+            </div>
         <div id="schedPointContainer"></div>
 
     </div>
@@ -202,13 +200,16 @@
 
     <div class="tab-pane fade container" id="limittab">
         <h4 id="pumpNameLimits" style="margin-top: 15px"></h4>
+
+        <label for="codeTextarea" class="form-label mt-2">Python evaluation expression</label>
+        <input type="text" class="form-control" id="codeTextarea" placeholder="Input evaluation expression"  style="width: 300px;">
+
+        <label for="logTextarea" class="form-label mt-2">Result</label>
+        <textarea class="form-control" id="logTextarea" rows="1" style="width: 300px;"></textarea>
+                <div class="mt-4">
         <button type="button" onclick="testCodeExec()" class="btn btn-warning">Test</button>
         <button type="button" onclick="saveCodeExec()" class="btn btn-success">Save</button>
-        <label for="codeTextarea" class="form-label mt-4">Python evaluation expression</label>
-        <input type="text" class="form-control" id="codeTextarea" placeholder="Input evaluation expression">
-
-        <label for="logTextarea" class="form-label mt-4">Result</label>
-        <textarea class="form-control" id="logTextarea" rows="10"></textarea>
+            </div>
     </div>
 
     <div class="tab-pane fade container" id="analoginputtab">
@@ -239,6 +240,52 @@
         analogInpData[`pump${i}`] = [];
     }
     let AnalogPeriod = 60
+
+
+    function switchColor(color) {
+        let color_mod
+        if (color === 'auto') {
+            const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
+            if (prefersDarkScheme.matches) {
+                color_mod = "dark"
+            } else {
+                color_mod = "light"
+            }
+        } else {
+            color_mod = color
+        }
+        document.documentElement.setAttribute('data-bs-theme', color_mod)
+    }
+
+        function loadCdnCSS(cdn_css, fallback_css) {
+        // Remove existing stylesheet if it exists
+        var existingLink = document.querySelector("link[rel='stylesheet']");
+        if (existingLink) {
+            document.head.removeChild(existingLink);
+        }
+
+        // Create new link for the new CSS
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = cdn_css;
+        link.onerror = function () {
+            console.error("Failed to load CDN CSS. Loading fallback.");
+            loadLocalCSS(fallback_css);
+        };
+        document.head.appendChild(link);
+    }
+
+    function loadLocalCSS(local_css) {
+        console.log("Loading local CSS: ", local_css)
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = local_css;
+        document.head.appendChild(link);
+    }
+
+    function switchTheme(theme) {
+        loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/' + theme + '/bootstrap.min.css', 'styles/' + theme + 'bootstrap.min.css');
+    }
 
 
     let eventSource = new EventSource("/dose-chart-sse");
@@ -709,27 +756,22 @@
         analogInpData['pump' + pumpNumber]["points"].forEach((point, index) => {
             const row = table.insertRow(-1); // Insert a new row at the end of the table
 
-            // Point cell
-            const pointCell = row.insertCell(0);
-            pointCell.textContent = `Point ${index + 1}`;
-            pointCell.style = "padding: 5px;"
-
             // RPM cell
-            const rpmCell = row.insertCell(1);
+            const rpmCell = row.insertCell(0);
             rpmCell.textContent = `Signal: ${point['analogInput']}`;
             rpmCell.style = "padding: 5px;"
 
             // Flow Rate cell
-            const flowRateCell = row.insertCell(2);
+            const flowRateCell = row.insertCell(1);
             flowRateCell.textContent = `Flow Rate: ${point['flowRate']}`;
             flowRateCell.style = "padding: 5px;"
 
             // Delete button cell
-            const deleteCell = row.insertCell(3);
+            const deleteCell = row.insertCell(2);
             deleteCell.style.paddingLeft = "15px"
             deleteCell.style.height = "20px"
-            deleteCell.style.paddingTop="0px"
-            deleteCell.style.paddingBottom="0px"
+            deleteCell.style.paddingTop = "0px"
+            deleteCell.style.paddingBottom = "0px"
             const deleteButton = document.createElement('button');
 
             deleteButton.style.height = "25px"
@@ -816,7 +858,8 @@
             .then(data => console.log('Success:', data))
             .catch((error) => console.error('Error:', error));
     });
-    function stopPump(){
+
+    function stopPump() {
         const pumpNumber = document.getElementById('pumpSelector').value;
         // use API to stop pump
         const url = `/stop?id=${pumpNumber}`;
@@ -902,14 +945,14 @@
             const deleteCell = row.insertCell(6);
             deleteCell.style.paddingLeft = "15px"
             deleteCell.style.height = "20px"
-            deleteCell.style.paddingTop="0px"
-            deleteCell.style.paddingBottom="0px"
+            deleteCell.style.paddingTop = "0px"
+            deleteCell.style.paddingBottom = "0px"
             const deleteButton = document.createElement('button');
             deleteButton.style.height = "100%";
             deleteButton.style.height = "25px"
-            deleteButton.style.paddingTop="0px"
-            deleteButton.style.paddingBottom="0px"
-            deleteButton.classList= "btn btn-outline-warning"
+            deleteButton.style.paddingTop = "0px"
+            deleteButton.style.paddingBottom = "0px"
+            deleteButton.classList = "btn btn-outline-warning"
             deleteButton.textContent = 'Del';
             deleteButton.onclick = function () {
                 deleteSchedulePoint(pumpNumber, index);
@@ -994,6 +1037,11 @@
     // Cookie event
     document.addEventListener('DOMContentLoaded', function () {
         console.log("Cookie update event")
+        const color = getCookie("color")
+        const theme = getCookie("theme")
+        switchTheme(theme)
+        switchColor(color)
+
         AnalogPins = JSON.parse(getCookie('AnalogPins'));
         PumpNumber = JSON.parse(getCookie('PumpNumber'));
         timeFormat = Number(JSON.parse(getCookie('timeformat')));
@@ -1054,11 +1102,11 @@
 
 
                         </div>
-                        <br>
-                        <button id="analogApplyBtn${i}" onclick="applyAnalogEnBtn('analogEnBtn${i}')" type="button" class="btn btn-warning">Apply</button>
-                        <br>
+                        <div class="mt-2">
+                            <button id="analogApplyBtn${i}" onclick="applyAnalogEnBtn('analogEnBtn${i}')" type="button" class="btn btn-warning">Apply</button>
+                        </div>
 
-                        <h5>Add signal level point</h5>
+                        <h5 class="mt-4">Add signal level point</h5>
 
                         <div class="form-row">
                         <label for="analogInput${i}" style="width: 100px">Signal</label>
@@ -1068,7 +1116,7 @@
                             <label for="flowRateInput${i}"  style="width: 100px">Flow ml/min</label>
                             <input type="number" id="flowRateInput${i}" placeholder="Enter Flow Rate" class="form-control" style="width: 200px;">
                         </div>
-                        <button type="button" onclick="addAnalogInpPoint(${i})" class="btn btn-success">Add Signal Level Point</button>
+                        <button type="button" onclick="addAnalogInpPoint(${i})" class="btn btn-success">Add</button>
 
                         <div id="toastContainer" aria-live="polite" aria-atomic="true">
                             <div class="toast" role="alert" aria-live="assertive" aria-atomic="true">
