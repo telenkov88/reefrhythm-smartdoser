@@ -91,7 +91,7 @@ for file in css_files:
     print(file)
 
 app = Microdot()
-
+doser_topic = f"/ReefRhythm/{unique_id}"
 gc.collect()
 ota_lock = False
 ota_progress = 0
@@ -116,7 +116,8 @@ for _ in analog_pins:
 adc_sampler_started = False
 
 
-async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_table, expression=False):
+async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_table, expression=False,
+                      pump_dose=0, pump_id=None):
     print(f"Desired {to_float(desired_rpm_rate)}rpm, mstep")
     if expression:
         print("Check expression: ", expression)
@@ -127,6 +128,17 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
             return [calc_time]
     else:
         calc_time = move_with_rpm(mks, desired_rpm_rate, execution_time, rpm_table, direction)
+        if dose and pump_id is not None:
+            _remaining = storage_remaining[pump_id-1] - pump_dose
+            _remaining = 0 if _remaining < 0 else _remaining
+            storage_remaining[pump_id-1] = _remaining
+
+            if mqtt_broker:
+                _topic = f"{doser_topic}/pump{pump_id}"
+                _data = {"id": pump_id, "name": pump_names[pump_id-1], "dose": pump_dose,
+                         "remain": storage_remaining[pump_id-1], "storage": storage["pump"+pump_id]}
+                mqtt_publish_buffer.append({"topic": _topic, "data": _data})
+
         return [calc_time]
     print(f"Limits check not pass, skip dosing")
     return False
@@ -405,14 +417,14 @@ async def run_with_rpm(request):
 @app.route('/dose')
 async def dose(request):
     id = request.args.get('id', default=1, type=int)
-    volume = request.args.get('amount', default=0, type=float)
+    amount = request.args.get('amount', default=0, type=float)
     execution_time = request.args.get('duration', default=0, type=float)
     direction = request.args.get('direction', default=1, type=int)
     print(f"[Pump{id}]")
-    print(f"Dose {volume}ml in {execution_time}s ")
+    print(f"Dose {amount}ml in {execution_time}s ")
 
     # Calculate RPM for Flow Rate
-    desired_flow = volume * (60 / execution_time)
+    desired_flow = amount * (60 / execution_time)
     print(f"Desired flow: {round(desired_flow, 2)}")
     print(f"Direction: {direction}")
     desired_rpm_rate = np.interp(desired_flow, chart_points[f"pump{id}"][1], chart_points[f"pump{id}"][0])
@@ -426,7 +438,7 @@ async def dose(request):
 
     task = asyncio.create_task(
         command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], desired_rpm_rate, execution_time,
-                                   direction, rpm_table))
+                                   direction, rpm_table, pump_dose=amount, pump_id=id))
     # await uart_buffer.process_commands()
     await task
 
@@ -456,7 +468,6 @@ async def index(request):
         response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
         response.set_cookie(f'timeformat', timeformat)
         response.set_cookie("pumpNames", json.dumps({"pumpNames": pump_names}))
-
 
         if addon and hasattr(extension, 'extension_navbar'):
             response.set_cookie("Extension", json.dumps(extension.extension_navbar))
@@ -842,6 +853,44 @@ async def settings(request):
     return {'logs': 'Success'}
 
 
+@app.route('/refill-sse')
+@with_sse
+async def refill_sse(request, sse):
+    print("Got connection")
+    _old_remaining = None
+    _old_storage = None
+    try:
+        while "eof" not in str(request.sock[0]):
+            if _old_remaining != storage_remaining or _old_storage != storage:
+                _old_remaining = storage_remaining.copy()
+                _old_storage = storage.copy()
+                event = json.dumps({"Storage": _old_storage, "Remaining": _old_remaining})
+
+                print("send storage remaining")
+                await sse.send(event)  # unnamed event
+                await asyncio.sleep(1)
+            else:
+                # print("No updates, skip")
+                await asyncio.sleep(1)
+    except Exception as e:
+        print(f"Error in SSE loop: {e}")
+    print("SSE closed")
+
+
+@app.route('/refill', methods=['POST'])
+async def refill(request):
+    global storage
+    global storage_remaining
+    storage = request.json["Volumes"]
+    for pump in storage:
+        storage_remaining[int(pump.lstrip("pump"))-1] = storage[pump]
+    print("New storage volumes: ", storage)
+    print("New storage remaining: ", storage_remaining)
+    with open("config/storage.json", 'w') as write_file:
+        write_file.write(json.dumps(storage))
+    return {}
+
+
 def update_schedule(data):
     if mcron_keys:
         mcron.remove_all()
@@ -1015,7 +1064,8 @@ async def mqtt_worker():
     mqtt_client.MSG_QUEUE_MAX = 5
 
     last_will_topic = f"/ReefRhythm/{unique_id}/status"
-    doser_topic = f"/ReefRhythm/{unique_id}"
+    global doser_topic
+    global mqtt_publish_buffer
     print("MQTT last will topic: ", last_will_topic)
     mqtt_client.set_last_will(last_will_topic, 'Disconnected', retain=True)
 
@@ -1047,6 +1097,10 @@ async def mqtt_worker():
                     mqtt_client.resubscribe()
                     msg = {"free_mem": gc.mem_free() // 1024}
                     mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
+                    if mqtt_publish_buffer:
+                        for msg in mqtt_publish_buffer:
+                            mqtt_client.publish(msg["topic"], json.dumps(msg["data"]))
+                        mqtt_publish_buffer = []
                     break
                 await asyncio.sleep(60)
 
@@ -1068,6 +1122,7 @@ async def mqtt_worker():
 
 mqtt_dose_buffer = []
 mqtt_run_buffer = []
+mqtt_publish_buffer = []
 
 
 async def process_mqtt_cmd():
@@ -1100,6 +1155,23 @@ async def process_mqtt_cmd():
         await asyncio.sleep(1)
 
 
+async def storage_tracker():
+    global storage_remaining
+    _old_remaining = storage_remaining.copy()
+    while True:
+        if _old_remaining != storage_remaining:
+            with open('config/storage_remaining.bin', 'wb') as write_file:
+                # Print the new remaining values
+                print("Store new remaining values: ", storage_remaining)
+                # Pack the new remaining values
+                _packed_data = struct.pack('9d', *storage_remaining)
+                # Write the packed data to the file
+                write_file.write(_packed_data)
+                # Update the old remaining values
+                _old_remaining = storage_remaining.copy()
+        await asyncio.sleep(30)
+
+
 async def main():
     print("Start Web server")
     from connect_wifi import maintain_wifi
@@ -1115,7 +1187,8 @@ async def main():
         asyncio.create_task(maintain_wifi(ssid, password)),
         asyncio.create_task(maintain_memory()),
         asyncio.create_task(mqtt_worker()),
-        asyncio.create_task(process_mqtt_cmd())
+        asyncio.create_task(process_mqtt_cmd()),
+        asyncio.create_task(storage_tracker())
     ]
 
     # load async tasks from extension

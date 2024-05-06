@@ -169,10 +169,10 @@
     <div class="tab-pane fade container" id="pumpstab" role="tabpanel">
         <h2>Pumps settings</h2>
         <label for="pumpSelector">Number of pumps</label>
-        <select id="pumpSelector" class="form-select" style="width: 200px"></select>
+        <select id="pumpSelector" class="form-select" style="width: 120px"></select>
 
         <label for="analogPeriod" class="form-label mt-2">Analog Control Period</label>
-        <select name="analogPeriod" id="analogPeriod" class="form-select" style="width: 200px">
+        <select name="analogPeriod" id="analogPeriod" class="form-select" style="width: 120px">
             <option value="5">5 sec</option>
             <option value="15">15 sec</option>
             <option value="30">30 sec</option>
@@ -184,13 +184,13 @@
             <option value="300">300 sec</option>
         </select>
 
-        <h2>Custom pump settings</h2>
+        <h2 class="mt-2">Custom pump settings</h2>
         <label for="customPumpSettingsSelector">Pump</label>
-        <select id="customPumpSettingsSelector" class="form-select" style="width: 200px"
+        <select id="customPumpSettingsSelector" class="form-select" style="width: 120px"
                 onchange="customPumpSelectorChange()"></select>
 
         <label for="pumpCurrent" class="form-label mt-2">Current</label>
-        <select name="pumpCurrent" id="pumpCurrent" class="form-select" style="width: 200px"
+        <select name="pumpCurrent" id="pumpCurrent" class="form-select" style="width: 120px"
                 onchange="customPumpCurrentChange()">
             <option value="200">0.2A</option>
             <option value="400">0.4A</option>
@@ -206,12 +206,12 @@
 
         <label for="customPumpSettingsInversion">Inversion:</label>
         <select name="customPumpSettingsInversion" id="customPumpSettingsInversion" class="form-select"
-                style="width: 150px"
+                style="width: 120px"
                 onchange="customPumpInversionChange()">
             <option value="0">Off</option>
             <option value="1">On</option>
         </select>
-        <input type="text" style="width: 200px" class="form-control" id="customPumpSettingsName"
+        <input type="text" style="width: 250px" class="form-control mt-2" id="customPumpSettingsName"
                placeholder="Enter Pump Name" ,
                title="Pump name must be 1-30 characters long"
                oninput="checkCustomPumpNameChange()">
@@ -245,7 +245,7 @@
 
 
     <div class="tab-pane fade container" id="othertab" role="tabpanel">
-        <h2>Other settings</h2>
+        <h4 class="mt-2">UI Color theme</h4>
         <label for="modeSelect" class="form-label mt-1">Color mode</label>
         <select class="form-select" id="colorSelect" style="width: 200px" onchange="switchColor()">
             <option value="dark">Dark</option>

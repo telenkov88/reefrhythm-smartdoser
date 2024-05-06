@@ -126,22 +126,21 @@
             <option value="0">Counterclockwise</option>
         </select>
         <div class="mt-2">
-        <button id="doseButton" class="btn btn-success" disabled>Start Dosing</button>
-        <button id="stopButton" class="btn btn-warning" onclick="stopPump()">Stop</button>
+            <button id="doseButton" class="btn btn-success" disabled>Start Dosing</button>
+            <button id="stopButton" class="btn btn-warning" onclick="stopPump()">Stop</button>
         </div>
         <label for="containerVolume" class="col-form-label mt-1">Container volume:</label>
-        <input type="number" id="containerVolume" value="" style="width: 250px" class="form-control"
-               placeholder="Enter container volume">
+        <input type="number" step="0.01" id="containerVolume" style="width: 250px" class="form-control"
+               placeholder="Enter container volume" oninput="checkStorage()">
 
-        <label for="containerRefill" class="col-form-label mt-1">Remaining volume:</label>
-        <input type="number" id="containerRefill" value="" style="width: 250px" class="form-control mt-2"
-               placeholder="Enter the remaining volume">
-        <div class="mt-2">
-        <button id="refillContainerBtn" class="btn btn-success" disabled>Refill container</button>
-    </div>
-        <div class="progress mt-2" style="margin-top: 10px; width: 250px">
-            <div class="progress-bar progress-bar-striped bg-info" role="progressbar" style="width: 0%;"
+        <div class="progress mt-2" style="margin-top: 10px; width: 250px; height: 50px">
+            <div class="progress-bar progress-bar-striped bg-info" id="storageBar" role="progressbar" style="width: 0%;"
                  aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+        <div class="mt-2">
+            <button id="refillContainerBtn" class="btn btn-success" onclick="refillContainer()">Refill
+                container
+            </button>
         </div>
     </div>
 
@@ -188,11 +187,12 @@
                value="1"
                oninput="checkSchedInput()">
         <div class="mt-2">
-        <button type="button" id="schedAddBtn" onclick="addSchedPoint()" class="btn btn-success disabled">Add schedule
-            dose
-        </button>
-        <button type="button" onclick="uploadSchedule()" class="btn btn-warning">Apply</button>
-            </div>
+            <button type="button" id="schedAddBtn" onclick="addSchedPoint()" class="btn btn-success disabled">Add
+                schedule
+                dose
+            </button>
+            <button type="button" onclick="uploadSchedule()" class="btn btn-warning">Apply</button>
+        </div>
         <div id="schedPointContainer"></div>
 
     </div>
@@ -202,14 +202,15 @@
         <h4 id="pumpNameLimits" style="margin-top: 15px"></h4>
 
         <label for="codeTextarea" class="form-label mt-2">Python evaluation expression</label>
-        <input type="text" class="form-control" id="codeTextarea" placeholder="Input evaluation expression"  style="width: 300px;">
+        <input type="text" class="form-control" id="codeTextarea" placeholder="Input evaluation expression"
+               style="width: 300px;">
 
         <label for="logTextarea" class="form-label mt-2">Result</label>
         <textarea class="form-control" id="logTextarea" rows="1" style="width: 300px;"></textarea>
-                <div class="mt-4">
-        <button type="button" onclick="testCodeExec()" class="btn btn-warning">Test</button>
-        <button type="button" onclick="saveCodeExec()" class="btn btn-success">Save</button>
-            </div>
+        <div class="mt-4">
+            <button type="button" onclick="testCodeExec()" class="btn btn-warning">Test</button>
+            <button type="button" onclick="saveCodeExec()" class="btn btn-success">Save</button>
+        </div>
     </div>
 
     <div class="tab-pane fade container" id="analoginputtab">
@@ -228,7 +229,8 @@
     let pumpNames;
 
     let scheduleData = {};
-
+    let storageVolumes = {}
+    let storageRemainings = []
     let limitsData = {};
 
     let analog_chart_points = {}
@@ -257,7 +259,7 @@
         document.documentElement.setAttribute('data-bs-theme', color_mod)
     }
 
-        function loadCdnCSS(cdn_css, fallback_css) {
+    function loadCdnCSS(cdn_css, fallback_css) {
         // Remove existing stylesheet if it exists
         var existingLink = document.querySelector("link[rel='stylesheet']");
         if (existingLink) {
@@ -287,6 +289,77 @@
         loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/' + theme + '/bootstrap.min.css', 'styles/' + theme + 'bootstrap.min.css');
     }
 
+    function refillContainer() {
+        const pumpSelected = document.getElementById("pumpSelector").value
+        storageVolumes["pump" + pumpSelected] = Number(document.getElementById("containerVolume").value)
+        const url = window.location.href + 'refill';
+        console.log("Refill containers")
+
+        const data = {
+            "Volumes": storageVolumes,
+        };
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+            .then(response => {
+                console.log("Response:", response);
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json(); // Here we convert the response body to JSON
+            })
+            .then(data => {
+                console.log('Success:', data);
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+                document.getElementById("logTextarea").value = 'Error: ' + error.message;
+            });
+    }
+
+    function updateStorage() {
+        const pumpSelected = document.getElementById("pumpSelector").value;
+
+        const storageVolume = document.getElementById("containerVolume");
+        storageVolume.value = storageVolumes["pump" + pumpSelected]
+        const storageBar = document.getElementById("storageBar")
+
+        if (storageVolume.value !== 0) {
+            storageBar.style.width = storageRemainings[pumpSelected - 1] * 100 / storageVolume.value + "%"
+            storageBar.title = storageRemainings[pumpSelected - 1] + "/" + storageVolume.value + "ml"
+        } else {
+            storageBar.style.width = "0%"
+            storageBar.title = "0/0ml"
+        }
+    }
+
+    function checkStorage() {
+        const refillBtn = document.getElementById("refillContainerBtn");
+        const storageVolume = document.getElementById("containerVolume");
+
+        // Convert values from string to float
+        let volume = parseFloat(storageVolume.value);
+
+        // Ensure the values are within the valid range and non-negative
+        volume = isNaN(volume) ? 0 : Math.max(0, Math.min(65535, volume));
+
+        // Update the input fields if necessary
+        storageVolume.value = volume;
+
+        // Log and check conditions based on numeric values
+
+        // Enable or disable the refill button based on comparison
+        if (volume >= 0) {
+            refillBtn.classList.remove("disabled");
+        } else {
+            refillBtn.classList.add("disabled");
+        }
+    }
 
     let eventSource = new EventSource("/dose-chart-sse");
     eventSource.onopen = function (event) {
@@ -314,6 +387,18 @@
         }
     };
 
+    let storageSource = new EventSource("/refill-sse");
+    storageSource.onopen = function (event) {
+        console.log("SSE connection to server opened.");
+    };
+
+    storageSource.onerror = function (event) {
+        if (event.currentTarget.readyState === storageSource.CLOSED) {
+            console.log("SSE connection was closed.");
+        } else {
+            console.log("SSE Error occurred: ", event);
+        }
+    };
 
     function testCodeExec() {
         document.getElementById("logTextarea").value = ""
@@ -479,6 +564,7 @@
         document.getElementById("logTextarea").value = ""
     }
 
+
     eventSource.onmessage = function (event) {
         const data = JSON.parse(event.data);
         console.log("got sse data: ", data)
@@ -521,6 +607,15 @@
             // This code will be executed once Chart is defined
             updateAnalogInpChart(pumpNumber);
         });
+    }
+
+    storageSource.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+        console.log(">>>>>>>>>>>>>>>>>>>>")
+        console.log(data)
+        storageVolumes = data["Storage"]
+        storageRemainings = data["Remaining"]
+        updateStorage()
     }
 
 
@@ -1063,9 +1158,11 @@
             option.text = 'Pump ' + i;
             pumpSelector.appendChild(option);
         }
+        pumpSelector.value = 1
         document.getElementById("pumpNameDosing").innerHTML = pumpNames[pumpSelector.value - 1] + " dosing"
         document.getElementById("pumpNameSchedule").innerHTML = pumpNames[pumpSelector.value - 1] + " schedule"
         document.getElementById("pumpNameLimits").innerHTML = pumpNames[pumpSelector.value - 1] + " limits"
+
 
         // Init schedule form
         checkSchedInput()
@@ -1205,6 +1302,7 @@
 
         updateAnalogInpPointsList(pumpNumber)
         updateAnalogInpChart(pumpNumber);
+        updateStorage()
 
         document.getElementById("codeTextarea").value = limitsData[pumpNumber]
         document.getElementById("logTextarea").value = ""

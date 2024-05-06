@@ -4,7 +4,7 @@ from lib.servo42c import *
 from lib.asyncscheduler import *
 from config.pin_config import *
 import array
-
+import struct
 try:
     import gc
     import utime
@@ -209,6 +209,34 @@ else:
 
 PUMP_NUM = settings["pump_number"]
 
+
+# Storage count configs
+try:
+    with open("config/storage.json") as read_file:
+        storage = json.load(read_file)
+        print("storage: ", storage)
+except Exception as e:
+    print("Can't load storage config, generate new")
+    storage = {}
+    for _ in range(1, MAX_PUMPS+1):
+        storage[f"pump{_}"] = 0
+for _ in range(1, MAX_PUMPS+1):
+    if f"pump{_}" not in storage:
+        storage[f"pump{_}"] = 0
+
+try:
+    with open('config/storage_remaining.bin', 'rb') as file:
+        # Read the data from the file
+        storage_remaining = list(struct.unpack('9d', file.read()))
+except Exception as e:
+    print("Can't load storage remaining data, generate new")
+    storage_remaining = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+    with open('config/storage_remaining.json', 'wb') as file:
+        # Pack the numbers into a binary format (unsigned 16-bit integers)
+        packed_data = struct.pack('9d', *storage_remaining)
+        # Write the binary data to the file
+        file.write(packed_data)
+
 try:
     with open("config/schedule.json") as read_file:
         schedule = json.load(read_file)
@@ -218,6 +246,7 @@ except Exception as e:
     schedule = {}
     for _ in range(1, MAX_PUMPS+1):
         schedule[f"pump{_}"] = []
+
 
 mks_dict = {}
 for stepper in range(1, PUMP_NUM + 1):
