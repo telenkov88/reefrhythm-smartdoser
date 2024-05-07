@@ -945,6 +945,24 @@ def update_schedule(data):
             mcron_keys.append(f'mcron_{mcron_job_number}')
             mcron_job_number += 1
 
+    if addon:
+        print(extension.addon_schedule)
+        for job in extension.addon_schedule:
+            print("Add job from addon:", job)
+
+            start_time = int(job["start_time"].split(":")[0]) * 60 * 60 + int(job["start_time"].split(":")[1]) * 60
+            frequency = job["frequency"]
+            if job["end_time"]:
+                end_time = int(job["end_time"].split(":")[0]) * 60 * 60 + int(job["end_time"].split(":")[1]) * 60
+                step = (end_time - start_time) // frequency
+            else:
+                end_time = mcron.PERIOD_DAY
+                step = end_time // frequency
+
+            mcron.insert(mcron.PERIOD_DAY, range(start_time, end_time, step),
+                         f'mcron_{mcron_job_number}', job["job"])
+            mcron_job_number += 1
+
     with open("config/schedule.json", 'w') as write_file:
         write_file.write(json.dumps(data))
     global schedule
@@ -996,6 +1014,9 @@ async def sync_time():
 async def update_sched_onstart():
     while not time_synced:
         await asyncio.sleep(1)
+    if addon:
+        while not extension.loaded:
+            await asyncio.sleep(1)
     update_schedule(schedule)
 
 
