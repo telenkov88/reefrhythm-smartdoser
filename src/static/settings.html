@@ -318,9 +318,8 @@
         document.documentElement.setAttribute('data-bs-theme', theme)
     }
 
-    function switchTheme() {
-        const theme = document.getElementById("themeSelect").value
-        loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/'+theme+'/bootstrap.min.css', 'styles/'+theme+'bootstrap.min.css');
+    function switchTheme(theme) {
+        loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/' + theme + '/bootstrap.min.css', 'styles/' + theme + '/bootstrap.min.css');
     }
 
 
@@ -544,21 +543,23 @@
         var navbar = document.getElementById('navbarColor01');
         const navbarExtension = JSON.parse(getCookie('Extension'));
         console.log("Extension:", navbarExtension)
-        navbarExtension.forEach(addon => {
-            console.log("Add ", addon)
-            var newNavItem = document.createElement('li');
-            newNavItem.className = 'nav-item';
+        if (navbarExtension) {
+            navbarExtension.forEach(addon => {
+                console.log("Add ", addon)
+                var newNavItem = document.createElement('li');
+                newNavItem.className = 'nav-item';
 
-            // Create the link within the list item
-            var navLink = document.createElement('a');
-            navLink.className = 'nav-link';
-            navLink.href = addon["link"];  // Link URL
-            navLink.textContent = addon["name"];  // Link text
+                // Create the link within the list item
+                var navLink = document.createElement('a');
+                navLink.className = 'nav-link';
+                navLink.href = addon["link"];  // Link URL
+                navLink.textContent = addon["name"];  // Link text
 
-            // Append the link to the list item, and the list item to the navbar
-            newNavItem.appendChild(navLink);
-            navbar.querySelector('.navbar-nav').appendChild(newNavItem);
-        });
+                // Append the link to the list item, and the list item to the navbar
+                newNavItem.appendChild(navLink);
+                navbar.querySelector('.navbar-nav').appendChild(newNavItem);
+            });
+        }
     });
 
 

@@ -475,6 +475,10 @@ async def index(request):
         response.set_cookie(f'PumpNumber', json.dumps({"pump_num": PUMP_NUM}))
         response.set_cookie(f'timeformat', timeformat)
         response.set_cookie("pumpNames", json.dumps({"pumpNames": pump_names}))
+        response.set_cookie("color", color)
+        response.set_cookie("theme", theme)
+        print("color ", color)
+        print("theme ", theme)
 
         if addon and hasattr(extension, 'extension_navbar'):
             response.set_cookie("Extension", json.dumps(extension.extension_navbar))
@@ -618,7 +622,7 @@ async def ota_upgrade(request):
         boot_partition = match.group(1) if match else None
 
         print(f"boot_partition= <{boot_partition}>")
-
+        print("theme:", theme)
         response.set_cookie(f'otaPartition', boot_partition)
         response.set_cookie(f'OtaStarted', ota_lock)
         response.set_cookie(f'firmware', RELEASE_TAG)
@@ -708,6 +712,8 @@ async def calibration(request):
 
     else:
         response = redirect('/')
+        response.set_cookie("color", color)
+        response.set_cookie("theme", theme)
         data = request.json
         for _ in range(1, PUMP_NUM + 1):
             if f"pump{_}" in data:
