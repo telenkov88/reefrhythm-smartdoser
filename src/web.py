@@ -520,7 +520,10 @@ async def dose_ssetime(request, sse):
             event = json.dumps({
                 "time": get_time(),
             })
-            await sse.send(event)  # unnamed event
+            if "eof" not in str(request.sock[0]):
+                await sse.send(event)  # unnamed event
+            else:
+                return
             await asyncio.sleep(10)
     except Exception as e:
         print(f"Error in SSE loop: {e}")
@@ -545,7 +548,10 @@ async def dose_sse(request, sse):
                 })
 
                 print("send Analog Control settigs")
-                await sse.send(event)  # unnamed event
+                if "eof" not in str(request.sock[0]):
+                    await sse.send(event)  # unnamed event
+                else:
+                    return
                 await asyncio.sleep(1)
             else:
                 # print("No updates, skip")
@@ -567,7 +573,10 @@ async def dose_limits_sse(request, sse):
                 event = json.dumps(_old_limits_settings)
 
                 print("send limits Control settigs")
-                await sse.send(event)  # unnamed event
+                if "eof" not in str(request.sock[0]):
+                    await sse.send(event)  # unnamed event
+                else:
+                    return
                 await asyncio.sleep(1)
             else:
                 # print("No updates, skip")
@@ -593,7 +602,10 @@ async def ota_events(request, sse):
         progress = round(ota_progress / num_chunks * 100, 1)
         print(f"progress {progress}%")
         event = {"progress": progress, "size": ota_progress * 4, "status": ota_lock}
-        await sse.send(event)  # unnamed event
+        if "eof" not in str(request.sock[0]):
+            await sse.send(event)  # unnamed event
+        else:
+            return
         await asyncio.sleep(0.1)
 
 
@@ -878,9 +890,13 @@ async def refill_sse(request, sse):
                 _old_storage = storage.copy()
                 event = json.dumps({"Storage": _old_storage, "Remaining": _old_remaining})
 
-                print("send storage remaining")
-                await sse.send(event)  # unnamed event
+                print("send storage remaining ", event)
+                if "eof" not in str(request.sock[0]):
+                    await sse.send(event)  # unnamed event
+                else:
+                    return
                 await asyncio.sleep(1)
+                print("sse wait nex event")
             else:
                 # print("No updates, skip")
                 await asyncio.sleep(1)

@@ -323,16 +323,19 @@
     }
 
     function updateStorage() {
+        console.log("update storage")
         const pumpSelected = document.getElementById("pumpSelector").value;
 
         const storageVolume = document.getElementById("containerVolume");
         storageVolume.value = storageVolumes["pump" + pumpSelected]
         const storageBar = document.getElementById("storageBar")
 
-        if (storageVolume.value !== 0) {
+        if (Number(storageVolume.value) !== 0) {
+            console.log("set storage width ", storageRemainings[pumpSelected - 1] * 100 / storageVolume.value + "%")
             storageBar.style.width = storageRemainings[pumpSelected - 1] * 100 / storageVolume.value + "%"
             storageBar.title = storageRemainings[pumpSelected - 1] + "/" + storageVolume.value + "ml"
         } else {
+            console.log("set storage width 0%")
             storageBar.style.width = "0%"
             storageBar.title = "0/0ml"
         }
@@ -1298,6 +1301,8 @@
     document.getElementById('pumpSelector').addEventListener('change', function () {
         const pumpNumber = this.value
         console.log("pump selector change ", this.value)
+        document.getElementById("pumpNameDosing").innerText = pumpNames[pumpNumber - 1] + " dosing"
+        updateStorage()
 
         // Show the relevant form and hide the other
         document.querySelectorAll('.analogControlForm').forEach(form => form.style.display = 'none');

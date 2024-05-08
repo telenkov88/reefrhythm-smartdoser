@@ -158,7 +158,7 @@ except Exception as e:
     settings = {"pump_number": 1, "hostname": "doser", "timezone": 0.0, "timeformat": 0, "ntphost": "time.google.com",
                 "analog_period": 60,
                 "pumps_current": [1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000],
-                "inversion": [False, False, False, False, False, False, False, False, False],
+                "inversion": [0, 0, 0, 0, 0, 0, 0, 0, 0],
                 "names": ["Pump 1", "Pump 2", "Pump 3", "Pump 4", "Pump 5", "Pump 6", "Pump 7", "Pump 8", "Pump 9"],
                 "color": "dark",
                 "theme": "cerulean"}
@@ -220,6 +220,8 @@ except Exception as e:
     storage = {}
     for _ in range(1, MAX_PUMPS+1):
         storage[f"pump{_}"] = 0
+    with open('config/storage.json', 'w') as write_file:
+        json.dump(storage, write_file)
 for _ in range(1, MAX_PUMPS+1):
     if f"pump{_}" not in storage:
         storage[f"pump{_}"] = 0
@@ -231,7 +233,7 @@ try:
 except Exception as e:
     print("Can't load storage remaining data, generate new")
     storage_remaining = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-    with open('config/storage_remaining.json', 'wb') as file:
+    with open('config/storage_remaining.bin', 'wb') as file:
         # Pack the numbers into a binary format (unsigned 16-bit integers)
         packed_data = struct.pack('9d', *storage_remaining)
         # Write the binary data to the file
