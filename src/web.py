@@ -253,7 +253,7 @@ async def analog_control_worker():
                 print(f"Signal: {adc_signal}")
                 signals, flow_rates = zip(*analog_chart_points[f"pump{i + 1}"])
                 desired_flow = to_float(np.interp(adc_signal, signals, flow_rates))
-                amount = desired_flow * analog_period
+                amount = desired_flow * analog_period / 60
                 print("Desired flow", desired_flow)
                 print("Amount:", amount)
                 if desired_flow >= 0.01:
