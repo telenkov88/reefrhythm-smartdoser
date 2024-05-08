@@ -220,24 +220,14 @@ except Exception as e:
     storage = {}
     for _ in range(1, MAX_PUMPS+1):
         storage[f"pump{_}"] = 0
+        storage[f"remaining{_}"] = 0
     with open('config/storage.json', 'w') as write_file:
         json.dump(storage, write_file)
 for _ in range(1, MAX_PUMPS+1):
     if f"pump{_}" not in storage:
         storage[f"pump{_}"] = 0
-
-try:
-    with open('config/storage_remaining.bin', 'rb') as file:
-        # Read the data from the file
-        storage_remaining = list(struct.unpack('9d', file.read()))
-except Exception as e:
-    print("Can't load storage remaining data, generate new")
-    storage_remaining = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-    with open('config/storage_remaining.bin', 'wb') as file:
-        # Pack the numbers into a binary format (unsigned 16-bit integers)
-        packed_data = struct.pack('9d', *storage_remaining)
-        # Write the binary data to the file
-        file.write(packed_data)
+    if f"remaining{_}" not in storage:
+        storage[f"remaining{_}"] = 0
 
 try:
     with open("config/schedule.json") as read_file:

@@ -230,7 +230,6 @@
 
     let scheduleData = {};
     let storageVolumes = {}
-    let storageRemainings = []
     let limitsData = {};
 
     let analog_chart_points = {}
@@ -292,19 +291,18 @@
     function refillContainer() {
         const pumpSelected = document.getElementById("pumpSelector").value
         storageVolumes["pump" + pumpSelected] = Number(document.getElementById("containerVolume").value)
+        storageVolumes["remaining" + pumpSelected] = Number(document.getElementById("containerVolume").value)
         const url = window.location.href + 'refill';
         console.log("Refill containers")
 
-        const data = {
-            "Volumes": storageVolumes,
-        };
+        console.log(storageVolumes)
 
         fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(data)
+            body: JSON.stringify(storageVolumes)
         })
             .then(response => {
                 console.log("Response:", response);
@@ -328,12 +326,13 @@
 
         const storageVolume = document.getElementById("containerVolume");
         storageVolume.value = storageVolumes["pump" + pumpSelected]
+        const remaining = storageVolumes["remaining" + pumpSelected]
         const storageBar = document.getElementById("storageBar")
 
         if (Number(storageVolume.value) !== 0) {
-            console.log("set storage width ", storageRemainings[pumpSelected - 1] * 100 / storageVolume.value + "%")
-            storageBar.style.width = storageRemainings[pumpSelected - 1] * 100 / storageVolume.value + "%"
-            storageBar.title = storageRemainings[pumpSelected - 1] + "/" + storageVolume.value + "ml"
+            console.log("set storage width ", remaining* 100 / storageVolume.value + "%")
+            storageBar.style.width = remaining * 100 / storageVolume.value + "%"
+            storageBar.title = remaining + "/" + storageVolume.value + "ml"
         } else {
             console.log("set storage width 0%")
             storageBar.style.width = "0%"
@@ -617,7 +616,6 @@
         console.log(">>>>>>>>>>>>>>>>>>>>")
         console.log(data)
         storageVolumes = data["Storage"]
-        storageRemainings = data["Remaining"]
         updateStorage()
     }
 

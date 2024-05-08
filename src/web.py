@@ -132,15 +132,15 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
     else:
         calc_time = move_with_rpm(mks, desired_rpm_rate, execution_time, rpm_table, direction)
         if dose and pump_id is not None:
-            _remaining = storage_remaining[pump_id-1] - pump_dose
+            _remaining = storage[f"remaining{pump_id}"] - pump_dose
             _remaining = 0 if _remaining < 0 else _remaining
-            storage_remaining[pump_id-1] = _remaining
+            storage[f"remaining{pump_id}"] = _remaining
 
             if mqtt_broker:
                 print("Publish to mqtt")
                 _topic = f"{doser_topic}/pump{pump_id}"
                 _data = {"id": pump_id, "name": pump_names[pump_id-1], "dose": pump_dose,
-                         "remain": storage_remaining[pump_id-1], "storage": storage[f"pump{pump_id}"]}
+                         "remain": storage[f"remaining{pump_id}"], "storage": storage[f"pump{pump_id}"]}
                 print("data", _data)
                 print({"topic": _topic, "data": _data})
                 mqtt_publish_buffer.append({"topic": _topic, "data": _data})
@@ -885,10 +885,9 @@ async def refill_sse(request, sse):
     _old_storage = None
     try:
         while "eof" not in str(request.sock[0]):
-            if _old_remaining != storage_remaining or _old_storage != storage:
-                _old_remaining = storage_remaining.copy()
+            if _old_storage != storage:
                 _old_storage = storage.copy()
-                event = json.dumps({"Storage": _old_storage, "Remaining": _old_remaining})
+                event = json.dumps({"Storage": _old_storage})
 
                 print("send storage remaining ", event)
                 if "eof" not in str(request.sock[0]):
@@ -908,14 +907,13 @@ async def refill_sse(request, sse):
 @app.route('/refill', methods=['POST'])
 async def refill(request):
     global storage
-    global storage_remaining
-    storage = request.json["Volumes"]
-    for pump in storage:
-        storage_remaining[int(pump.lstrip("pump"))-1] = storage[pump]
-    print("New storage volumes: ", storage)
-    print("New storage remaining: ", storage_remaining)
+    _storage = request.json
+    for _ in range(MAX_PUMPS):
+        storage[f"pump{_+1}"] = _storage[f"pump{_+1}"]
+        storage[f"remaining{_ + 1}"] = _storage[f"remaining{_ + 1}"]
+    print("New storage data: ", storage)
     with open("config/storage.json", 'w') as write_file:
-        write_file.write(json.dumps(storage))
+        json.dump(storage, write_file)
     return {}
 
 
@@ -1206,20 +1204,17 @@ async def process_mqtt_cmd():
 
 
 async def storage_tracker():
-    global storage_remaining
-    _old_remaining = storage_remaining.copy()
+    global storage
+    _old_storage = storage.copy()
     while True:
-        if _old_remaining != storage_remaining:
-            with open('config/storage_remaining.bin', 'wb') as write_file:
+        if _old_storage != storage:
+            with open('config/storage.json', 'w') as _write_file:
                 # Print the new remaining values
-                print("Store new remaining values: ", storage_remaining)
-                # Pack the new remaining values
-                _packed_data = struct.pack('9d', *storage_remaining)
-                # Write the packed data to the file
-                write_file.write(_packed_data)
+                print("Store new remaining values: ", storage)
+                json.dump(storage, _write_file)
                 # Update the old remaining values
-                _old_remaining = storage_remaining.copy()
-        await asyncio.sleep(30)
+                _old_storage = _old_storage.copy()
+        await asyncio.sleep(300)
 
 
 async def main():
