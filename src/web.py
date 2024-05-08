@@ -1054,7 +1054,6 @@ async def mqtt_worker():
         elif topic.decode() == f"/ReefRhythm/{unique_id}/run":
             command = decode_body()
             if command and check_run_parameters(command):
-                desired_rpm = command['rpm']
                 print("Run command", command)
                 mqtt_run_buffer.append(command)
             else:
@@ -1156,7 +1155,8 @@ async def process_mqtt_cmd():
             print("Desired RPM: ", desired_rpm_rate)
             await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate,
                                              command['duration'], command['direction'], rpm_table,
-                                             limits_dict[int(command['id'])])
+                                             limits_dict[int(command['id'])], pump_dose=None,
+                                             pump_id=int(command['id']))
 
         await asyncio.sleep(1)
 
