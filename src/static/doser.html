@@ -457,7 +457,11 @@
                 AnalogDirSelect.value = analogInpData[key]["dir"]
 
                 const analogEnBtn = document.getElementById(`analogEnBtn${i}`)
-                if (analogEnBtn.value !== analogInpData[key]["enable"]) {
+
+                console.log(">>>>>>>>>>>Toggle ", key)
+                console.log(Number(analogInpData[key]["enable"]))
+                console.log(analogEnBtn.value)
+                if (Number(analogEnBtn.value) !== Number(analogInpData[key]["enable"])) {
                     toggleAnalogEnBtn(`analogEnBtn${i}`)
                 }
 
