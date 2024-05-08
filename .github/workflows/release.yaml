@@ -52,7 +52,7 @@ jobs:
         run: |
               python3 ./scripts/compress_web.py
               rm -rf ./src/static/*.html
-              rm -rf ./src/static/styles/*.css
+              find ./src/static/styles/ -name 'bootstrap.min.css' -print -exec rm {} \;
               rm -rf ./src/static/javascript/*.js
 
       # Checkout necessary submodules or projects

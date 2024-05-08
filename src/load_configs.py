@@ -4,7 +4,7 @@ from lib.servo42c import *
 from lib.asyncscheduler import *
 from config.pin_config import *
 import array
-
+import struct
 try:
     import gc
     import utime
@@ -156,7 +156,12 @@ try:
 except Exception as e:
     print("Can't load general setting config, load default ", e)
     settings = {"pump_number": 1, "hostname": "doser", "timezone": 0.0, "timeformat": 0, "ntphost": "time.google.com",
-                "current": 1000, "analog_period": 60}
+                "analog_period": 60,
+                "pumps_current": [1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000],
+                "inversion": [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                "names": ["Pump 1", "Pump 2", "Pump 3", "Pump 4", "Pump 5", "Pump 6", "Pump 7", "Pump 8", "Pump 9"],
+                "color": "dark",
+                "theme": "cerulean"}
 
 if "hostname" not in settings:
     hostname = "doser"
@@ -176,17 +181,53 @@ if "ntphost" not in settings:
 else:
     ntphost = settings["ntphost"]
 
-if "current" not in settings:
-    current = 1000
+if "pumps_current" not in settings:
+    pumps_current = [1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000]
 else:
-    current = settings["current"]
+    pumps_current = settings["pumps_current"]
 if "analog_period" not in settings:
     analog_period = 60
 else:
     analog_period = settings["analog_period"]
 
+if "inversion" not in settings:
+    inversion = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+else:
+    inversion = settings["inversion"]
+if "names" not in settings:
+    pump_names = ["Pump 1", "Pump 2", "Pump 3", "Pump 4", "Pump 5", "Pump 6", "Pump 7", "Pump 8", "Pump 9"]
+else:
+    pump_names = settings["names"]
+if "color" not in settings:
+    color = "dark"
+else:
+    color = settings["color"]
+if "theme" not in settings:
+    theme = "cerulean"
+else:
+    theme = settings["theme"]
 
 PUMP_NUM = settings["pump_number"]
+
+
+# Storage count configs
+try:
+    with open("config/storage.json") as read_file:
+        storage = json.load(read_file)
+        print("storage: ", storage)
+except Exception as e:
+    print("Can't load storage config, generate new")
+    storage = {}
+    for _ in range(1, MAX_PUMPS+1):
+        storage[f"pump{_}"] = 0
+        storage[f"remaining{_}"] = 0
+    with open('config/storage.json', 'w') as write_file:
+        json.dump(storage, write_file)
+for _ in range(1, MAX_PUMPS+1):
+    if f"pump{_}" not in storage:
+        storage[f"pump{_}"] = 0
+    if f"remaining{_}" not in storage:
+        storage[f"remaining{_}"] = 0
 
 try:
     with open("config/schedule.json") as read_file:
@@ -198,10 +239,11 @@ except Exception as e:
     for _ in range(1, MAX_PUMPS+1):
         schedule[f"pump{_}"] = []
 
+
 mks_dict = {}
 for stepper in range(1, PUMP_NUM + 1):
     mks_dict[f"mks{stepper}"] = Servo42c(uart, addr=stepper - 1, speed=1)
-    mks_dict[f"mks{stepper}"].set_current(current)
+    mks_dict[f"mks{stepper}"].set_current(pumps_current[stepper-1])
 
 try:
     with open("./config/wifi.json", 'r') as wifi_config:
@@ -246,7 +288,7 @@ try:
     with open("./config/limits.json", 'r') as limits_config:
         limits_settings = json.load(limits_config)
         for _ in range(1, MAX_PUMPS + 1):
-            if _ in limits_settings:
+            if f"{_}" in limits_settings:
                 limits_dict[_] = limits_settings[f"{_}"]
             else:
                 limits_dict[_] = "True"
@@ -255,7 +297,6 @@ except Exception as e:
     print("\nfailed to load ./config/limits.json, ", e)
     for _ in range(1, MAX_PUMPS + 1):
         limits_dict[_] = "True"
-
 
 chart_points = {}
 for _ in range(1, MAX_PUMPS + 1):

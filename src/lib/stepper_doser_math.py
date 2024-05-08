@@ -1,5 +1,4 @@
 import os
-from lib.exec_code import evaluate_expression
 try:
     # Micropython Ulab
     from ulab import numpy as np
@@ -224,19 +223,3 @@ def to_float(arr):
         return arr[0]
     else:
         return arr
-
-
-async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_table, expression=False):
-    print(f"Desired {to_float(desired_rpm_rate)}rpm, mstep")
-    print("Limits expression: ", expression)
-    if expression:
-        result, logs = evaluate_expression(expression)
-        if result:
-            print(f"Limits check pass")
-            calc_time = move_with_rpm(mks, desired_rpm_rate, execution_time, rpm_table, direction)
-            return [calc_time]
-    else:
-        calc_time = move_with_rpm(mks, desired_rpm_rate, execution_time, rpm_table, direction)
-        return [calc_time]
-    print(f"Limits check not pass, skip dosing")
-    return False

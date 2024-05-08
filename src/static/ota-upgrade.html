@@ -5,13 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <script>
-        function loadLocalCSS(local_css) {
-            console.log("Load local css ", local_css)
-            var link = document.createElement('link');
-            link.rel = 'stylesheet';
-            link.href = local_css; // URL to your local CSS file
-            document.head.appendChild(link);
-        }
         function loadLocalScript(local_js) {
             console.log("Load local js ", local_js)
             var script = document.createElement('script');
@@ -21,9 +14,8 @@
 
 
     </script>
-
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" onerror="loadLocalCSS('styles/bootstrap.min.css')">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" onerror="loadLocalScript('javascript/bootstrap.bundle.min.js')"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            onerror="loadLocalScript('javascript/bootstrap.bundle.min.js')"></script>
 
     <title>OTA Upgrade</title>
     <style>
@@ -33,14 +25,17 @@
             padding: 10px;
             background-color: #f0f0f0;
         }
+
         header a {
             text-decoration: none;
             color: #333;
             padding: 5px 10px;
         }
+
         .container {
             padding: 20px;
         }
+
         label, input, button {
             display: block;
             margin-bottom: 10px;
@@ -50,60 +45,117 @@
 
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg bg-primary" data-bs-theme="dark">
-      <div class="container-fluid">
+<nav class="navbar navbar-expand-lg bg-primary" data-bs-theme="dark">
+    <div class="container-fluid">
         <a class="navbar-brand" href="/">Dosing</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01" aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
-          <span class="navbar-toggler-icon"></span>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01"
+                aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarColor01">
-          <ul class="navbar-nav me-auto">
-            <li class="nav-item">
-              <a class="nav-link" href="/calibration">Calibration</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/settings">Settings</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/ota-upgrade">OTA</a>
-            </li>
-          </ul>
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="/calibration">Calibration</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/settings">Settings</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/ota-upgrade">OTA</a>
+                </li>
+            </ul>
         </div>
-      </div>
-    </nav>
-
-    <div class="container">
-        <h2>OTA Upgrade</h2>
-
-        <p id="otaPartitionInfo"></p>
-        <p id="firmwareVesrion"></p>
-
-        <label for="firmwareLinkInput">Firmware Link:</label>
-        <input type="text" id="firmwareLinkInput" placeholder="Enter firmware download link" value="http://github.com/telenkov88/reefrhythm-smartdoser/releases/download/latest/micropython.bin">
-
-        <button id="startUpgradeButton">Start Upgrade</button>
-        <button id="cancelButton">Cancel Rollback</button>
     </div>
-        <div id="otaUpgradeContainer" style="display: none;">
-        <h3>OTA Upgrade Progress</h3>
-        <div id="progressBarContainer" style="width: 100%; background-color: #ddd;">
-            <div id="progressBar" style="width: 0%; height: 30px; background-color: #4CAF50; text-align: center; line-height: 30px; color: white;">0%</div>
+</nav>
+
+<div class="container">
+    <h2>OTA Upgrade</h2>
+
+    <p id="otaPartitionInfo"></p>
+    <p id="firmwareVesrion"></p>
+
+    <label for="firmwareLinkInput">Firmware Link:</label>
+    <input type="text" id="firmwareLinkInput" placeholder="Enter firmware download link" value="">
+
+    <button id="startUpgradeButton">Start Upgrade</button>
+    <button id="cancelButton">Cancel Rollback</button>
+</div>
+<div id="otaUpgradeContainer" style="display: none;">
+    <h3>OTA Upgrade Progress</h3>
+    <div id="progressBarContainer" style="width: 100%; background-color: #ddd;">
+        <div id="progressBar"
+             style="width: 0%; height: 30px; background-color: #4CAF50; text-align: center; line-height: 30px; color: white;">
+            0%
         </div>
-        <p id="downloadSize">Downloaded: 0 KB</p>
     </div>
+    <p id="downloadSize">Downloaded: 0 KB</p>
+</div>
 
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Load OTA Partition information from Cookie
-            console.log("Cookie update event")
-            document.getElementById('otaPartitionInfo').textContent = 'OTA Partition: ' + getCookie('otaPartition');
-            document.getElementById('firmwareVesrion').textContent = 'Firmware Version: ' + getCookie('firmware');
+<script>
 
-            // Load extension
-            var navbar = document.getElementById('navbarColor01');
-            const navbarExtension = JSON.parse(getCookie('Extension'));
-            console.log("Extension:", navbarExtension)
+    function switchColor(color) {
+        let color_mod
+        if (color === 'auto') {
+            const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
+            if (prefersDarkScheme.matches) {
+                color_mod = "dark"
+            } else {
+                color_mod = "light"
+            }
+        } else {
+            color_mod = color
+        }
+        document.documentElement.setAttribute('data-bs-theme', color_mod)
+    }
+
+    function loadCdnCSS(cdn_css, fallback_css) {
+        // Remove existing stylesheet if it exists
+        var existingLink = document.querySelector("link[rel='stylesheet']");
+        if (existingLink) {
+            document.head.removeChild(existingLink);
+        }
+
+        // Create new link for the new CSS
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = cdn_css;
+        link.onerror = function () {
+            console.error("Failed to load CDN CSS. Loading fallback.");
+            loadLocalCSS(fallback_css);
+        };
+        document.head.appendChild(link);
+    }
+
+    function loadLocalCSS(local_css) {
+        console.log("Loading local CSS: ", local_css)
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = local_css;
+        document.head.appendChild(link);
+    }
+
+    function switchTheme(theme) {
+        loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/' + theme + '/bootstrap.min.css', 'styles/' + theme + '/bootstrap.min.css');
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // Load OTA Partition information from Cookie
+        console.log("Cookie update event")
+
+        const color = getCookie("color")
+        const theme = getCookie("theme")
+        switchTheme(theme)
+        switchColor(color)
+
+        document.getElementById('otaPartitionInfo').textContent = 'OTA Partition: ' + getCookie('otaPartition');
+        document.getElementById('firmwareVesrion').textContent = 'Firmware Version: ' + getCookie('firmware');
+        document.getElementById("firmwareLinkInput").value = getCookie("firmwareLink")
+        // Load extension
+        var navbar = document.getElementById('navbarColor01');
+        const navbarExtension = JSON.parse(getCookie('Extension'));
+        console.log("Extension:", navbarExtension)
+        if (navbarExtension) {
             navbarExtension.forEach(addon => {
                 console.log("Add ", addon)
                 var newNavItem = document.createElement('li');
@@ -118,95 +170,96 @@
                 // Append the link to the list item, and the list item to the navbar
                 newNavItem.appendChild(navLink);
                 navbar.querySelector('.navbar-nav').appendChild(newNavItem);
-                });
-
-        })
-
-
-        function getCookie(name) {
-            let cookieArray = document.cookie.split(';');
-            for(let i = 0; i < cookieArray.length; i++) {
-                let cookiePair = cookieArray[i].split('=');
-                if(name == cookiePair[0].trim()) {
-                    return decodeURIComponent(cookiePair[1]);
-                }
-            }
-            return null;
+            });
         }
 
-
-        // Event listener for Start Upgrade button
-        document.getElementById('startUpgradeButton').addEventListener('click', function() {
-            const firmwareLink = document.getElementById('firmwareLinkInput').value;
-
-            // Replace <address> with your server's address
-            const url = `/ota-upgrade?link=${firmwareLink}`;
-            console.log("start upgare from link ", firmwareLink)
-            document.getElementById("otaUpgradeContainer").style.display = 'block';
-            fetch(url, {
-                method: 'POST',
-            })
-            .then(response => response.json())
-            .then(data => console.log('Success:', data))
-            .catch((error) => console.error('Error:', error));
-        });
-
-        // Event listener for Cancel button (Rollback)
-        document.getElementById('cancelButton').addEventListener('click', function() {
-            const partition = getCookie('otaPartition');
-            console.log("Set current partition as primary: ", partition)
-
-            const url = `/ota-upgrade?ota_partition=${partition}&cancel_rollback=True`;
-            console.log("POST request: ", url)
-            fetch(url, {
-                method: 'POST',
-            })
-            .then(response => response.json())
-            .then(data => console.log('Success:', data))
-            .catch((error) => console.error('Error:', error));
-
-            // Logic for canceling upgrade or initiating rollback goes here
-            // This might involve another POST request or a redirect, depending on your setup
-        });
+    })
 
 
-        // Subscribe to Server-Sent Events (SSE) from the server
-        const eventSource = new EventSource("/ota-sse");
-
-        eventSource.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            const { progress, size, status } = data;
-
-            // Select elements
-            const upgradeContainer = document.getElementById("otaUpgradeContainer");
-            const progressBar = document.getElementById("progressBar");
-            const downloadSize = document.getElementById("downloadSize");
-
-            if (status) {
-                document.getElementById("startUpgradeButton").disabled = true;
-                document.getElementById("cancelButton").disabled = true;
-
-
-                // Show the progress bar container
-                upgradeContainer.style.display = "block";
-
-                // Update progress bar width and text
-                progressBar.style.width = `${progress}%`;
-                progressBar.textContent = `${progress}%`;
-
-                // Update downloaded size
-                downloadSize.textContent = `Downloaded: ${size} KB`;
-            } else {
-                // Hide the progress bar container if status is false
-                upgradeContainer.style.display = "none";
+    function getCookie(name) {
+        let cookieArray = document.cookie.split(';');
+        for (let i = 0; i < cookieArray.length; i++) {
+            let cookiePair = cookieArray[i].split('=');
+            if (name == cookiePair[0].trim()) {
+                return decodeURIComponent(cookiePair[1]);
             }
-        };
+        }
+        return null;
+    }
 
-        // Close the event source connection when navigating away from the page
-        window.addEventListener("beforeunload", function() {
-            eventSource.close();
-        });
 
-    </script>
+    // Event listener for Start Upgrade button
+    document.getElementById('startUpgradeButton').addEventListener('click', function () {
+        const firmwareLink = document.getElementById('firmwareLinkInput').value;
+
+        // Replace <address> with your server's address
+        const url = `/ota-upgrade?link=${firmwareLink}`;
+        console.log("start upgare from link ", firmwareLink)
+        document.getElementById("otaUpgradeContainer").style.display = 'block';
+        fetch(url, {
+            method: 'POST',
+        })
+            .then(response => response.json())
+            .then(data => console.log('Success:', data))
+            .catch((error) => console.error('Error:', error));
+    });
+
+    // Event listener for Cancel button (Rollback)
+    document.getElementById('cancelButton').addEventListener('click', function () {
+        const partition = getCookie('otaPartition');
+        console.log("Set current partition as primary: ", partition)
+
+        const url = `/ota-upgrade?ota_partition=${partition}&cancel_rollback=True`;
+        console.log("POST request: ", url)
+        fetch(url, {
+            method: 'POST',
+        })
+            .then(response => response.json())
+            .then(data => console.log('Success:', data))
+            .catch((error) => console.error('Error:', error));
+
+        // Logic for canceling upgrade or initiating rollback goes here
+        // This might involve another POST request or a redirect, depending on your setup
+    });
+
+
+    // Subscribe to Server-Sent Events (SSE) from the server
+    const eventSource = new EventSource("/ota-sse");
+
+    eventSource.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+        const {progress, size, status} = data;
+
+        // Select elements
+        const upgradeContainer = document.getElementById("otaUpgradeContainer");
+        const progressBar = document.getElementById("progressBar");
+        const downloadSize = document.getElementById("downloadSize");
+
+        if (status) {
+            document.getElementById("startUpgradeButton").disabled = true;
+            document.getElementById("cancelButton").disabled = true;
+
+
+            // Show the progress bar container
+            upgradeContainer.style.display = "block";
+
+            // Update progress bar width and text
+            progressBar.style.width = `${progress}%`;
+            progressBar.textContent = `${progress}%`;
+
+            // Update downloaded size
+            downloadSize.textContent = `Downloaded: ${size} KB`;
+        } else {
+            // Hide the progress bar container if status is false
+            upgradeContainer.style.display = "none";
+        }
+    };
+
+    // Close the event source connection when navigating away from the page
+    window.addEventListener("beforeunload", function () {
+        eventSource.close();
+    });
+
+</script>
 </body>
 </html>
