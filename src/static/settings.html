@@ -278,6 +278,7 @@
     let pumpNames;
     let pumpInversion
     let pumpsCurrent
+    let theme
 
     function convertTo12HFormat(time) {
         // Split the time string into hours and minutes
@@ -304,21 +305,23 @@
 
     function switchColor() {
         console.log(this.value)
-        let theme
+        let color
         if (document.getElementById("colorSelect").value === 'auto') {
             const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
             if (prefersDarkScheme.matches) {
-                theme = "dark"
+                color = "dark"
             } else {
-                theme = "light"
+                color = "light"
             }
         } else {
-            theme = document.getElementById("colorSelect").value
+            color = document.getElementById("colorSelect").value
         }
-        document.documentElement.setAttribute('data-bs-theme', theme)
+        document.documentElement.setAttribute('data-bs-theme', color)
     }
 
-    function switchTheme(theme) {
+    function switchTheme() {
+        theme = document.getElementById("themeSelect").value
+        console.log("New theme", theme)
         loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/' + theme + '/bootstrap.min.css', 'styles/' + theme + '/bootstrap.min.css');
     }
 
@@ -468,7 +471,7 @@
     document.addEventListener('DOMContentLoaded', function () {
         console.log("Cookie update event")
         const color = getCookie("color")
-        const theme = getCookie("theme")
+        theme = getCookie("theme")
         // Initiate loading CDN CSS with fallback
         document.getElementById("colorSelect").value = color
         document.getElementById("themeSelect").value = theme
