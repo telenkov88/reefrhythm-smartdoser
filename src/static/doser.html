@@ -223,6 +223,10 @@
 
 
 <script>
+    let first_start = true
+    let old_sse_data = {}
+
+
     const maxNumberOfPumps = 9; // Total number of pumps
     let timeFormat = 0
     let numberOfPumps;
@@ -330,7 +334,7 @@
         const storageBar = document.getElementById("storageBar")
 
         if (Number(storageVolume.value) !== 0) {
-            console.log("set storage width ", remaining* 100 / storageVolume.value + "%")
+            console.log("set storage width ", remaining * 100 / storageVolume.value + "%")
             storageBar.style.width = remaining * 100 / storageVolume.value + "%"
             storageBar.title = remaining + "/" + storageVolume.value + "ml"
         } else {
@@ -363,7 +367,31 @@
         }
     }
 
-    let eventSource = new EventSource("/dose-chart-sse");
+
+    // A function to extract value as an array and compare them
+    function equalsCheck(a, b) {
+        console.log(a)
+        console.log(b)
+        // check the length
+        if (a.length !== b.length) {
+            return false;
+        } else {
+            let result = false;
+
+            // comparing each element of array
+            for (let i = 0; i < a.length; i++) {
+
+                if (a[i] !== b[i]) {
+                    return false;
+                } else {
+                    result = true;
+                }
+            }
+            return result;
+        }
+    }
+
+    let eventSource = new EventSource("/dose-sse");
     eventSource.onopen = function (event) {
         console.log("SSE connection to server opened.");
     };
@@ -376,31 +404,91 @@
         }
     };
 
-    let limitsSource = new EventSource("/dose-limits-sse");
-    limitsSource.onopen = function (event) {
-        console.log("SSE connection to server opened.");
-    };
+    eventSource.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+        console.log("got sse data: ", data)
 
-    limitsSource.onerror = function (event) {
-        if (event.currentTarget.readyState === limitsSource.CLOSED) {
-            console.log("SSE connection was closed.");
+
+        const pumpNumber = document.getElementById('pumpSelector').value
+
+        storageVolumes = data["Storage"]
+        updateStorage()
+
+        limitsData = data["Limits"]
+        document.getElementById("codeTextarea").value = limitsData[pumpNumber]
+        document.getElementById("logTextarea").value = ""
+
+        analogInpData = data["Settings"]
+        if (first_start) {
+
+            analog_chart_points = data["AnalogChartPoints"];
+            updateAnalogInpPointsList(pumpNumber)
+            waitForChartDefinition(function () {
+                // This code will be executed once Chart is defined
+                updateAnalogInpChart(pumpNumber);
+            });
         } else {
-            console.log("SSE Error occurred: ", event);
+            if (equalsCheck(old_sse_data["AnalogChartPoints"], analog_chart_points)) {
+                console.log("skip Analog chart points points")
+            } else {
+                analog_chart_points = data["AnalogChartPoints"];
+                updateAnalogInpChart(pumpNumber);
+            }
         }
-    };
 
-    let storageSource = new EventSource("/refill-sse");
-    storageSource.onopen = function (event) {
-        console.log("SSE connection to server opened.");
-    };
+        if (first_start) {
+            console.log("analogInpData", analogInpData)
+            for (const key in analogInpData) {
+                if (key === "period") {
+                    AnalogPeriod = analogInpData["period"]
+                    continue
+                }
 
-    storageSource.onerror = function (event) {
-        if (event.currentTarget.readyState === storageSource.CLOSED) {
-            console.log("SSE connection was closed.");
-        } else {
-            console.log("SSE Error occurred: ", event);
+                let i = `${key.match(/\d+/)[0]}`
+                if (i > numberOfPumps) {
+                    continue
+                }
+                console.log("Set value of ", `AnalogPin${i}`, " to ", analogInpData[key]["pin"])
+
+                const AnalogPinSelect = document.getElementById(`AnalogPin${i}`);
+                AnalogPinSelect.value = analogInpData[key]["pin"]
+
+                const AnalogDirSelect = document.getElementById(`AnalogDir${i}`);
+                AnalogDirSelect.value = analogInpData[key]["dir"]
+
+                const analogEnBtn = document.getElementById(`analogEnBtn${i}`)
+                if (analogEnBtn.value !== analogInpData[key]["enable"]) {
+                    toggleAnalogEnBtn(`analogEnBtn${i}`)
+                }
+
+            }
         }
-    };
+
+
+        for (let i = 1; i < maxNumberOfPumps + 1; i++) {
+            if (first_start) {
+                scheduleData["pump" + i] = data["Schedule"]["pump" + i]
+                updateScheduleList(i)
+            } else {
+                if (equalsCheck(old_sse_data["Schedule"]["pump" + i], data["Schedule"]["pump" + i])) {
+                    console.log("old: ", old_sse_data["Schedule"]["pump" + i])
+                    console.log("new: ", scheduleData["pump" + i])
+                    scheduleData["pump" + i] = data["Schedule"]["pump" + i]
+                    updateScheduleList(i)
+                } else {
+                    console.log("skip schedule update for Pump" + i)
+                }
+
+            }
+
+        }
+
+
+        old_sse_data = data
+        first_start = false
+
+    }
+
 
     function testCodeExec() {
         document.getElementById("logTextarea").value = ""
@@ -556,69 +644,6 @@
             applyButton.setAttribute('aria-disabled', 'false');
         }
     }
-
-    limitsSource.onmessage = function (event) {
-        const data = JSON.parse(event.data);
-        console.log("got sse data: ", data)
-        limitsData = data
-        const pumpSelected = document.getElementById("pumpSelector").value
-        document.getElementById("codeTextarea").value = limitsData[pumpSelected]
-        document.getElementById("logTextarea").value = ""
-    }
-
-
-    eventSource.onmessage = function (event) {
-        const data = JSON.parse(event.data);
-        console.log("got sse data: ", data)
-        const pumpNumber = document.getElementById('pumpSelector').value
-        analog_chart_points = data["AnalogChartPoints"];
-        analogInpData = data["Settings"]
-        scheduleData = data["Schedule"]
-        console.log("analogInpData", analogInpData)
-        for (const key in analogInpData) {
-            if (key === "period") {
-                AnalogPeriod = analogInpData["period"]
-                continue
-            }
-
-            let i = `${key.match(/\d+/)[0]}`
-            if (i > numberOfPumps) {
-                continue
-            }
-            console.log("Set value of ", `AnalogPin${i}`, " to ", analogInpData[key]["pin"])
-
-            const AnalogPinSelect = document.getElementById(`AnalogPin${i}`);
-            AnalogPinSelect.value = analogInpData[key]["pin"]
-
-            const AnalogDirSelect = document.getElementById(`AnalogDir${i}`);
-            AnalogDirSelect.value = analogInpData[key]["dir"]
-
-            const analogEnBtn = document.getElementById(`analogEnBtn${i}`)
-            if (analogEnBtn.value != analogInpData[key]["enable"]) {
-                toggleAnalogEnBtn(`analogEnBtn${i}`)
-            }
-
-        }
-        for (let i = 1; i < maxNumberOfPumps + 1; i++) {
-            updateScheduleList(i)
-        }
-
-
-        updateAnalogInpPointsList(pumpNumber)
-        waitForChartDefinition(function () {
-            // This code will be executed once Chart is defined
-            updateAnalogInpChart(pumpNumber);
-        });
-    }
-
-    storageSource.onmessage = function (event) {
-        const data = JSON.parse(event.data);
-        console.log(">>>>>>>>>>>>>>>>>>>>")
-        console.log(data)
-        storageVolumes = data["Storage"]
-        updateStorage()
-    }
-
 
     function validateTime(frequency) {
         const startTime = document.getElementById("startTime").value;

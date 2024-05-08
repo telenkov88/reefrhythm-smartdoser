@@ -118,6 +118,23 @@ adc_sampler_started = False
 
 async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_table, expression=False,
                       pump_dose=0, pump_id=None):
+    def change_remaining():
+        print("id:", pump_id, " dose:", pump_dose)
+        if pump_dose and pump_id is not None:
+            _remaining = storage[f"remaining{pump_id}"] - pump_dose
+            _remaining = 0 if _remaining < 0 else _remaining
+            storage[f"remaining{pump_id}"] = _remaining
+            print(storage)
+
+            if mqtt_broker:
+                print("Publish to mqtt")
+                _topic = f"{doser_topic}/pump{pump_id}"
+                _data = {"id": pump_id, "name": pump_names[pump_id - 1], "dose": pump_dose,
+                         "remain": storage[f"remaining{pump_id}"], "storage": storage[f"pump{pump_id}"]}
+                print("data", _data)
+                print({"topic": _topic, "data": _data})
+                mqtt_publish_buffer.append({"topic": _topic, "data": _data})
+
     print(f"Desired {to_float(desired_rpm_rate)}rpm, mstep")
     if inversion[pump_id-1]:
         direction = 0 if direction == 1 else 1
@@ -128,23 +145,11 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
         if result:
             print(f"Limits check pass")
             calc_time = move_with_rpm(mks, desired_rpm_rate, execution_time, rpm_table, direction)
+            change_remaining()
             return [calc_time]
     else:
         calc_time = move_with_rpm(mks, desired_rpm_rate, execution_time, rpm_table, direction)
-        if dose and pump_id is not None:
-            _remaining = storage[f"remaining{pump_id}"] - pump_dose
-            _remaining = 0 if _remaining < 0 else _remaining
-            storage[f"remaining{pump_id}"] = _remaining
-
-            if mqtt_broker:
-                print("Publish to mqtt")
-                _topic = f"{doser_topic}/pump{pump_id}"
-                _data = {"id": pump_id, "name": pump_names[pump_id-1], "dose": pump_dose,
-                         "remain": storage[f"remaining{pump_id}"], "storage": storage[f"pump{pump_id}"]}
-                print("data", _data)
-                print({"topic": _topic, "data": _data})
-                mqtt_publish_buffer.append({"topic": _topic, "data": _data})
-
+        change_remaining()
         return [calc_time]
     print(f"Limits check not pass, skip dosing")
     return False
@@ -157,6 +162,7 @@ async def stepper_stop(mks):
 
 @micropython.native
 async def adc_sampling():
+    global adc_dict
     sampling_size = 5
     sampling_delay = 1/sampling_size
     global adc_sampler_started
@@ -218,14 +224,20 @@ async def analog_control_worker():
         print("Wait for adc sampler finish firts cycle")
         await asyncio.sleep(0.1)
     print("Init adc worker")
+    print("adc_dict:", adc_dict)
     # Init Pumps
-    adc_buffer_values = []
+    adc_buffer_values = {}
     for i, en in enumerate(analog_en):
-        adc_buffer_values.append([])
         if en and len(analog_settings[f"pump{i + 1}"]["points"]) >= 2:
             if analog_settings[f"pump{i + 1}"]["pin"] != 99:
-                adc_buffer_values[i].append(adc_dict[analog_settings[f"pump{i + 1}"]["pin"]])
-
+                print("adc_buffer_values append ", adc_dict[analog_settings[f"pump{i + 1}"]["pin"]])
+                adc_buffer_values[i] = [adc_dict[analog_settings[f"pump{i + 1}"]["pin"]]]
+            else:
+                adc_buffer_values[i] = [4095]
+        else:
+            adc_buffer_values[i] = [0]
+    print("ota_lock:", ota_lock)
+    print(adc_buffer_values)
     while True:
         while ota_lock:
             await asyncio.sleep(200)
@@ -233,7 +245,7 @@ async def analog_control_worker():
         for i, en in enumerate(analog_en):
             if en and len(analog_settings[f"pump{i + 1}"]["points"]) >= 2:
                 print(f"\r\n================\r\nRun pump{i + 1}, PIN", analog_settings[f"pump{i + 1}"]["pin"])
-
+                print(adc_buffer_values[i])
                 adc_average = sum(adc_buffer_values[i]) // len(adc_buffer_values[i])
                 print("ADC value: ", adc_average)
                 adc_signal = adc_average / 40.95
@@ -242,6 +254,7 @@ async def analog_control_worker():
                 desired_flow = to_float(np.interp(adc_signal, signals, flow_rates))
                 amount = desired_flow * analog_period
                 print("Desired flow", desired_flow)
+                print("Amount:", amount)
                 if desired_flow >= 0.01:
                     desired_rpm_rate = to_float(
                         np.interp(desired_flow, chart_points[f"pump{i + 1}"][1], chart_points[f"pump{i + 1}"][0]))
@@ -256,6 +269,8 @@ async def analog_control_worker():
             for i, en in enumerate(analog_en):
                 if en and analog_settings[f"pump{i + 1}"]["pin"] != 99:
                     adc_buffer_values[i].append(adc_dict[analog_settings[f"pump{i + 1}"]["pin"]])
+                else:
+                    adc_buffer_values[i] = [4095]
 
             await asyncio.sleep(1)
 
@@ -516,71 +531,43 @@ async def index(request):
 async def dose_ssetime(request, sse):
     print("Got connection")
     try:
-        while "eof" not in str(request.sock[0]):
+        for _ in range(5):
             event = json.dumps({
                 "time": get_time(),
             })
-            if "eof" not in str(request.sock[0]):
-                await sse.send(event)  # unnamed event
-            else:
-                return
-            await asyncio.sleep(10)
+            await sse.send(event)  # unnamed event
+            await asyncio.sleep(5)
     except Exception as e:
         print(f"Error in SSE loop: {e}")
     print("SSE closed")
 
 
-@app.route('/dose-chart-sse')
+@app.route('/dose-sse')
 @with_sse
 async def dose_sse(request, sse):
     print("Got connection")
     old_settings = None
     old_schedule = None
+    _old_limits_settings = None
+    _old_storage = None
     try:
-        while "eof" not in str(request.sock[0]):
-            if old_settings != analog_settings or old_schedule != schedule:
+        for _ in range(30):
+            if old_settings != analog_settings or old_schedule != schedule or _old_limits_settings != limits_dict or _old_storage != storage:
                 old_settings = analog_settings.copy()
                 old_schedule = schedule.copy()
+                _old_limits_settings = limits_dict.copy()
+                _old_storage = storage.copy()
                 event = json.dumps({
                     "AnalogChartPoints": analog_chart_points,
                     "Settings": analog_settings,
-                    "Schedule": schedule
+                    "Schedule": schedule,
+                    "Limits": limits_dict,
+                    "Storage": storage
                 })
 
                 print("send Analog Control settigs")
-                if "eof" not in str(request.sock[0]):
-                    await sse.send(event)  # unnamed event
-                else:
-                    return
-                await asyncio.sleep(1)
-            else:
-                # print("No updates, skip")
-                await asyncio.sleep(1)
-    except Exception as e:
-        print(f"Error in SSE loop: {e}")
-    print("SSE closed")
-
-
-@app.route('/dose-limits-sse')
-@with_sse
-async def dose_limits_sse(request, sse):
-    print("Got connection")
-    _old_limits_settings = None
-    try:
-        while "eof" not in str(request.sock[0]):
-            if _old_limits_settings != limits_dict:
-                _old_limits_settings = limits_dict.copy()
-                event = json.dumps(_old_limits_settings)
-
-                print("send limits Control settigs")
-                if "eof" not in str(request.sock[0]):
-                    await sse.send(event)  # unnamed event
-                else:
-                    return
-                await asyncio.sleep(1)
-            else:
-                # print("No updates, skip")
-                await asyncio.sleep(1)
+                await sse.send(event)  # unnamed event
+            await asyncio.sleep(1)
     except Exception as e:
         print(f"Error in SSE loop: {e}")
     print("SSE closed")
@@ -602,10 +589,7 @@ async def ota_events(request, sse):
         progress = round(ota_progress / num_chunks * 100, 1)
         print(f"progress {progress}%")
         event = {"progress": progress, "size": ota_progress * 4, "status": ota_lock}
-        if "eof" not in str(request.sock[0]):
-            await sse.send(event)  # unnamed event
-        else:
-            return
+        await sse.send(event)  # unnamed event
         await asyncio.sleep(0.1)
 
 
@@ -875,34 +859,6 @@ async def settings(request):
         _limits_config.write(json.dumps(limits_dict))
     update_schedule(schedule)
     return {'logs': 'Success'}
-
-
-@app.route('/refill-sse')
-@with_sse
-async def refill_sse(request, sse):
-    print("Got connection")
-    _old_remaining = None
-    _old_storage = None
-    try:
-        while "eof" not in str(request.sock[0]):
-            if _old_storage != storage:
-                _old_storage = storage.copy()
-                event = json.dumps({"Storage": _old_storage})
-
-                print("send storage remaining ", event)
-                if "eof" not in str(request.sock[0]):
-                    await sse.send(event)  # unnamed event
-                else:
-                    return
-                await asyncio.sleep(1)
-                print("sse wait nex event")
-            else:
-                # print("No updates, skip")
-                await asyncio.sleep(1)
-    except Exception as e:
-        print(f"Error in SSE loop: {e}")
-    print("SSE closed")
-
 
 @app.route('/refill', methods=['POST'])
 async def refill(request):
