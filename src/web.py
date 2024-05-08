@@ -239,6 +239,7 @@ async def analog_control_worker():
     print("ota_lock:", ota_lock)
     print(adc_buffer_values)
     while True:
+        print("Analog worker cycle")
         while ota_lock:
             await asyncio.sleep(200)
 
@@ -426,7 +427,7 @@ async def run_with_rpm(request):
 
     task = asyncio.create_task(
         command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], rpm, execution_time, direction,
-                                   rpm_table, pump_id=id))
+                                   rpm_table, False))
     await task
 
     await callback_result_future.wait()
