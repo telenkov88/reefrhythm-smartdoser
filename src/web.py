@@ -349,7 +349,7 @@ async def run_with_rpm(request):
 
     task = asyncio.create_task(
         command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], rpm, execution_time, direction,
-                                   rpm_table, limits_dict[id]))
+                                   rpm_table, False))
     await task
 
     await callback_result_future.wait()
