@@ -591,7 +591,7 @@ async def ota_events(request, sse):
         print(f"progress {progress}%")
         event = {"progress": progress, "size": ota_progress * 4, "status": ota_lock}
         await sse.send(event)  # unnamed event
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.5)
 
 
 @app.route('/ota-upgrade', methods=['GET', 'POST'])
@@ -643,6 +643,7 @@ async def ota_upgrade(request):
             try:
                 print("Start upgrading from link")
                 ota_lock = True
+                mcron.remove_all()
 
                 filename = link.split('/')[-1]
                 firmware_info = link.replace(".bin", '.json')
