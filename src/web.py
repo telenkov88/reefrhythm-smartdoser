@@ -187,6 +187,7 @@ async def analog_control_worker():
                 adc_buffer_values[i].append(adc_dict[analog_settings[f"pump{i + 1}"]["pin"]])
 
     while True:
+        print("Analog worker cycle")
         while ota_lock:
             await asyncio.sleep(200)
 
