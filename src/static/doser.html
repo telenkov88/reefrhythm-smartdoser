@@ -337,10 +337,13 @@
             console.log("set storage width ", remaining * 100 / storageVolume.value + "%")
             storageBar.style.width = remaining * 100 / storageVolume.value + "%"
             storageBar.title = remaining + "/" + storageVolume.value + "ml"
+            storageBar.innerText = remaining + "/" + storageVolume.value + "ml"
+
         } else {
             console.log("set storage width 0%")
             storageBar.style.width = "0%"
             storageBar.title = "0/0ml"
+            storageBar.innerText = "0/0ml"
         }
     }
 
