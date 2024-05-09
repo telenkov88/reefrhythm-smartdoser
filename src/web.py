@@ -656,6 +656,12 @@ async def ota_upgrade(request):
 
                 await download_file_async(link, filename, progress=True)
                 print("Download complete")
+
+                with open('config/storage.json', 'w') as _write_file:
+                    # Print the new remaining values
+                    print("Store new remaining values: ", storage)
+                    json.dump(storage, _write_file)
+
                 ota.update.from_file(filename, reboot=True)
                 ota_lock = False
 
@@ -825,6 +831,11 @@ def setting_process_post(request):
 
     with open("./config/analog_settings.json", "w") as f:
         json.dump(analog_settings, f)
+
+    with open('config/storage.json', 'w') as _write_file:
+        # Print the new remaining values
+        print("Store new remaining values: ", storage)
+        json.dump(storage, _write_file)
     print(f"Setting up new wifi {new_ssid}, Reboot...")
     machine.reset()
     return redirect("/settings")
