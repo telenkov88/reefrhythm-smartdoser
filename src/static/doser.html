@@ -1220,7 +1220,7 @@
             // Add the form content
             form.innerHTML = `
                     <div class="form-border">
-                        <h4 id="pumpNameAnalogControl" style="margin-top: 15px"></h4>
+                        <h4 id="pumpNameAnalogControl${i}" style="margin-top: 15px"></h4>
                         <br>
                         <div class="form-row">
                             <button id="analogEnBtn${i}" onclick="toggleAnalogEnBtn('analogEnBtn${i}')" value=0 type="button" class="btn btn-secondary">Off</button>
@@ -1267,7 +1267,7 @@
             listDiv.id = `analogInpPointsList${i}`;
             form.appendChild(listDiv);
 
-            document.getElementById("pumpNameAnalogControl").innerHTML = pumpNames[pumpSelector.value - 1] + " analog control"
+            document.getElementById(`pumpNameAnalogControl${i}`).innerHTML = pumpNames[pumpSelector.value - 1] + " analog control"
             // Dynamically add Pin choice for pumps
             const AnalogPinSelect = document.getElementById(`AnalogPin${i}`);
             const option = document.createElement('option');
@@ -1332,6 +1332,9 @@
         const pumpNumber = this.value
         console.log("pump selector change ", this.value)
         document.getElementById("pumpNameDosing").innerText = pumpNames[pumpNumber - 1] + " dosing"
+        document.getElementById("pumpNameSchedule").innerText = pumpNames[pumpNumber - 1] + " schedule"
+        document.getElementById("pumpNameLimits").innerText = pumpNames[pumpNumber - 1] + " limits"
+        document.getElementById(`pumpNameAnalogControl${pumpNumber}`).textContent = pumpNames[pumpNumber - 1] + " limits"
         updateStorage()
 
         // Show the relevant form and hide the other

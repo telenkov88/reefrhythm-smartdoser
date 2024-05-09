@@ -71,23 +71,24 @@
 <div class="container">
     <h2>OTA Upgrade</h2>
 
-    <p id="otaPartitionInfo"></p>
-    <p id="firmwareVesrion"></p>
+
+    <p id="otaPartitionInfo" class="mt-4 text-info"></p>
+    <label for="firmwareVesrion">Firmware version:</label>
+    <p class="text-info mt-0" id="firmwareVesrion"></p>
 
     <label for="firmwareLinkInput">Firmware Link:</label>
-    <input type="text" id="firmwareLinkInput" placeholder="Enter firmware download link" value="">
+    <input type="text" id="firmwareLinkInput" class="form-control" placeholder="Enter firmware download link" value="">
 
-    <button id="startUpgradeButton">Start Upgrade</button>
-    <button id="cancelButton">Cancel Rollback</button>
+    <button class="btn btn-danger mt-2" id="startUpgradeButton">Start Upgrade</button>
+    <button class="btn btn-info mt-2" id="cancelButton">Cancel Rollback</button>
 </div>
 <div id="otaUpgradeContainer" style="display: none;">
     <h3>OTA Upgrade Progress</h3>
-    <div id="progressBarContainer" style="width: 100%; background-color: #ddd;">
-        <div id="progressBar"
-             style="width: 0%; height: 30px; background-color: #4CAF50; text-align: center; line-height: 30px; color: white;">
-            0%
-        </div>
+
+    <div class="progress" id="progressBarContainer" style="height: 30px">
+      <div id="progressBar" class="progress-bar progress-bar-striped" role="progressbar" style="width: 0.001%" aria-valuenow="0.001" aria-valuemin="0" aria-valuemax="100">0%</div>
     </div>
+
     <p id="downloadSize">Downloaded: 0 KB</p>
 </div>
 
@@ -149,7 +150,7 @@
         switchColor(color)
 
         document.getElementById('otaPartitionInfo').textContent = 'OTA Partition: ' + getCookie('otaPartition');
-        document.getElementById('firmwareVesrion').textContent = 'Firmware Version: ' + getCookie('firmware');
+        document.getElementById('firmwareVesrion').textContent = getCookie('firmware');
         document.getElementById("firmwareLinkInput").value = getCookie("firmwareLink")
         // Load extension
         var navbar = document.getElementById('navbarColor01');
@@ -228,6 +229,7 @@
 
     eventSource.onmessage = function (event) {
         const data = JSON.parse(event.data);
+        console.log(data)
         const {progress, size, status} = data;
 
         // Select elements
