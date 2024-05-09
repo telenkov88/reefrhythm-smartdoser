@@ -935,8 +935,10 @@ def update_schedule(data):
             mcron_job_number += 1
 
     if addon:
+        mcron_job_number = 0
         print(extension.addon_schedule)
         for job in extension.addon_schedule:
+
             print("Add job from addon:", job)
 
             start_time = int(job["start_time"].split(":")[0]) * 60 * 60 + int(job["start_time"].split(":")[1]) * 60
@@ -949,7 +951,8 @@ def update_schedule(data):
                 step = end_time // frequency
 
             mcron.insert(mcron.PERIOD_DAY, range(start_time, end_time, step),
-                         f'mcron_{mcron_job_number}', job["job"])
+                         f'mcron_ext_{mcron_job_number}', job["job"])
+            mcron_keys.append(f'mcron_ext_{mcron_job_number}')
             mcron_job_number += 1
 
     with open("config/schedule.json", 'w') as write_file:
