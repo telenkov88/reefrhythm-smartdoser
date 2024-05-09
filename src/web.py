@@ -427,7 +427,7 @@ async def run_with_rpm(request):
 
     task = asyncio.create_task(
         command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], rpm, execution_time, direction,
-                                   rpm_table, False))
+                                   rpm_table, False, pump_dose=0, pump_id=id))
     await task
 
     await callback_result_future.wait()
@@ -1172,7 +1172,7 @@ async def storage_tracker():
                 json.dump(storage, _write_file)
                 # Update the old remaining values
                 _old_storage = _old_storage.copy()
-        await asyncio.sleep(300)
+        await asyncio.sleep(3600)
 
 
 async def main():
