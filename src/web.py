@@ -1056,6 +1056,11 @@ async def mqtt_worker():
                         cmd["direction"] in [0, 1])
             return False
 
+        def check_stop_parameters(cmd):
+            if "id" in cmd:
+                return 1 <= cmd["id"] <= PUMP_NUM
+            return False
+
         print('received message %s on topic %s' % (msg.decode(), topic.decode()))
         if topic.decode() == f"/ReefRhythm/{unique_id}/dose":
             command = decode_body()
@@ -1070,6 +1075,13 @@ async def mqtt_worker():
             if command and check_run_parameters(command):
                 print("Run command", command)
                 mqtt_run_buffer.append(command)
+            else:
+                print("error in syntax: ", command)
+        elif topic.decode() == f"/ReefRhythm/{unique_id}/stop":
+            command = decode_body()
+            if command and check_stop_parameters(command):
+                print("Run STOP command", command)
+                mqtt_stop_buffer.append(command)
             else:
                 print("error in syntax: ", command)
 
@@ -1094,6 +1106,8 @@ async def mqtt_worker():
     mqtt_client.subscribe(f"{doser_topic}/dose")
     print(f"subscribe {doser_topic}/run")
     mqtt_client.subscribe(f"{doser_topic}/run")
+    print(f"subscribe {doser_topic}/stop")
+    mqtt_client.subscribe(f"{doser_topic}/stop")
     mqtt_client.publish(last_will_topic, 'Connected', retain=True)
     msg = {"free_mem": gc.mem_free() // 1024}
     mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
@@ -1140,13 +1154,14 @@ async def mqtt_worker():
 
 mqtt_dose_buffer = []
 mqtt_run_buffer = []
+mqtt_stop_buffer = []
 mqtt_publish_buffer = []
 
 
 async def process_mqtt_cmd():
     while True:
         if mqtt_dose_buffer:
-            print("Process mqtt command")
+            print("Process mqtt Dose command")
             command = mqtt_dose_buffer[0]
             del mqtt_dose_buffer[0]
             desired_flow = command["amount"] * (60 / command["duration"])
@@ -1161,7 +1176,7 @@ async def process_mqtt_cmd():
                                              pump_id=int(command['id']))
 
         if mqtt_run_buffer:
-            print("Process mqtt command")
+            print("Process mqtt Run command")
             command = mqtt_run_buffer[0]
             del mqtt_run_buffer[0]
             print(f"Direction: {command['direction']}")
@@ -1171,6 +1186,13 @@ async def process_mqtt_cmd():
                                              command['duration'], command['direction'], rpm_table,
                                              limits_dict[int(command['id'])], pump_dose=None,
                                              pump_id=int(command['id']))
+
+        if mqtt_stop_buffer:
+            print("Process mqtt Stop command")
+            command = mqtt_stop_buffer[0]
+            del mqtt_stop_buffer[0]
+            print(f"Stop pump{command['id']}")
+            await command_buffer.add_command(stepper_stop, None, mks_dict[f"mks{command['id']}"])
 
         await asyncio.sleep(1)
 
