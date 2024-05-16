@@ -9,29 +9,39 @@ except ImportError:
 from random import randint
 
 
-async def reconnect_wifi(wifi, ssid, password):
+async def reconnect_wifi(wifi, ssid, password, hostname):
     print(f"Try to connect wifi {ssid}")
     if wifi.isconnected():
         return
     try:
+        print("Disconnect wifi")
         wifi.disconnect()
     except Exception as e:
         print(e)
     try:
+        print("Disable Wifi")
         wifi.active(False)
     except Exception as e:
         print(e)
-    await asyncio.sleep(5)
-    wifi.active(True)
-    await asyncio.sleep(5)
+    await asyncio.sleep(2)
     try:
+        print("Activate Wifi")
+        wifi.active(True)
+    except Exception as e:
+        print("Failed to activate wifi, ", e)
+    await asyncio.sleep(2)
+
+    try:
+        print(f"Set hostname: {hostname}.local")
+        wifi.config(dhcp_hostname=hostname)
+        print(f"Connect to ssid {ssid}")
         wifi.connect(ssid, password)
     except OSError as wifi_error:
         print(f"wi-fi {ssid} connection failed: ", wifi_error)
     await asyncio.sleep(20)
 
 
-async def maintain_wifi(ssid, password):
+async def maintain_wifi(ssid, password, hostname):
     ap = network.WLAN(network.AP_IF)
     wifi = network.WLAN(network.STA_IF)
 
@@ -45,13 +55,13 @@ async def maintain_wifi(ssid, password):
     while not ssid:
         await asyncio.sleep(5)
     ap.active(False)
-    asyncio.run(reconnect_wifi(wifi, ssid, password))
+    asyncio.run(reconnect_wifi(wifi, ssid, password, hostname))
 
     retries = 0
     while True:
         if not wifi.isconnected():
             print(f'ERROR: WIFI disconnected')
-            asyncio.run(reconnect_wifi(wifi, ssid, password))
+            asyncio.run(reconnect_wifi(wifi, ssid, password, hostname))
 
             if retries == 30:
                 print(f"Wifi disconnected >{retries}min, reboot")
@@ -62,6 +72,7 @@ async def maintain_wifi(ssid, password):
             retries = 0
             print(">> WIFI - Connected")
             ip = wifi.ifconfig()[0]
+            print(f"http://{hostname}.local")
             print(f"http://{ip}")
             print(f"http://{ip}/dose?direction=1&amount=2&duration=10")
             print(f"http://{ip}/run?direction=1&rpm=10&duration=10")

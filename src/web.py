@@ -1201,7 +1201,7 @@ async def main():
         asyncio.create_task(start_web_server()),
         asyncio.create_task(sync_time()),
         asyncio.create_task(update_sched_onstart()),
-        asyncio.create_task(maintain_wifi(ssid, password)),
+        asyncio.create_task(maintain_wifi(ssid, password, hostname)),
         asyncio.create_task(maintain_memory()),
         asyncio.create_task(mqtt_worker()),
         asyncio.create_task(process_mqtt_cmd()),
