@@ -653,7 +653,7 @@
                 const sindleDose = document.getElementById('schedAmount')
                 const totalAmount = document.getElementById('schedTotalAmount')
                 const freq = document.getElementById("freqSelect")
-                sindleDose.value = Number(totalAmount.value) / Number(freq.value)
+                sindleDose.value = parseFloat((Number(totalAmount.value) / Number(freq.value)).toFixed(3));
 
             }
         }
@@ -662,7 +662,7 @@
                 const sindleDose = document.getElementById('schedAmount')
                 const totalAmount = document.getElementById('schedTotalAmount')
                 const freq = document.getElementById("freqSelect")
-                totalAmount.value = Number(sindleDose.value) * Number(freq.value)
+                totalAmount.value = parseFloat((Number(sindleDose.value) * Number(freq.value)).toFixed(3))
             }
         }
 
@@ -671,8 +671,8 @@
                 const sindleDose = document.getElementById('schedAmount')
                 const totalAmount = document.getElementById('schedTotalAmount')
                 const freq = document.getElementById("freqSelect")
-                totalAmount.value = Number(sindleDose.value) * Number(freq.value)
-                sindleDose.value = Number(totalAmount.value) / Number(freq.value)
+                totalAmount.value = parseFloat((Number(sindleDose.value) * Number(freq.value)).toFixed(3))
+                sindleDose.value = parseFloat((Number(totalAmount.value) / Number(freq.value)).toFixed(3));
             }
         }
 
