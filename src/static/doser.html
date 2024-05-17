@@ -154,11 +154,23 @@
         </select>
 
 
-        <label for="schedAmount">Amount ml:</label>
+        <label for="schedTotalAmount">Amount ml:</label>
+        <input type="text" style="width: 200px" id="schedTotalAmount"
+               class="form-control is-valid"
+               title="Volume must be less than 9999ml"
+               oninput="checkSchedInput('schedTotalAmount')">
+        <label for="schedAmount">Dose ml:</label>
         <input type="text" style="width: 200px" id="schedAmount"
                class="form-control is-valid"
                title="Volume must be less than 9999ml"
-               oninput="checkSchedInput()">
+               oninput="checkSchedInput('schedAmount')">
+        <label for="freqSelect" class="form-label mt-2">Frequency</label>
+        <input type="text" id="freqSelect" style="width: 200px"
+               class="form-control is-valid"
+               title="Frequency must be bigger than 15sec"
+               value="1"
+               oninput="checkSchedInput('freqSelect')">
+
         <label for="schedDuration">Duration sec:</label>
         <input type="text" id="schedDuration" style="width: 200px"
                class="form-control is-valid"
@@ -180,12 +192,6 @@
             <div class="invalid-feedback" id="schedToFeedback">default error message</div>
         </div>
 
-        <label for="freqSelect" class="form-label mt-2">Frequency</label>
-        <input type="text" id="freqSelect" style="width: 200px"
-               class="form-control is-valid"
-               title="Frequency must be bigger than 15sec"
-               value="1"
-               oninput="checkSchedInput()">
         <div class="mt-2">
             <button type="button" id="schedAddBtn" onclick="addSchedPoint()" class="btn btn-success disabled">Add
                 schedule
@@ -635,13 +641,42 @@
         return pattern.test(value);
     }
 
-    function checkSchedInput() {
-        volume = checkPattern(document.getElementById('schedAmount'), /^[0-9]{1,4}(\.[0-9]{1,8})?$/, 9999)
-        duration = checkPattern(document.getElementById('schedDuration'), /^[0-9]{1,5}(\.[0-9]{1,8})?$/, 6000)
-        frequency = checkPattern(document.getElementById("freqSelect"), /^[0-9]{1,5}(\.[0-9]{1,8})?$/, 14400)
-        times = validateTime(Number(document.getElementById("freqSelect").value))
+    function checkSchedInput(field) {
+        const amount = checkPattern(document.getElementById('schedTotalAmount'), /^[0-9]{1,4}(\.[0-9]{1,8})?$/, 9999)
+        const dose = checkPattern(document.getElementById('schedAmount'), /^[0-9]{1,4}(\.[0-9]{1,8})?$/, 9999)
+        const duration = checkPattern(document.getElementById('schedDuration'), /^[0-9]{1,5}(\.[0-9]{1,8})?$/, 6000)
+        const frequency = checkPattern(document.getElementById("freqSelect"), /^[0-9]{1,5}(\.[0-9]{1,8})?$/, 14400)
+        const times = validateTime(Number(document.getElementById("freqSelect").value))
 
-        if (!volume || !duration || !times || !frequency) {
+        if (field === "schedTotalAmount") {
+            if (amount) {
+                const sindleDose = document.getElementById('schedAmount')
+                const totalAmount = document.getElementById('schedTotalAmount')
+                const freq = document.getElementById("freqSelect")
+                sindleDose.value = Number(totalAmount.value) / Number(freq.value)
+
+            }
+        }
+        if (field === "schedAmount") {
+            if (dose) {
+                const sindleDose = document.getElementById('schedAmount')
+                const totalAmount = document.getElementById('schedTotalAmount')
+                const freq = document.getElementById("freqSelect")
+                totalAmount.value = Number(sindleDose.value) * Number(freq.value)
+            }
+        }
+
+        if (field === "freqSelect") {
+            if (dose || amount) {
+                const sindleDose = document.getElementById('schedAmount')
+                const totalAmount = document.getElementById('schedTotalAmount')
+                const freq = document.getElementById("freqSelect")
+                totalAmount.value = Number(sindleDose.value) * Number(freq.value)
+                sindleDose.value = Number(totalAmount.value) / Number(freq.value)
+            }
+        }
+
+        if (!dose || !duration || !times || !frequency) {
             const applyButton = document.getElementById("schedAddBtn");
             applyButton.className = "btn btn-success disabled";
             applyButton.setAttribute('aria-disabled', 'true');
@@ -792,6 +827,7 @@
         const pumpNumber = document.getElementById("pumpSelector").value
         console.log("add scheduled job for pump" + pumpNumber);
         const direction = Number(document.getElementById('schedDir').value);
+        const totalAmount = Number(document.getElementById('schedTotalAmount').value);
         const amount = Number(document.getElementById('schedAmount').value);
         const duration = Number(document.getElementById('schedDuration').value);
         let startTime = document.getElementById('startTime').value;
@@ -815,6 +851,7 @@
         console.log(scheduleData["pump1"])
         scheduleData[`pump${pumpNumber}`].push({
             dir: direction,
+            totalAmount: totalAmount,
             amount: amount,
             duration: duration,
             start_time: startTime,
@@ -1012,7 +1049,7 @@
 
         // Table head
         const headRow = table.insertRow(0);
-        const headers = ["Dir", "ml", "sec", "Start", "End", "Freq", ""];
+        const headers = ["Dir", "ml", "Dose", "sec", "Start", "End", "Freq", ""];
 
         // Loop through the headers array to create each cell
         headers.forEach(header => {
@@ -1034,19 +1071,27 @@
             }
             pointCell.style.width = "35px"
 
+            // Total Amount cell
+            if (!("totalAmount" in point)){
+                point["totalAmount"] = point["amount"] * point["frequency"]
+            }
+
+            const totalAmountCell = row.insertCell(1);
+            totalAmountCell.textContent = `${point["totalAmount"]}`;
+            totalAmountCell.style.width = "40px"
 
             // Dose Amount cell
-            const amountCell = row.insertCell(1);
+            const amountCell = row.insertCell(2);
             amountCell.textContent = `${point["amount"]}`;
             amountCell.style.width = "40px"
 
             // Duration cell
-            const durationCell = row.insertCell(2);
+            const durationCell = row.insertCell(3);
             durationCell.textContent = `${point["duration"]}`;
             durationCell.style.width = "50px"
 
             // Start time cell
-            const startTimeCell = row.insertCell(3);
+            const startTimeCell = row.insertCell(4);
             if (timeFormat === 1) {
                 startTimeCell.textContent = convertTo12HFormat(`${point["start_time"]}`)
             } else {
@@ -1055,7 +1100,7 @@
             startTimeCell.style.width = "70px"
 
             // End time cell
-            const endTimeCell = row.insertCell(4);
+            const endTimeCell = row.insertCell(5);
             if (timeFormat === 1) {
                 endTimeCell.textContent = convertTo12HFormat(`${point["end_time"]}`)
             } else {
@@ -1065,12 +1110,12 @@
 
 
             // Frequency cell
-            const freqCell = row.insertCell(5);
+            const freqCell = row.insertCell(6);
             freqCell.textContent = `${point["frequency"]}`;
             freqCell.style.width = "40px"
 
             // Delete button cell
-            const deleteCell = row.insertCell(6);
+            const deleteCell = row.insertCell(7);
             deleteCell.style.paddingLeft = "15px"
             deleteCell.style.height = "20px"
             deleteCell.style.paddingTop = "0px"
