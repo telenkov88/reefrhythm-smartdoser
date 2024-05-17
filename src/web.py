@@ -1080,8 +1080,15 @@ async def mqtt_worker():
         elif topic.decode() == f"/ReefRhythm/{unique_id}/stop":
             command = decode_body()
             if command and check_stop_parameters(command):
-                print("Run STOP command", command)
+                print("Stop command", command)
                 mqtt_stop_buffer.append(command)
+            else:
+                print("error in syntax: ", command)
+        elif topic.decode() == f"/ReefRhythm/{unique_id}/refill":
+            command = decode_body()
+            if command and check_stop_parameters(command):
+                print("Refilling command", command)
+                mqtt_refill_buffer.append(command)
             else:
                 print("error in syntax: ", command)
 
@@ -1108,6 +1115,8 @@ async def mqtt_worker():
     mqtt_client.subscribe(f"{doser_topic}/run")
     print(f"subscribe {doser_topic}/stop")
     mqtt_client.subscribe(f"{doser_topic}/stop")
+    print(f"subscribe {doser_topic}/refill")
+    mqtt_client.subscribe(f"{doser_topic}/refill")
     mqtt_client.publish(last_will_topic, 'Connected', retain=True)
     msg = {"free_mem": gc.mem_free() // 1024}
     mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
@@ -1144,6 +1153,10 @@ async def mqtt_worker():
             # print("mqtt check_msg")
             if mqtt_client.is_conn_issue():
                 break
+            if mqtt_publish_buffer:
+                for msg in mqtt_publish_buffer:
+                    mqtt_client.publish(msg["topic"], json.dumps(msg["data"]))
+                mqtt_publish_buffer = []
             mqtt_client.check_msg()  # needed when publish(qos=1), ping(), subscribe()
             mqtt_client.send_queue()  # needed when using the caching capabilities for unsent messages
             if not mqtt_client.things_to_do():
@@ -1155,6 +1168,7 @@ async def mqtt_worker():
 mqtt_dose_buffer = []
 mqtt_run_buffer = []
 mqtt_stop_buffer = []
+mqtt_refill_buffer = []
 mqtt_publish_buffer = []
 
 
@@ -1193,6 +1207,21 @@ async def process_mqtt_cmd():
             del mqtt_stop_buffer[0]
             print(f"Stop pump{command['id']}")
             await command_buffer.add_command(stepper_stop, None, mks_dict[f"mks{command['id']}"])
+
+        if mqtt_refill_buffer:
+            print("Process mqtt refill command")
+            command = mqtt_refill_buffer[0]
+            del mqtt_refill_buffer[0]
+            print(f"Refilling pump{command['id']} storage")
+            storage[f"remaining{command['id']}"] = storage[f"pump{command['id']}"]
+            print("Publish to mqtt")
+            _pump_id = command['id']
+            _topic = f"{doser_topic}/pump{_pump_id}"
+            _data = {"id": _pump_id, "name": pump_names[_pump_id - 1], "dose": 0,
+                     "remain": storage[f"remaining{_pump_id}"], "storage": storage[f"pump{_pump_id}"]}
+            print("data", _data)
+            print({"topic": _topic, "data": _data})
+            mqtt_publish_buffer.append({"topic": _topic, "data": _data})
 
         await asyncio.sleep(1)
 
