@@ -216,7 +216,7 @@
             </button>
             <button type="button" onclick="uploadSchedule()" class="btn btn-warning">Apply</button>
         </div>
-        <div id="schedPointContainer"></div>
+        <div id="schedPointContainer" class="mt-4"></div>
 
     </div>
 
@@ -1074,32 +1074,18 @@
         const table = document.createElement('table');
         table.classList.add("table");
         table.classList.add("table-hover");
-        //table.style.width="500px"
+        table.style.maxWidth="350px"
         listContainer.appendChild(table);
-
-        // Table head
-
 
         scheduleData['pump' + pumpNumber].forEach((point, index) => {
             console.log(point)
             const row = table.insertRow(-1); // Insert a new row at the end of the table
             row.classList.add("table-active")
 
+
             row.setAttribute('style', 'text-align: left; border: 1px');
-            // Dir cell
             const pointCell = row.insertCell(0);
             pointCell.style.whiteSpace = "pre"
-
-            // Create the second row
-            //const row2 = table.insertRow(-1);
-            //row2.setAttribute('style', 'text-align: left');
-            //row2.classList.add("table-active")
-
-            // Span cells to match the first row's columns except for the delete button cell
-            //const weekCell = row2.insertCell(0);
-            //weekCell.colSpan = 7;
-            //weekCell.style.whiteSpace = "pre";
-            //weekCell.textContent = "Weekdays:  \n123" + (point["weekdays"] || "N/A");
 
             let textContent = "Total: " +  point["totalAmount"] +"ml, "
 
@@ -1109,61 +1095,13 @@
                 textContent += "CCW\n";
             }
 
-
-            //if (point["dir"] === 1) {
-            //    pointCell.textContent = "CW";
-            //} else {
-            //    pointCell.textContent = "CCW";
-            //}
-            //pointCell.style.width = "35px"
-
-            // Total Amount cell
-            //if (!("totalAmount" in point)) {
-            //    point["totalAmount"] = point["amount"] * point["frequency"]
-            //}
-
-            //const totalAmountCell = row.insertCell(1);
-            //totalAmountCell.textContent = `${point["totalAmount"]}`;
-            //totalAmountCell.style.width = "40px"
-
-            // Dose Amount cell
-            //const amountCell = row.insertCell(2);
-            //amountCell.textContent = `${point["amount"]}`;
-            //amountCell.style.width = "40px"
-
-
-
-
-            // Start time cell
-            //const startTimeCell = row.insertCell(4);
-            //if (timeFormat === 1) {
-            //    startTimeCell.textContent = convertTo12HFormat(`${point["start_time"]}`)
-            //} else {
-            //    startTimeCell.textContent = `${point["start_time"]}`;
-            //}
-            //startTimeCell.style.width = "70px"
             textContent += point["start_time"]+ "-"
-
-            // End time cell
-            //const endTimeCell = row.insertCell(5);
-            //if (timeFormat === 1) {
-            //    endTimeCell.textContent = convertTo12HFormat(`${point["end_time"]}`)
-            //} else {
-            //    endTimeCell.textContent = `${point["end_time"]}`;
-            //}
-            //endTimeCell.style.width = "70px"
 
             if (point["end_time"] === "") {
                 textContent += "23:59, "
             } else {
                textContent += point["end_time"]+ ", "
             }
-
-
-            // Frequency cell
-            //const freqCell = row.insertCell(6);
-            //freqCell.textContent = `${point["frequency"]}`;
-            //freqCell.style.width = "40px"
 
             textContent += point["frequency"]+ "*"
             textContent += point["amount"]+"ml/"
@@ -1213,8 +1151,10 @@
 
             // Delete button cell
             const deleteCell = row.insertCell(1);
+            deleteCell.style.width = "30px"
             deleteCell.style.paddingLeft = "15px"
-            deleteCell.style.height = "20px"
+            deleteCell.style.paddingRight = "5px"
+            //deleteCell.style.height = "20px"
             deleteCell.style.paddingTop = "0px"
             deleteCell.style.paddingBottom = "0px"
             const deleteButton = document.createElement('button');
