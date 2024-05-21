@@ -21,7 +21,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"
             onerror="loadLocalScript('javascript/chart.min.js')"></script>
 
-
     <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
 
     <style>
@@ -152,9 +151,27 @@
             <option value="1">Clockwise</option>
             <option value="0">Counterclockwise</option>
         </select>
+        <br>
+        <div id="weekGroup" class="btn-group mt-0" role="group" aria-label="Basic checkbox toggle button group"
+             style="max-width: 300px">
+            <input type="checkbox" class="btn-check" id="weekday1" value="1" checked="" autocomplete="off">
+            <label class="btn btn-outline-primary" for="weekday1" style="width: 14.28%; padding-left: 5px">Mon</label>
+            <input type="checkbox" class="btn-check" id="weekday2" value="2" autocomplete="off">
+            <label class="btn btn-outline-primary" for="weekday2" style="width: 14.28%; padding-left: 5px">Tue</label>
+            <input type="checkbox" class="btn-check" id="weekday3" value="3" autocomplete="off">
+            <label class="btn btn-outline-primary" for="weekday3" style="width: 14.28%; padding-left: 5px">Wed</label>
+            <input type="checkbox" class="btn-check" id="weekday4" value="4" autocomplete="off">
+            <label class="btn btn-outline-primary" for="weekday4"  style="width: 14.28%; padding-left: 5px">Fri</label>
+            <input type="checkbox" class="btn-check" id="weekday5" value="5" autocomplete="off">
+            <label class="btn btn-outline-primary" for="weekday5" style="width: 14.28%; padding-left: 5px">Fri</label>
+            <input type="checkbox" class="btn-check" id="weekday6" value="6" autocomplete="off">
+            <label class="btn btn-outline-primary" for="weekday6" style="width: 14.28%; padding-left: 5px">Sat</label>
+            <input type="checkbox" class="btn-check" id="weekday0" value="0" autocomplete="off">
+            <label class="btn btn-outline-primary" for="weekday0" style="width: 14.28%; padding-left: 5px">Sun</label>
+        </div>
+        <br>
 
-
-        <label for="schedTotalAmount">Amount ml:</label>
+        <label for="schedTotalAmount" class="form-label mt-0">Amount ml:</label>
         <input type="text" style="width: 200px" id="schedTotalAmount"
                class="form-control is-valid"
                title="Volume must be less than 9999ml"
@@ -846,6 +863,16 @@
             }
         }
 
+        // Weekdays
+        let weekdays = [];
+        document.querySelectorAll('#weekGroup input[type="checkbox"]').forEach(checkbox => {
+        if (checkbox.checked) {
+                weekdays.push(Number(checkbox.value));
+            }
+        });
+        weekdays.sort()
+        console.log("Weekdays:", weekdays);
+
         //scheduleData[`pump${pumpNumber}`]
         console.log(scheduleData)
         console.log(scheduleData["pump1"])
@@ -856,7 +883,8 @@
             duration: duration,
             start_time: startTime,
             end_time: EndTime,
-            frequency: frequency
+            frequency: frequency,
+            weekdays: weekdays
         });
         updateScheduleList(pumpNumber)
     }
@@ -1044,78 +1072,147 @@
         console.log("Update schedule list for pump", pumpNumber)
 
         const table = document.createElement('table');
+        table.classList.add("table");
+        table.classList.add("table-hover");
         //table.style.width="500px"
         listContainer.appendChild(table);
 
         // Table head
-        const headRow = table.insertRow(0);
-        const headers = ["Dir", "ml", "Dose", "sec", "Start", "End", "Freq", ""];
-
-        // Loop through the headers array to create each cell
-        headers.forEach(header => {
-            const cell = headRow.insertCell();
-            cell.textContent = header;
-        });
 
 
         scheduleData['pump' + pumpNumber].forEach((point, index) => {
             console.log(point)
             const row = table.insertRow(-1); // Insert a new row at the end of the table
-            row.setAttribute('style', 'text-align: left');
+            row.classList.add("table-active")
+
+            row.setAttribute('style', 'text-align: left; border: 1px');
             // Dir cell
             const pointCell = row.insertCell(0);
+            pointCell.style.whiteSpace = "pre"
+
+            // Create the second row
+            //const row2 = table.insertRow(-1);
+            //row2.setAttribute('style', 'text-align: left');
+            //row2.classList.add("table-active")
+
+            // Span cells to match the first row's columns except for the delete button cell
+            //const weekCell = row2.insertCell(0);
+            //weekCell.colSpan = 7;
+            //weekCell.style.whiteSpace = "pre";
+            //weekCell.textContent = "Weekdays:  \n123" + (point["weekdays"] || "N/A");
+
+            let textContent = "Total: " +  point["totalAmount"] +"ml, "
+
             if (point["dir"] === 1) {
-                pointCell.textContent = "CW";
+                textContent +="CW\n";
             } else {
-                pointCell.textContent = "CCW";
+                textContent += "CCW\n";
             }
-            pointCell.style.width = "35px"
+
+
+            //if (point["dir"] === 1) {
+            //    pointCell.textContent = "CW";
+            //} else {
+            //    pointCell.textContent = "CCW";
+            //}
+            //pointCell.style.width = "35px"
 
             // Total Amount cell
-            if (!("totalAmount" in point)){
-                point["totalAmount"] = point["amount"] * point["frequency"]
-            }
+            //if (!("totalAmount" in point)) {
+            //    point["totalAmount"] = point["amount"] * point["frequency"]
+            //}
 
-            const totalAmountCell = row.insertCell(1);
-            totalAmountCell.textContent = `${point["totalAmount"]}`;
-            totalAmountCell.style.width = "40px"
+            //const totalAmountCell = row.insertCell(1);
+            //totalAmountCell.textContent = `${point["totalAmount"]}`;
+            //totalAmountCell.style.width = "40px"
 
             // Dose Amount cell
-            const amountCell = row.insertCell(2);
-            amountCell.textContent = `${point["amount"]}`;
-            amountCell.style.width = "40px"
+            //const amountCell = row.insertCell(2);
+            //amountCell.textContent = `${point["amount"]}`;
+            //amountCell.style.width = "40px"
 
-            // Duration cell
-            const durationCell = row.insertCell(3);
-            durationCell.textContent = `${point["duration"]}`;
-            durationCell.style.width = "50px"
+
+
 
             // Start time cell
-            const startTimeCell = row.insertCell(4);
-            if (timeFormat === 1) {
-                startTimeCell.textContent = convertTo12HFormat(`${point["start_time"]}`)
-            } else {
-                startTimeCell.textContent = `${point["start_time"]}`;
-            }
-            startTimeCell.style.width = "70px"
+            //const startTimeCell = row.insertCell(4);
+            //if (timeFormat === 1) {
+            //    startTimeCell.textContent = convertTo12HFormat(`${point["start_time"]}`)
+            //} else {
+            //    startTimeCell.textContent = `${point["start_time"]}`;
+            //}
+            //startTimeCell.style.width = "70px"
+            textContent += point["start_time"]+ "-"
 
             // End time cell
-            const endTimeCell = row.insertCell(5);
-            if (timeFormat === 1) {
-                endTimeCell.textContent = convertTo12HFormat(`${point["end_time"]}`)
+            //const endTimeCell = row.insertCell(5);
+            //if (timeFormat === 1) {
+            //    endTimeCell.textContent = convertTo12HFormat(`${point["end_time"]}`)
+            //} else {
+            //    endTimeCell.textContent = `${point["end_time"]}`;
+            //}
+            //endTimeCell.style.width = "70px"
+
+            if (point["end_time"] === "") {
+                textContent += "23:59, "
             } else {
-                endTimeCell.textContent = `${point["end_time"]}`;
+               textContent += point["end_time"]+ ", "
             }
-            endTimeCell.style.width = "70px"
 
 
             // Frequency cell
-            const freqCell = row.insertCell(6);
-            freqCell.textContent = `${point["frequency"]}`;
-            freqCell.style.width = "40px"
+            //const freqCell = row.insertCell(6);
+            //freqCell.textContent = `${point["frequency"]}`;
+            //freqCell.style.width = "40px"
+
+            textContent += point["frequency"]+ "*"
+            textContent += point["amount"]+"ml/"
+
+            textContent += point["duration"]+ "sec\n"
+
+
+
+
+            if (!point["weekdays"]){
+                point["weekdays"] = [0,1,2,3,4,5,6]
+            }
+            console.log(">>>>>>>>>>>>>>>>>>>>>>")
+            console.log(point["weekdays"])
+            console.log(">>>>>>>>>>>>>>>>>>>>>>")
+
+            if (equalsCheck(point["weekdays"], [0,1,2,3,4,5,6])){
+                textContent += "Everyday"
+            } else {
+                let weekdays = point["weekdays"]
+                if (weekdays.includes(0)){
+                    weekdays = weekdays.filter(item => item !== 0);
+                    weekdays.push(0)
+                }
+                console.log("<<<<<<<<<<<")
+                console.log(weekdays)
+                weekdays.forEach((element) => {
+                switch (element) {
+                    case 0: textContent += "Sun"; break;
+                    case 1: textContent += "Mon"; break;
+                    case 2: textContent += "Tue"; break;
+                    case 3: textContent += "Wed"; break;
+                    case 4: textContent += "Thu"; break;
+                    case 5: textContent += "Fri"; break;
+                    case 6: textContent += "Sat"; break;
+                  }
+                  if (point["weekdays"].length>1 && element !== 0){
+                      textContent += ", "
+                  }
+            })
+
+            }
+
+
+            pointCell.textContent = textContent
+
 
             // Delete button cell
-            const deleteCell = row.insertCell(7);
+            const deleteCell = row.insertCell(1);
             deleteCell.style.paddingLeft = "15px"
             deleteCell.style.height = "20px"
             deleteCell.style.paddingTop = "0px"
@@ -1131,6 +1228,7 @@
                 deleteSchedulePoint(pumpNumber, index);
             };
             deleteCell.appendChild(deleteButton);
+
         });
     }
 
