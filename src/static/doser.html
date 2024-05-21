@@ -154,19 +154,19 @@
         <br>
         <div id="weekGroup" class="btn-group mt-0" role="group" aria-label="Basic checkbox toggle button group"
              style="max-width: 300px">
-            <input type="checkbox" class="btn-check" id="weekday1" value="1" checked="" autocomplete="off">
+            <input type="checkbox" class="btn-check" id="weekday1" value="0" checked="" autocomplete="off">
             <label class="btn btn-outline-primary" for="weekday1" style="width: 14.28%; padding-left: 5px">Mon</label>
-            <input type="checkbox" class="btn-check" id="weekday2" value="2" autocomplete="off">
+            <input type="checkbox" class="btn-check" id="weekday2" value="1" autocomplete="off">
             <label class="btn btn-outline-primary" for="weekday2" style="width: 14.28%; padding-left: 5px">Tue</label>
-            <input type="checkbox" class="btn-check" id="weekday3" value="3" autocomplete="off">
+            <input type="checkbox" class="btn-check" id="weekday3" value="2" autocomplete="off">
             <label class="btn btn-outline-primary" for="weekday3" style="width: 14.28%; padding-left: 5px">Wed</label>
-            <input type="checkbox" class="btn-check" id="weekday4" value="4" autocomplete="off">
+            <input type="checkbox" class="btn-check" id="weekday4" value="3" autocomplete="off">
             <label class="btn btn-outline-primary" for="weekday4"  style="width: 14.28%; padding-left: 5px">Thu</label>
-            <input type="checkbox" class="btn-check" id="weekday5" value="5" autocomplete="off">
+            <input type="checkbox" class="btn-check" id="weekday5" value="4" autocomplete="off">
             <label class="btn btn-outline-primary" for="weekday5" style="width: 14.28%; padding-left: 5px">Fri</label>
-            <input type="checkbox" class="btn-check" id="weekday6" value="6" autocomplete="off">
+            <input type="checkbox" class="btn-check" id="weekday6" value="5" autocomplete="off">
             <label class="btn btn-outline-primary" for="weekday6" style="width: 14.28%; padding-left: 5px">Sat</label>
-            <input type="checkbox" class="btn-check" id="weekday0" value="0" autocomplete="off">
+            <input type="checkbox" class="btn-check" id="weekday0" value="6" autocomplete="off">
             <label class="btn btn-outline-primary" for="weekday0" style="width: 14.28%; padding-left: 5px">Sun</label>
         </div>
         <br>
@@ -659,8 +659,8 @@
     }
 
     function checkSchedInput(field) {
-        const amount = checkPattern(document.getElementById('schedTotalAmount'), /^[0-9]{1,4}(\.[0-9]{1,8})?$/, 9999)
-        const dose = checkPattern(document.getElementById('schedAmount'), /^[0-9]{1,4}(\.[0-9]{1,8})?$/, 9999)
+        let amount = checkPattern(document.getElementById('schedTotalAmount'), /^[0-9]{1,4}(\.[0-9]{1,8})?$/, 9999)
+        let dose = checkPattern(document.getElementById('schedAmount'), /^[0-9]{1,4}(\.[0-9]{1,8})?$/, 9999)
         const duration = checkPattern(document.getElementById('schedDuration'), /^[0-9]{1,5}(\.[0-9]{1,8})?$/, 6000)
         const frequency = checkPattern(document.getElementById("freqSelect"), /^[0-9]{1,5}(\.[0-9]{1,8})?$/, 14400)
         const times = validateTime(Number(document.getElementById("freqSelect").value))
@@ -671,7 +671,7 @@
                 const totalAmount = document.getElementById('schedTotalAmount')
                 const freq = document.getElementById("freqSelect")
                 sindleDose.value = parseFloat((Number(totalAmount.value) / Number(freq.value)).toFixed(3));
-
+                dose = checkPattern(document.getElementById('schedAmount'), /^[0-9]{1,4}(\.[0-9]{1,8})?$/, 9999)
             }
         }
         if (field === "schedAmount") {
@@ -680,11 +680,13 @@
                 const totalAmount = document.getElementById('schedTotalAmount')
                 const freq = document.getElementById("freqSelect")
                 totalAmount.value = parseFloat((Number(sindleDose.value) * Number(freq.value)).toFixed(3))
+                amount = checkPattern(document.getElementById('schedTotalAmount'), /^[0-9]{1,4}(\.[0-9]{1,8})?$/, 9999)
+
             }
         }
 
         if (field === "freqSelect") {
-            if (dose || amount) {
+            if (frequency) {
                 const sindleDose = document.getElementById('schedAmount')
                 const totalAmount = document.getElementById('schedTotalAmount')
                 const freq = document.getElementById("freqSelect")
@@ -1122,21 +1124,15 @@
                 textContent += "Everyday"
             } else {
                 let weekdays = point["weekdays"]
-                if (weekdays.includes(0)){
-                    weekdays = weekdays.filter(item => item !== 0);
-                    weekdays.push(0)
-                }
-                console.log("<<<<<<<<<<<")
-                console.log(weekdays)
                 weekdays.forEach((element, key, arr) => {
                 switch (element) {
-                    case 0: textContent += "Sun"; break;
-                    case 1: textContent += "Mon"; break;
-                    case 2: textContent += "Tue"; break;
-                    case 3: textContent += "Wed"; break;
-                    case 4: textContent += "Thu"; break;
-                    case 5: textContent += "Fri"; break;
-                    case 6: textContent += "Sat"; break;
+                    case 0: textContent += "Mon"; break;
+                    case 1: textContent += "Tue"; break;
+                    case 2: textContent += "Wed"; break;
+                    case 3: textContent += "Thu"; break;
+                    case 4: textContent += "Fri"; break;
+                    case 5: textContent += "Sat"; break;
+                    case 6: textContent += "Sun"; break;
                   }
                   if (!Object.is(arr.length - 1, key)) {
                     textContent += ", "
@@ -1151,7 +1147,7 @@
 
             // Delete button cell
             const deleteCell = row.insertCell(1);
-            deleteCell.style.width = "20px"
+            deleteCell.style.width = "30px"
             deleteCell.style.paddingLeft = "15px"
             deleteCell.style.paddingRight = "0px"
             //deleteCell.style.height = "20px"
@@ -1163,7 +1159,8 @@
             deleteButton.style.paddingTop = "0px"
             deleteButton.style.fontWeight = "bold"
             deleteButton.style.paddingBottom = "2px"
-            deleteButton.classList = "btn btn-danger btn-"
+            deleteButton.classList.add("btn")
+            deleteButton.classList.add("btn-danger")
             deleteButton.textContent = 'X';
             deleteButton.onclick = function () {
                 deleteSchedulePoint(pumpNumber, index);
