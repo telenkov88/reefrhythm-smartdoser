@@ -161,7 +161,7 @@
             <input type="checkbox" class="btn-check" id="weekday3" value="3" autocomplete="off">
             <label class="btn btn-outline-primary" for="weekday3" style="width: 14.28%; padding-left: 5px">Wed</label>
             <input type="checkbox" class="btn-check" id="weekday4" value="4" autocomplete="off">
-            <label class="btn btn-outline-primary" for="weekday4"  style="width: 14.28%; padding-left: 5px">Fri</label>
+            <label class="btn btn-outline-primary" for="weekday4"  style="width: 14.28%; padding-left: 5px">Thu</label>
             <input type="checkbox" class="btn-check" id="weekday5" value="5" autocomplete="off">
             <label class="btn btn-outline-primary" for="weekday5" style="width: 14.28%; padding-left: 5px">Fri</label>
             <input type="checkbox" class="btn-check" id="weekday6" value="6" autocomplete="off">
@@ -1128,7 +1128,7 @@
                 }
                 console.log("<<<<<<<<<<<")
                 console.log(weekdays)
-                weekdays.forEach((element) => {
+                weekdays.forEach((element, key, arr) => {
                 switch (element) {
                     case 0: textContent += "Sun"; break;
                     case 1: textContent += "Mon"; break;
@@ -1138,8 +1138,8 @@
                     case 5: textContent += "Fri"; break;
                     case 6: textContent += "Sat"; break;
                   }
-                  if (point["weekdays"].length>1 && element !== 0){
-                      textContent += ", "
+                  if (!Object.is(arr.length - 1, key)) {
+                    textContent += ", "
                   }
             })
 
@@ -1151,9 +1151,9 @@
 
             // Delete button cell
             const deleteCell = row.insertCell(1);
-            deleteCell.style.width = "30px"
+            deleteCell.style.width = "20px"
             deleteCell.style.paddingLeft = "15px"
-            deleteCell.style.paddingRight = "5px"
+            deleteCell.style.paddingRight = "0px"
             //deleteCell.style.height = "20px"
             deleteCell.style.paddingTop = "0px"
             deleteCell.style.paddingBottom = "0px"
@@ -1161,9 +1161,10 @@
             deleteButton.style.height = "100%";
             deleteButton.style.height = "25px"
             deleteButton.style.paddingTop = "0px"
-            deleteButton.style.paddingBottom = "0px"
-            deleteButton.classList = "btn btn-outline-warning"
-            deleteButton.textContent = 'Del';
+            deleteButton.style.fontWeight = "bold"
+            deleteButton.style.paddingBottom = "2px"
+            deleteButton.classList = "btn btn-danger btn-"
+            deleteButton.textContent = 'X';
             deleteButton.onclick = function () {
                 deleteSchedulePoint(pumpNumber, index);
             };
