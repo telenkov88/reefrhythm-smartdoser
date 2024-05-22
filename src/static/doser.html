@@ -196,7 +196,6 @@
                oninput="checkSchedInput('schedTotalAmount')">
         <label for="schedAmount">Dose ml:</label>
         <input type="text" style="width: 200px" id="schedAmount"
-               value="123"
                class="form-control is-valid"
                title="Volume must be less than 9999ml"
                oninput="checkSchedInput('schedAmount')">
@@ -317,6 +316,7 @@
     function epochToTimeString(epochTime) {
         // Create a Date object from the Epoch time
         const date = new Date(epochTime);
+        console.log(epochTime, " to epoch time ", date)
 
         // Extract hours, minutes, and seconds
         const hours = date.getUTCHours().toString().padStart(2, '0');
@@ -342,19 +342,40 @@
 
 
     function showSchedModal(amount, dose, freq, duration, start_time, end_time) {
-        start_time += ":00"
+        console.log(start_time)
+        if (timeFormat === 1) {
+            start_time = convertTo24HFormat(start_time) + ":00"
+        } else {
+            start_time += ":00"
+        }
+        console.log(2)
 
 
         console.log(amount, dose, freq, duration, start_time, end_time)
 
         let doseSched = "Total: " + amount + "mL, Frequency: " + freq + "\n"
         if (Number(freq) === 1) {
-            doseSched += start_time + " " + dose + "mL/" + duration + "sec\n "
+            if (timeFormat === 1) {
+                doseSched += convertTo12HFormat(start_time) + " " + dose + "mL/" + duration + "sec\n "
+            } else {
+                doseSched += start_time + " " + dose + "mL/" + duration + "sec\n "
+            }
         } else {
-            end_time += ":00"
+            if (timeFormat === 1) {
+                end_time = convertTo24HFormat(end_time)+":00"
+            } else {
+                end_time += ":00"
+            }
+            console.log("end time: ", end_time)
+
             let timestamps = generateTimestamps(timeStringToEpoch(start_time), timeStringToEpoch(end_time), Number(freq))
             timestamps.forEach(value => {
-                doseSched += value + " " + dose + "mL/" + duration + "sec\n "
+                if (timeFormat === 1) {
+                    console.log(value)
+                    doseSched += convertTo12HFormat(value) + " " + dose + "mL/" + duration + "sec\n "
+                } else {
+                    doseSched += value + " " + dose + "mL/" + duration + "sec\n "
+                }
             })
         }
 
@@ -688,13 +709,17 @@
             });
     }
 
-    function convertTo12HFormat(time) {
-        // Split the time string into hours and minutes
+    function convertTo12HFormat(time, full=false) {
         if (time === "") {
-            return ""
+            return "";
         }
-        console.log("convert time to 12H format: ", time)
-        const [hours24, minutes] = time.split(':');
+        console.log("convert time to 12H format: ", time);
+
+        // Split the time string into hours, minutes, and seconds
+        const timeParts = time.split(':');
+        const hours24 = timeParts[0];
+        const minutes = timeParts[1];
+        const seconds = timeParts[2] || '00'; // Use '00' if seconds are not provided
 
         // Parse the hour component to an integer
         const hours = parseInt(hours24, 10);
@@ -703,15 +728,24 @@
         const suffix = hours >= 12 ? 'PM' : 'AM';
         const hours12 = hours % 12 === 0 ? 12 : hours % 12; // Converts 0 to 12 for 12 AM, and 12 to 12 for 12 PM
 
-        // Format minutes to ensure two digits
+        // Format minutes and seconds to ensure two digits
         const formattedMinutes = minutes.padStart(2, '0');
+        const formattedSeconds = seconds.padStart(2, '0');
 
         // Return the formatted time string in 12-hour format
-        console.log("New format:", `${hours12}:${formattedMinutes} ${suffix}`)
-        return `${hours12}:${formattedMinutes} ${suffix}`;
+        let formattedTime
+        if (full){
+            formattedTime = `${hours12}:${formattedMinutes}:${formattedSeconds} ${suffix}`;
+        } else {
+            formattedTime = `${hours12}:${formattedMinutes} ${suffix}`;
+        }
+
+        console.log("New format:", formattedTime);
+        return formattedTime;
     }
 
     function convertTo24HFormat(time) {
+        console.log(time)
         if (time === "") {
             return ""
         }
@@ -1193,14 +1227,24 @@
             } else {
                 textContent += "CCW\n";
             }
-
-            textContent += point["start_time"] + "-"
-
-            if (point["end_time"] === "") {
-                textContent += "23:59, "
+            if (timeFormat){
+                textContent += convertTo12HFormat(point["start_time"]) + "-"
             } else {
-                textContent += point["end_time"] + ", "
+                textContent += point["start_time"] + "-"
             }
+            let end_time
+            if (point["end_time"] === "") {
+                end_time = "23:59"
+            } else {
+                end_time = point["end_time"]
+            }
+
+            if (timeFormat){
+                textContent += convertTo12HFormat(end_time) + ", "
+            } else {
+                textContent += end_time + ", "
+            }
+
 
             textContent += point["frequency"] + "*"
             textContent += point["amount"] + "ml/"
@@ -1249,14 +1293,26 @@
 
 
             pointCell.textContent = textContent
-            pointCell.onclick = function() {
+            if (timeFormat){
+                pointCell.onclick = function () {
+                showSchedModal(point['totalAmount'],
+                    point['amount'],
+                    point['frequency'],
+                    point['duration'],
+                    convertTo12HFormat(point['start_time']),
+                    convertTo12HFormat(point['end_time']))
+                }
+            }else {
+                pointCell.onclick = function () {
                 showSchedModal(point['totalAmount'],
                     point['amount'],
                     point['frequency'],
                     point['duration'],
                     point['start_time'],
                     point['end_time'])
+                }
             }
+
 
 
             // Delete button cell
