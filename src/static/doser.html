@@ -85,6 +85,24 @@
 </nav>
 
 
+<!-- Modal -->
+<div class="modal fade" id="schedModal" tabindex="-1" aria-labelledby="schedModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5" id="schedModalLabel">Schedule helper</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="schedModalBody">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
 <ul class="nav nav-tabs" role="tablist">
     <li class="nav-item dropdown">
         <select id="pumpSelector" class="dropdown-toggle bg-body"
@@ -161,7 +179,7 @@
             <input type="checkbox" class="btn-check" id="weekday3" value="2" autocomplete="off">
             <label class="btn btn-outline-primary" for="weekday3" style="width: 14.28%; padding-left: 5px">Wed</label>
             <input type="checkbox" class="btn-check" id="weekday4" value="3" autocomplete="off">
-            <label class="btn btn-outline-primary" for="weekday4"  style="width: 14.28%; padding-left: 5px">Thu</label>
+            <label class="btn btn-outline-primary" for="weekday4" style="width: 14.28%; padding-left: 5px">Thu</label>
             <input type="checkbox" class="btn-check" id="weekday5" value="4" autocomplete="off">
             <label class="btn btn-outline-primary" for="weekday5" style="width: 14.28%; padding-left: 5px">Fri</label>
             <input type="checkbox" class="btn-check" id="weekday6" value="5" autocomplete="off">
@@ -178,6 +196,7 @@
                oninput="checkSchedInput('schedTotalAmount')">
         <label for="schedAmount">Dose ml:</label>
         <input type="text" style="width: 200px" id="schedAmount"
+               value="123"
                class="form-control is-valid"
                title="Volume must be less than 9999ml"
                oninput="checkSchedInput('schedAmount')">
@@ -188,7 +207,7 @@
                value="1"
                oninput="checkSchedInput('freqSelect')">
 
-        <label for="schedDuration">Duration sec:</label>
+        <label for="schedDuration" class="mt-0">Duration sec:</label>
         <input type="text" id="schedDuration" style="width: 200px"
                class="form-control is-valid"
                title="Duration must be less than 6000sec"
@@ -210,14 +229,23 @@
         </div>
 
         <div class="mt-2">
+            <!-- Button trigger modal -->
+            <button type="button" id="schedInfoBtn" class="btn btn-info"
+                    onclick="showSchedModal(
+                        document.getElementById('schedTotalAmount').value,
+                        document.getElementById('schedAmount').value,
+                        document.getElementById('freqSelect').value,
+                        document.getElementById('schedDuration').value,
+                        document.getElementById('startTime').value,
+                        document.getElementById('endTime').value)">
+                Info
+            </button>
+
             <button type="button" id="schedAddBtn" onclick="addSchedPoint()" class="btn btn-success disabled">Add
-                schedule
-                dose
             </button>
             <button type="button" onclick="uploadSchedule()" class="btn btn-warning">Apply</button>
         </div>
         <div id="schedPointContainer" class="mt-4"></div>
-
     </div>
 
 
@@ -269,6 +297,72 @@
     }
     let AnalogPeriod = 60
 
+
+    function timeStringToEpoch(timeString) {
+        // Parse the time string
+        const [hours, minutes, seconds] = timeString.split(':').map(Number);
+
+        // Create a Date object for January 1, 2000
+        const date = new Date('2000-01-01T00:00:00Z');
+
+        // Set the hours, minutes, and seconds
+        date.setUTCHours(hours);
+        date.setUTCMinutes(minutes);
+        date.setUTCSeconds(seconds);
+
+        // Get the Epoch time (milliseconds since January 1, 1970)
+        return date.getTime();
+    }
+
+    function epochToTimeString(epochTime) {
+        // Create a Date object from the Epoch time
+        const date = new Date(epochTime);
+
+        // Extract hours, minutes, and seconds
+        const hours = date.getUTCHours().toString().padStart(2, '0');
+        const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+        const seconds = date.getUTCSeconds().toString().padStart(2, '0');
+
+        // Format the time string
+        return `${hours}:${minutes}:${seconds}`;
+    }
+
+    function generateTimestamps(start_time, end_time, frequency) {
+        // Calculate the step size
+        const step = (end_time - start_time) / (frequency);
+
+        const timestamps = [];
+
+        for (let i = 0; i < frequency; i++) {
+            timestamps.push(epochToTimeString(start_time + step * i));
+        }
+
+        return timestamps;
+    }
+
+
+    function showSchedModal(amount, dose, freq, duration, start_time, end_time) {
+        start_time += ":00"
+
+
+        console.log(amount, dose, freq, duration, start_time, end_time)
+
+        let doseSched = "Total: " + amount + "mL, Frequency: " + freq + "\n"
+        if (Number(freq) === 1) {
+            doseSched += start_time + " " + dose + "mL/" + duration + "sec\n "
+        } else {
+            end_time += ":00"
+            let timestamps = generateTimestamps(timeStringToEpoch(start_time), timeStringToEpoch(end_time), Number(freq))
+            timestamps.forEach(value => {
+                doseSched += value + " " + dose + "mL/" + duration + "sec\n "
+            })
+        }
+
+        const myModal = new bootstrap.Modal(document.getElementById('schedModal'))
+        const modalBody = document.getElementById("schedModalBody")
+        modalBody.innerText = doseSched
+        myModal.show()
+    }
 
     function switchColor(color) {
         let color_mod
@@ -694,15 +788,18 @@
                 sindleDose.value = parseFloat((Number(totalAmount.value) / Number(freq.value)).toFixed(3));
             }
         }
-
-        if (!dose || !duration || !times || !frequency) {
-            const applyButton = document.getElementById("schedAddBtn");
+        const applyButton = document.getElementById("schedAddBtn");
+        const schedInfoBtn = document.getElementById("schedInfoBtn");
+        if (!dose || !duration || !times || !frequency || !amount) {
             applyButton.className = "btn btn-success disabled";
             applyButton.setAttribute('aria-disabled', 'true');
+            schedInfoBtn.className = "btn btn-info disabled";
+            schedInfoBtn.setAttribute('aria-disabled', 'true');
         } else {
-            const applyButton = document.getElementById("schedAddBtn");
             applyButton.className = "btn btn-success";
             applyButton.setAttribute('aria-disabled', 'false');
+            schedInfoBtn.className = "btn btn-info";
+            schedInfoBtn.setAttribute('aria-disabled', 'false');
         }
     }
 
@@ -868,7 +965,7 @@
         // Weekdays
         let weekdays = [];
         document.querySelectorAll('#weekGroup input[type="checkbox"]').forEach(checkbox => {
-        if (checkbox.checked) {
+            if (checkbox.checked) {
                 weekdays.push(Number(checkbox.value));
             }
         });
@@ -1076,7 +1173,7 @@
         const table = document.createElement('table');
         table.classList.add("table");
         table.classList.add("table-hover");
-        table.style.maxWidth="350px"
+        table.style.maxWidth = "350px"
         listContainer.appendChild(table);
 
         scheduleData['pump' + pumpNumber].forEach((point, index) => {
@@ -1089,60 +1186,77 @@
             const pointCell = row.insertCell(0);
             pointCell.style.whiteSpace = "pre"
 
-            let textContent = "Total: " +  point["totalAmount"] +"ml, "
+            let textContent = "Total: " + point["totalAmount"] + "ml, "
 
             if (point["dir"] === 1) {
-                textContent +="CW\n";
+                textContent += "CW\n";
             } else {
                 textContent += "CCW\n";
             }
 
-            textContent += point["start_time"]+ "-"
+            textContent += point["start_time"] + "-"
 
             if (point["end_time"] === "") {
                 textContent += "23:59, "
             } else {
-               textContent += point["end_time"]+ ", "
+                textContent += point["end_time"] + ", "
             }
 
-            textContent += point["frequency"]+ "*"
-            textContent += point["amount"]+"ml/"
+            textContent += point["frequency"] + "*"
+            textContent += point["amount"] + "ml/"
 
-            textContent += point["duration"]+ "sec\n"
-
-
+            textContent += point["duration"] + "sec\n"
 
 
-            if (!point["weekdays"]){
-                point["weekdays"] = [0,1,2,3,4,5,6]
+            if (!point["weekdays"]) {
+                point["weekdays"] = [0, 1, 2, 3, 4, 5, 6]
             }
-            console.log(">>>>>>>>>>>>>>>>>>>>>>")
-            console.log(point["weekdays"])
-            console.log(">>>>>>>>>>>>>>>>>>>>>>")
 
-            if (equalsCheck(point["weekdays"], [0,1,2,3,4,5,6])){
+            if (equalsCheck(point["weekdays"], [0, 1, 2, 3, 4, 5, 6])) {
                 textContent += "Everyday"
             } else {
                 let weekdays = point["weekdays"]
                 weekdays.forEach((element, key, arr) => {
-                switch (element) {
-                    case 0: textContent += "Mon"; break;
-                    case 1: textContent += "Tue"; break;
-                    case 2: textContent += "Wed"; break;
-                    case 3: textContent += "Thu"; break;
-                    case 4: textContent += "Fri"; break;
-                    case 5: textContent += "Sat"; break;
-                    case 6: textContent += "Sun"; break;
-                  }
-                  if (!Object.is(arr.length - 1, key)) {
-                    textContent += ", "
-                  }
-            })
+                    switch (element) {
+                        case 0:
+                            textContent += "Mon";
+                            break;
+                        case 1:
+                            textContent += "Tue";
+                            break;
+                        case 2:
+                            textContent += "Wed";
+                            break;
+                        case 3:
+                            textContent += "Thu";
+                            break;
+                        case 4:
+                            textContent += "Fri";
+                            break;
+                        case 5:
+                            textContent += "Sat";
+                            break;
+                        case 6:
+                            textContent += "Sun";
+                            break;
+                    }
+                    if (!Object.is(arr.length - 1, key)) {
+                        textContent += ", "
+                    }
+                })
 
             }
 
 
             pointCell.textContent = textContent
+            pointCell.onclick = function() {
+                showSchedModal(point['totalAmount'],
+                    point['amount'],
+                    point['frequency'],
+                    point['duration'],
+                    point['start_time'],
+                    point['end_time'])
+            }
 
 
             // Delete button cell
