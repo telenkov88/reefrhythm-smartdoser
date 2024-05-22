@@ -117,7 +117,10 @@ adc_sampler_started = False
 
 
 async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_table, expression=False,
-                      pump_dose=0, pump_id=None):
+                      pump_dose=0, pump_id=None, weekdays=None):
+    if weekdays is None:
+        weekdays = [0, 1, 2, 3, 4, 5, 6]
+
     def change_remaining():
         print("id:", pump_id, " dose:", pump_dose)
         if pump_dose and pump_id is not None:
@@ -134,6 +137,12 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
                 print("data", _data)
                 print({"topic": _topic, "data": _data})
                 mqtt_publish_buffer.append({"topic": _topic, "data": _data})
+
+    wday = time.localtime()[6]
+    print(f"Check weekdays: {wday} in {weekdays}")
+    if wday not in weekdays:
+        print("Skip dosing job")
+        return
 
     print(f"Desired {to_float(desired_rpm_rate)}rpm, mstep")
     if inversion[pump_id-1]:
@@ -890,11 +899,12 @@ def update_schedule(data):
     if mcron_keys:
         mcron.remove_all()
 
-    def create_task_with_args(id, rpm, duration, direction, amount):
+    def create_task_with_args(id, rpm, duration, direction, amount, weekdays):
         def task(callback_id, current_time, callback_memory):
             print(f"[{get_time()}] Callback id:", callback_id)
             asyncio.run(command_buffer.add_command(stepper_run, None, mks_dict[f"mks" + id], rpm, duration, direction,
-                                                   rpm_table, limits_dict[int(id)], pump_dose=amount, pump_id=int(id)))
+                                                   rpm_table, limits_dict[int(id)], pump_dose=amount, pump_id=int(id),
+                                                   weekdays=weekdays))
 
         return task
 
@@ -910,6 +920,10 @@ def update_schedule(data):
             end_time = job['end_time']
             frequency = job['frequency']
             direction = job['dir']
+            if "weekdays" not in job:
+                weekdays = [0, 1, 2, 3, 4, 5, 6]
+            else:
+                weekdays = job["weekdays"]
 
             desired_flow = amount * (60 / duration)
             desired_rpm_rate = np.interp(desired_flow, chart_points[f"pump{id}"][1], chart_points[f"pump{id}"][0])
@@ -928,7 +942,7 @@ def update_schedule(data):
                 end_time = mcron.PERIOD_DAY
                 step = end_time // frequency
 
-            new_job = create_task_with_args(id, desired_rpm_rate, duration, direction, amount)
+            new_job = create_task_with_args(id, desired_rpm_rate, duration, direction, amount, weekdays)
             mcron.insert(mcron.PERIOD_DAY, range(start_time, end_time, step),
                          f'mcron_{mcron_job_number}', new_job)
             mcron_keys.append(f'mcron_{mcron_job_number}')

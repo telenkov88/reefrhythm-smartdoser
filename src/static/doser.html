@@ -21,7 +21,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"
             onerror="loadLocalScript('javascript/chart.min.js')"></script>
 
-
     <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
 
     <style>
@@ -84,6 +83,24 @@
         </div>
     </div>
 </nav>
+
+
+<!-- Modal -->
+<div class="modal fade" id="schedModal" tabindex="-1" aria-labelledby="schedModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5" id="schedModalLabel">Schedule Helper</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="schedModalBody">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 
 <ul class="nav nav-tabs" role="tablist">
@@ -152,9 +169,27 @@
             <option value="1">Clockwise</option>
             <option value="0">Counterclockwise</option>
         </select>
+        <br>
+        <div id="weekGroup" class="btn-group mt-0" role="group" aria-label="Basic checkbox toggle button group"
+             style="max-width: 300px">
+            <input type="checkbox" class="btn-check" id="weekday1" value="0" checked="" autocomplete="off">
+            <label class="btn btn-outline-primary" for="weekday1" style="width: 14.28%; padding-left: 5px">Mon</label>
+            <input type="checkbox" class="btn-check" id="weekday2" value="1" autocomplete="off">
+            <label class="btn btn-outline-primary" for="weekday2" style="width: 14.28%; padding-left: 5px">Tue</label>
+            <input type="checkbox" class="btn-check" id="weekday3" value="2" autocomplete="off">
+            <label class="btn btn-outline-primary" for="weekday3" style="width: 14.28%; padding-left: 5px">Wed</label>
+            <input type="checkbox" class="btn-check" id="weekday4" value="3" autocomplete="off">
+            <label class="btn btn-outline-primary" for="weekday4" style="width: 14.28%; padding-left: 5px">Thu</label>
+            <input type="checkbox" class="btn-check" id="weekday5" value="4" autocomplete="off">
+            <label class="btn btn-outline-primary" for="weekday5" style="width: 14.28%; padding-left: 5px">Fri</label>
+            <input type="checkbox" class="btn-check" id="weekday6" value="5" autocomplete="off">
+            <label class="btn btn-outline-primary" for="weekday6" style="width: 14.28%; padding-left: 5px">Sat</label>
+            <input type="checkbox" class="btn-check" id="weekday0" value="6" autocomplete="off">
+            <label class="btn btn-outline-primary" for="weekday0" style="width: 14.28%; padding-left: 5px">Sun</label>
+        </div>
+        <br>
 
-
-        <label for="schedTotalAmount">Amount ml:</label>
+        <label for="schedTotalAmount" class="form-label mt-0">Amount ml:</label>
         <input type="text" style="width: 200px" id="schedTotalAmount"
                class="form-control is-valid"
                title="Volume must be less than 9999ml"
@@ -171,7 +206,7 @@
                value="1"
                oninput="checkSchedInput('freqSelect')">
 
-        <label for="schedDuration">Duration sec:</label>
+        <label for="schedDuration" class="mt-0">Duration sec:</label>
         <input type="text" id="schedDuration" style="width: 200px"
                class="form-control is-valid"
                title="Duration must be less than 6000sec"
@@ -193,14 +228,23 @@
         </div>
 
         <div class="mt-2">
+            <!-- Button trigger modal -->
+            <button type="button" id="schedInfoBtn" class="btn btn-info"
+                    onclick="showSchedModal(
+                        document.getElementById('schedTotalAmount').value,
+                        document.getElementById('schedAmount').value,
+                        document.getElementById('freqSelect').value,
+                        document.getElementById('schedDuration').value,
+                        document.getElementById('startTime').value,
+                        document.getElementById('endTime').value)">
+                Info
+            </button>
+
             <button type="button" id="schedAddBtn" onclick="addSchedPoint()" class="btn btn-success disabled">Add
-                schedule
-                dose
             </button>
             <button type="button" onclick="uploadSchedule()" class="btn btn-warning">Apply</button>
         </div>
-        <div id="schedPointContainer"></div>
-
+        <div id="schedPointContainer" class="mt-4"></div>
     </div>
 
 
@@ -252,6 +296,94 @@
     }
     let AnalogPeriod = 60
 
+
+    function timeStringToEpoch(timeString) {
+        // Parse the time string
+        const [hours, minutes, seconds] = timeString.split(':').map(Number);
+
+        // Create a Date object for January 1, 2000
+        const date = new Date('2000-01-01T00:00:00Z');
+
+        // Set the hours, minutes, and seconds
+        date.setUTCHours(hours);
+        date.setUTCMinutes(minutes);
+        date.setUTCSeconds(seconds);
+
+        // Get the Epoch time (milliseconds since January 1, 1970)
+        return date.getTime();
+    }
+
+    function epochToTimeString(epochTime) {
+        // Create a Date object from the Epoch time
+        const date = new Date(epochTime);
+        console.log(epochTime, " to epoch time ", date)
+
+        // Extract hours, minutes, and seconds
+        const hours = date.getUTCHours().toString().padStart(2, '0');
+        const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+        const seconds = date.getUTCSeconds().toString().padStart(2, '0');
+
+        // Format the time string
+        return `${hours}:${minutes}:${seconds}`;
+    }
+
+    function generateTimestamps(start_time, end_time, frequency) {
+        // Calculate the step size
+        const step = (end_time - start_time) / (frequency);
+
+        const timestamps = [];
+
+        for (let i = 0; i < frequency; i++) {
+            timestamps.push(epochToTimeString(start_time + step * i));
+        }
+
+        return timestamps;
+    }
+
+
+    function showSchedModal(amount, dose, freq, duration, start_time, end_time) {
+        console.log(start_time)
+        if (timeFormat === 1) {
+            start_time = convertTo24HFormat(start_time) + ":00"
+        } else {
+            start_time += ":00"
+        }
+        console.log(2)
+
+
+        console.log(amount, dose, freq, duration, start_time, end_time)
+
+        let doseSched = "Total: " + amount + "mL, Frequency: " + freq + "\n"
+        if (Number(freq) === 1) {
+            if (timeFormat === 1) {
+                doseSched += convertTo12HFormat(start_time) + " " + dose + "mL/" + duration + "sec\n "
+            } else {
+                doseSched += start_time + " " + dose + "mL/" + duration + "sec\n "
+            }
+        } else {
+            if (timeFormat === 1) {
+                end_time = convertTo24HFormat(end_time)+":00"
+            } else {
+                end_time += ":00"
+            }
+            console.log("end time: ", end_time)
+
+            let timestamps = generateTimestamps(timeStringToEpoch(start_time), timeStringToEpoch(end_time), Number(freq))
+            timestamps.forEach(value => {
+                if (timeFormat === 1) {
+                    console.log(value)
+                    doseSched += convertTo12HFormat(value) + " " + dose + "mL/" + duration + "sec\n "
+                } else {
+                    doseSched += value + " " + dose + "mL/" + duration + "sec\n "
+                }
+            })
+        }
+
+        const myModal = new bootstrap.Modal(document.getElementById('schedModal'))
+        const modalBody = document.getElementById("schedModalBody")
+        modalBody.innerText = doseSched
+        myModal.show()
+    }
 
     function switchColor(color) {
         let color_mod
@@ -577,13 +709,17 @@
             });
     }
 
-    function convertTo12HFormat(time) {
-        // Split the time string into hours and minutes
+    function convertTo12HFormat(time, full=false) {
         if (time === "") {
-            return ""
+            return "";
         }
-        console.log("convert time to 12H format: ", time)
-        const [hours24, minutes] = time.split(':');
+        console.log("convert time to 12H format: ", time);
+
+        // Split the time string into hours, minutes, and seconds
+        const timeParts = time.split(':');
+        const hours24 = timeParts[0];
+        const minutes = timeParts[1];
+        const seconds = timeParts[2] || '00'; // Use '00' if seconds are not provided
 
         // Parse the hour component to an integer
         const hours = parseInt(hours24, 10);
@@ -592,15 +728,24 @@
         const suffix = hours >= 12 ? 'PM' : 'AM';
         const hours12 = hours % 12 === 0 ? 12 : hours % 12; // Converts 0 to 12 for 12 AM, and 12 to 12 for 12 PM
 
-        // Format minutes to ensure two digits
+        // Format minutes and seconds to ensure two digits
         const formattedMinutes = minutes.padStart(2, '0');
+        const formattedSeconds = seconds.padStart(2, '0');
 
         // Return the formatted time string in 12-hour format
-        console.log("New format:", `${hours12}:${formattedMinutes} ${suffix}`)
-        return `${hours12}:${formattedMinutes} ${suffix}`;
+        let formattedTime
+        if (full){
+            formattedTime = `${hours12}:${formattedMinutes}:${formattedSeconds} ${suffix}`;
+        } else {
+            formattedTime = `${hours12}:${formattedMinutes} ${suffix}`;
+        }
+
+        console.log("New format:", formattedTime);
+        return formattedTime;
     }
 
     function convertTo24HFormat(time) {
+        console.log(time)
         if (time === "") {
             return ""
         }
@@ -642,8 +787,8 @@
     }
 
     function checkSchedInput(field) {
-        const amount = checkPattern(document.getElementById('schedTotalAmount'), /^[0-9]{1,4}(\.[0-9]{1,8})?$/, 9999)
-        const dose = checkPattern(document.getElementById('schedAmount'), /^[0-9]{1,4}(\.[0-9]{1,8})?$/, 9999)
+        let amount = checkPattern(document.getElementById('schedTotalAmount'), /^[0-9]{1,4}(\.[0-9]{1,8})?$/, 9999)
+        let dose = checkPattern(document.getElementById('schedAmount'), /^[0-9]{1,4}(\.[0-9]{1,8})?$/, 9999)
         const duration = checkPattern(document.getElementById('schedDuration'), /^[0-9]{1,5}(\.[0-9]{1,8})?$/, 6000)
         const frequency = checkPattern(document.getElementById("freqSelect"), /^[0-9]{1,5}(\.[0-9]{1,8})?$/, 14400)
         const times = validateTime(Number(document.getElementById("freqSelect").value))
@@ -654,7 +799,7 @@
                 const totalAmount = document.getElementById('schedTotalAmount')
                 const freq = document.getElementById("freqSelect")
                 sindleDose.value = parseFloat((Number(totalAmount.value) / Number(freq.value)).toFixed(3));
-
+                dose = checkPattern(document.getElementById('schedAmount'), /^[0-9]{1,4}(\.[0-9]{1,8})?$/, 9999)
             }
         }
         if (field === "schedAmount") {
@@ -663,11 +808,13 @@
                 const totalAmount = document.getElementById('schedTotalAmount')
                 const freq = document.getElementById("freqSelect")
                 totalAmount.value = parseFloat((Number(sindleDose.value) * Number(freq.value)).toFixed(3))
+                amount = checkPattern(document.getElementById('schedTotalAmount'), /^[0-9]{1,4}(\.[0-9]{1,8})?$/, 9999)
+
             }
         }
 
         if (field === "freqSelect") {
-            if (dose || amount) {
+            if (frequency) {
                 const sindleDose = document.getElementById('schedAmount')
                 const totalAmount = document.getElementById('schedTotalAmount')
                 const freq = document.getElementById("freqSelect")
@@ -675,15 +822,18 @@
                 sindleDose.value = parseFloat((Number(totalAmount.value) / Number(freq.value)).toFixed(3));
             }
         }
-
-        if (!dose || !duration || !times || !frequency) {
-            const applyButton = document.getElementById("schedAddBtn");
+        const applyButton = document.getElementById("schedAddBtn");
+        const schedInfoBtn = document.getElementById("schedInfoBtn");
+        if (!dose || !duration || !times || !frequency || !amount) {
             applyButton.className = "btn btn-success disabled";
             applyButton.setAttribute('aria-disabled', 'true');
+            schedInfoBtn.className = "btn btn-info disabled";
+            schedInfoBtn.setAttribute('aria-disabled', 'true');
         } else {
-            const applyButton = document.getElementById("schedAddBtn");
             applyButton.className = "btn btn-success";
             applyButton.setAttribute('aria-disabled', 'false');
+            schedInfoBtn.className = "btn btn-info";
+            schedInfoBtn.setAttribute('aria-disabled', 'false');
         }
     }
 
@@ -846,6 +996,16 @@
             }
         }
 
+        // Weekdays
+        let weekdays = [];
+        document.querySelectorAll('#weekGroup input[type="checkbox"]').forEach(checkbox => {
+            if (checkbox.checked) {
+                weekdays.push(Number(checkbox.value));
+            }
+        });
+        weekdays.sort()
+        console.log("Weekdays:", weekdays);
+
         //scheduleData[`pump${pumpNumber}`]
         console.log(scheduleData)
         console.log(scheduleData["pump1"])
@@ -856,7 +1016,8 @@
             duration: duration,
             start_time: startTime,
             end_time: EndTime,
-            frequency: frequency
+            frequency: frequency,
+            weekdays: weekdays
         });
         updateScheduleList(pumpNumber)
     }
@@ -1044,93 +1205,138 @@
         console.log("Update schedule list for pump", pumpNumber)
 
         const table = document.createElement('table');
-        //table.style.width="500px"
+        table.classList.add("table");
+        table.classList.add("table-hover");
+        table.style.maxWidth = "350px"
         listContainer.appendChild(table);
-
-        // Table head
-        const headRow = table.insertRow(0);
-        const headers = ["Dir", "ml", "Dose", "sec", "Start", "End", "Freq", ""];
-
-        // Loop through the headers array to create each cell
-        headers.forEach(header => {
-            const cell = headRow.insertCell();
-            cell.textContent = header;
-        });
-
 
         scheduleData['pump' + pumpNumber].forEach((point, index) => {
             console.log(point)
             const row = table.insertRow(-1); // Insert a new row at the end of the table
-            row.setAttribute('style', 'text-align: left');
-            // Dir cell
+            row.classList.add("table-active")
+
+
+            row.setAttribute('style', 'text-align: left; border: 1px');
             const pointCell = row.insertCell(0);
+            pointCell.style.whiteSpace = "pre"
+
+            let textContent = "Total: " + point["totalAmount"] + "ml, "
+
             if (point["dir"] === 1) {
-                pointCell.textContent = "CW";
+                textContent += "CW\n";
             } else {
-                pointCell.textContent = "CCW";
+                textContent += "CCW\n";
             }
-            pointCell.style.width = "35px"
-
-            // Total Amount cell
-            if (!("totalAmount" in point)){
-                point["totalAmount"] = point["amount"] * point["frequency"]
-            }
-
-            const totalAmountCell = row.insertCell(1);
-            totalAmountCell.textContent = `${point["totalAmount"]}`;
-            totalAmountCell.style.width = "40px"
-
-            // Dose Amount cell
-            const amountCell = row.insertCell(2);
-            amountCell.textContent = `${point["amount"]}`;
-            amountCell.style.width = "40px"
-
-            // Duration cell
-            const durationCell = row.insertCell(3);
-            durationCell.textContent = `${point["duration"]}`;
-            durationCell.style.width = "50px"
-
-            // Start time cell
-            const startTimeCell = row.insertCell(4);
-            if (timeFormat === 1) {
-                startTimeCell.textContent = convertTo12HFormat(`${point["start_time"]}`)
+            if (timeFormat){
+                textContent += convertTo12HFormat(point["start_time"]) + "-"
             } else {
-                startTimeCell.textContent = `${point["start_time"]}`;
+                textContent += point["start_time"] + "-"
             }
-            startTimeCell.style.width = "70px"
-
-            // End time cell
-            const endTimeCell = row.insertCell(5);
-            if (timeFormat === 1) {
-                endTimeCell.textContent = convertTo12HFormat(`${point["end_time"]}`)
+            let end_time
+            if (point["end_time"] === "") {
+                end_time = "23:59"
             } else {
-                endTimeCell.textContent = `${point["end_time"]}`;
+                end_time = point["end_time"]
             }
-            endTimeCell.style.width = "70px"
+
+            if (timeFormat){
+                textContent += convertTo12HFormat(end_time) + ", "
+            } else {
+                textContent += end_time + ", "
+            }
 
 
-            // Frequency cell
-            const freqCell = row.insertCell(6);
-            freqCell.textContent = `${point["frequency"]}`;
-            freqCell.style.width = "40px"
+            textContent += point["frequency"] + "*"
+            textContent += point["amount"] + "ml/"
+
+            textContent += point["duration"] + "sec\n"
+
+
+            if (!point["weekdays"]) {
+                point["weekdays"] = [0, 1, 2, 3, 4, 5, 6]
+            }
+
+            if (equalsCheck(point["weekdays"], [0, 1, 2, 3, 4, 5, 6])) {
+                textContent += "Everyday"
+            } else {
+                let weekdays = point["weekdays"]
+                weekdays.forEach((element, key, arr) => {
+                    switch (element) {
+                        case 0:
+                            textContent += "Mon";
+                            break;
+                        case 1:
+                            textContent += "Tue";
+                            break;
+                        case 2:
+                            textContent += "Wed";
+                            break;
+                        case 3:
+                            textContent += "Thu";
+                            break;
+                        case 4:
+                            textContent += "Fri";
+                            break;
+                        case 5:
+                            textContent += "Sat";
+                            break;
+                        case 6:
+                            textContent += "Sun";
+                            break;
+                    }
+                    if (!Object.is(arr.length - 1, key)) {
+                        textContent += ", "
+                    }
+                })
+
+            }
+
+
+            pointCell.textContent = textContent
+            if (timeFormat){
+                pointCell.onclick = function () {
+                showSchedModal(point['totalAmount'],
+                    point['amount'],
+                    point['frequency'],
+                    point['duration'],
+                    convertTo12HFormat(point['start_time']),
+                    convertTo12HFormat(point['end_time']))
+                }
+            }else {
+                pointCell.onclick = function () {
+                showSchedModal(point['totalAmount'],
+                    point['amount'],
+                    point['frequency'],
+                    point['duration'],
+                    point['start_time'],
+                    point['end_time'])
+                }
+            }
+
+
 
             // Delete button cell
-            const deleteCell = row.insertCell(7);
+            const deleteCell = row.insertCell(1);
+            deleteCell.style.width = "30px"
             deleteCell.style.paddingLeft = "15px"
-            deleteCell.style.height = "20px"
+            deleteCell.style.paddingRight = "0px"
+            //deleteCell.style.height = "20px"
             deleteCell.style.paddingTop = "0px"
             deleteCell.style.paddingBottom = "0px"
             const deleteButton = document.createElement('button');
             deleteButton.style.height = "100%";
             deleteButton.style.height = "25px"
             deleteButton.style.paddingTop = "0px"
-            deleteButton.style.paddingBottom = "0px"
-            deleteButton.classList = "btn btn-outline-warning"
-            deleteButton.textContent = 'Del';
+            deleteButton.style.fontWeight = "bold"
+            deleteButton.style.paddingBottom = "2px"
+            deleteButton.classList.add("btn")
+            deleteButton.classList.add("btn-danger")
+            deleteButton.textContent = 'X';
             deleteButton.onclick = function () {
                 deleteSchedulePoint(pumpNumber, index);
             };
             deleteCell.appendChild(deleteButton);
+
         });
     }
 
