@@ -37,8 +37,7 @@ class Whatsapp:
     def send_message(self, message):
         url = 'https://api.callmebot.com/whatsapp.php?phone=' + str(self.PHONE) + '&apikey=' + str(
             self.APIKEY) + '&text=' + str(message).replace(" ", "+")
-        response = requests.get(url, timeout=5)
-        return response.text
+        return requests.get(url, timeout=5)
 
 
 class Telegram:
@@ -48,5 +47,4 @@ class Telegram:
     def send_message(self, message):
         url = 'https://api.callmebot.com/text.php?user=' + str(self.USERNAME) +\
               '&text=' + str(message).replace(" ", "+")
-        response = requests.get(url, timeout=5)
-        return response.text
+        return requests.get(url, timeout=5)

@@ -253,7 +253,7 @@
         <h2 class="mt-2">CallbeBot</h2>
         <label for="colorSelect" class="form-label mt-1">Whatsapp number</label>
         <input type="tel" style="width: 300px" class="form-control" id="whatsappNumber"
-               placeholder="Enter number +99111888444" oninput="checkWhatsAppInput()">
+               placeholder="Enter number 99111888444" oninput="checkWhatsAppInput()">
 
         <label for="colorSelect" class="form-label mt-1">Whatsapp Api Key</label>
         <input type="number" style="width: 300px" class="form-control" id="whatsappApiKey"
@@ -329,7 +329,7 @@
         let valid = true
 
         // Validate WhatsApp number
-        const whatsappNumberPattern = /^\+\d{11}$/;
+        const whatsappNumberPattern = /^\d{11,13}$/;
         if (whatsappNumber === '' || whatsappNumberPattern.test(whatsappNumber)) {
             whatsappNumberInput.classList.remove("is-invalid");
             whatsappNumberInput.classList.add("is-valid");
