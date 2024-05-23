@@ -31,7 +31,7 @@ try:
     from release_tag import *
     from lib.umqtt.robust2 import MQTTClient
 
-    mqtt_client = MQTTClient(f"ReefRhythm-{unique_id}", mqtt_broker, keepalive=60, socket_timeout=1)
+    mqtt_client = MQTTClient(f"ReefRhythm-{unique_id}", mqtt_broker, keepalive=60, socket_timeout=5)
 
     USE_RAM = False
 
@@ -154,8 +154,13 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
 
             msg = ""
 
-            if empty_container_msg and _remaining == 0:
-                msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: Container empty!%0A"
+            if empty_container_msg and storage[f"pump{pump_id}"]:
+                filling_persentage = round(_remaining/storage[f"pump{pump_id}"]*100, 1)
+                if 0 < filling_persentage < empty_container_lvl:
+                    msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: Container {filling_persentage}% full%0A"
+                else:
+                    msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: Container empty%0A"
+
             if dose_msg:
                 msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: "
                 msg += f"Dose {pump_dose}mL/{execution_time}sec, {_remaining}/{_storage}mL%0A"
@@ -811,6 +816,7 @@ def setting_responce(request):
     response.set_cookie("whatsappNumber", whatsapp_number)
     response.set_cookie("whatsappApikey", whatsapp_apikey)
     response.set_cookie("emptyContainerMsg", empty_container_msg)
+    response.set_cookie("emptyContainerLvl", empty_container_lvl)
     response.set_cookie("doseMsg", dose_msg)
 
     if 'ssid' in globals():
@@ -851,6 +857,7 @@ def setting_process_post(request):
     new_whatsapp_apikey = request.json["whatsappApikey"]
 
     new_empty_container_msg = int(request.json["emptyContainerMsg"])
+    new_empty_container_lvl = int(request.json["emptyContainerLvl"])
     new_dose_msg = int(request.json["doseMsg"])
 
     if new_ssid and new_psw:
@@ -876,6 +883,7 @@ def setting_process_post(request):
                             "whatsapp_number": new_whatsapp_number,
                             "whatsapp_apikey": new_whatsapp_apikey,
                             "empty_container_msg": new_empty_container_msg,
+                            "empty_container_lvl": new_empty_container_lvl,
                             "dose_msg": new_dose_msg}))
 
     with open("./config/analog_settings.json", "w") as f:
@@ -1085,7 +1093,6 @@ async def mqtt_worker():
         return True
     while not time_synced:
         await asyncio.sleep(1)
-    await asyncio.sleep(5)
     print("Start MQTT")
 
     def sub(topic, msg, retain, dup):
@@ -1184,6 +1191,20 @@ async def mqtt_worker():
         mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
     except Exception as e:
         print("Failed to init MQTT ", e)
+
+    import _thread
+
+    def blocking_reconnect(mqtt, result):
+        try:
+            print("mqtt reconnect")
+            mqtt_client.log()
+            mqtt.reconnect()
+            result.append(mqtt.is_conn_issue())
+        except Exception as _e:
+            print("MQTT Error: ", _e)
+            result.append(e)
+
+
     while 1:
         while ota_lock:
             await asyncio.sleep(200)
@@ -1194,8 +1215,13 @@ async def mqtt_worker():
                 while mqtt_client.is_conn_issue():
                     # If the connection is successful, the is_conn_issue
                     # method will not return a connection error.
-                    print("mqtt reconnect")
-                    mqtt_client.reconnect()
+                    result = []
+                    _thread.start_new_thread(blocking_reconnect, (mqtt_client, result))
+                    while not result:
+                        print("Wait MQTT reconnect")
+                        await asyncio.sleep(1)
+                    #mqtt_client.disconnect()
+                    #mqtt_client.reconnect()
                     if not mqtt_client.is_conn_issue():
                         print("mqtt publush status")
                         mqtt_client.publish(last_will_topic, 'Connected', retain=True)
@@ -1328,9 +1354,14 @@ async def telegram_worker():
 
         print("Telegram worker cycle")
 
-        if telegram_buffer and wifi.isconnected():
+        if telegram_buffer:
             print("Try to send telegram notification")
             print(telegram_buffer)
+            if not wifi.isconnected():
+                print("Telegram notification- wait for wifi")
+            while not wifi.isconnected():
+                await asyncio.sleep(0.5)
+
             try:
                 _msg = ""
                 for _ in telegram_buffer:
@@ -1354,7 +1385,7 @@ async def telegram_worker():
             while len(telegram_buffer) > 600:
                 print("telegram_buffer full, clean")
                 del telegram_buffer[0]
-        print("Telegram buffer:", whatsapp_buffer)
+        print("Telegram worker cycle finished, buffer:", whatsapp_buffer)
 
         await asyncio.sleep(600)
 
@@ -1377,9 +1408,13 @@ async def whatsapp_worker():
             await asyncio.sleep(5)
         print("WhatsApp worker cycle")
 
-        if whatsapp_buffer and wifi.isconnected():
+        if whatsapp_buffer:
             print("Try to send Whatsapp notification")
             print(whatsapp_buffer)
+            if not wifi.isconnected():
+                print("WhatsApp notification- wait for wifi")
+            while not wifi.isconnected():
+                await asyncio.sleep(0.5)
             try:
                 _msg = ""
                 for _ in whatsapp_buffer:
@@ -1404,7 +1439,8 @@ async def whatsapp_worker():
             while len(whatsapp_buffer) > 600:
                 print("whatsapp buffer full, clean")
                 del whatsapp_buffer[0]
-        print("Whatsapp buffer:", whatsapp_buffer)
+        print("Whatsapp worker cycle finished, buffer:", whatsapp_buffer)
+
 
         await asyncio.sleep(600)
 

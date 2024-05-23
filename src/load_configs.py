@@ -227,6 +227,11 @@ if "empty_container_msg" not in settings:
 else:
     empty_container_msg = settings["empty_container_msg"]
 
+if "empty_container_lvl" not in settings:
+    empty_container_lvl = 0
+else:
+    empty_container_lvl = settings["empty_container_lvl"]
+
 if "dose_msg" not in settings:
     dose_msg = 0
 else:
