@@ -24,7 +24,7 @@ sensetive_keys = ['time', 'os', 'sys', 'Microdot', 'redirect', 'send_file', 'wit
 def evaluate_expression(expression, allowed_vars={}):
     # Remove unwanted modules from allowed_vars
     allowed_vars = {key: val for key, val in allowed_vars.items() if key not in sensetive_keys}  # Explicitly blocking some modules
-    print("Allowed keys:", allowed_vars.keys())
+    #print("Allowed keys:", allowed_vars.keys())
 
     result = None
     try:

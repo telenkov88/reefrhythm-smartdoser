@@ -23,7 +23,7 @@ async def async_get_request(url):
 
     # Wait until the result is populated
     while not result:
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(1)
 
     # Return the result
     return result[0]
@@ -37,7 +37,13 @@ class Whatsapp:
     def send_message(self, message):
         url = 'https://api.callmebot.com/whatsapp.php?phone=' + str(self.PHONE) + '&apikey=' + str(
             self.APIKEY) + '&text=' + str(message).replace(" ", "+")
-        return requests.get(url, timeout=5)
+        try:
+            response = requests.get(url, timeout=5)
+        except Exception as e:
+            print(url, f"request GET {url} failed: ", e)
+            return False
+        return response
+
 
 
 class Telegram:
@@ -47,4 +53,9 @@ class Telegram:
     def send_message(self, message):
         url = 'https://api.callmebot.com/text.php?user=' + str(self.USERNAME) +\
               '&text=' + str(message).replace(" ", "+")
-        return requests.get(url, timeout=5)
+        try:
+            response = requests.get(url, timeout=5)
+        except Exception as e:
+            print(url, f"request GET {url} failed: ", e)
+            return False
+        return response

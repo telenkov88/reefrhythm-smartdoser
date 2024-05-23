@@ -1023,6 +1023,7 @@ async def sync_time():
 
     # Initial time sync is Mandatory to job scheduler
     while not time_synced:
+        i = 0
         try:
             print("Local time before synchronization：%s" % str(time.localtime()))
             ntptime.settime(timezone)
@@ -1030,6 +1031,11 @@ async def sync_time():
             time_synced = True
             break
         except Exception as _e:
+            i += 1
+            if i == 10:
+                wifi.active(False)
+            elif i > 40:
+                machine.reset()
             print("Failed to sync time on start. ", _e)
         await asyncio.sleep(10)
 
@@ -1311,6 +1317,8 @@ async def telegram_worker():
         while ota_lock:
             await asyncio.sleep(5)
 
+        print("Telegram worker cycle")
+
         if telegram_buffer and wifi.isconnected():
             print("Try to send telegram notification")
             print(telegram_buffer)
@@ -1320,8 +1328,9 @@ async def telegram_worker():
                     _msg = _msg + _
                 print("Send message:\r\n", _msg.replace("%0A", "\r\n"))
                 response = telegram_webhook.send_message(_msg)
-
-                if response.status_code == 200 and "Telegram Error Code: 400" not in response.text:
+                if not response:
+                    print("Telegram nofirication crash")
+                elif response.status_code == 200 and "Telegram Error Code: 400" not in response.text:
                     print("Telegram notification succeed")
                     telegram_buffer = []
                 elif response.status_code in [404, 203]:
@@ -1329,13 +1338,16 @@ async def telegram_worker():
                     telegram_buffer = []
                 else:
                     print("Telegram notification failed")
-                print("Status Code: ", response.status_code, "\n", response.text)
+                if response:
+                    print("Status Code: ", response.status_code, "\n", response.text)
             except Exception as e:
                 print("Failed to send Telegram message: ", e)
-            while len(telegram_buffer) > 20:
+            while len(telegram_buffer) > 600:
                 print("telegram_buffer full, clean")
                 del telegram_buffer[0]
-        await asyncio.sleep(60)
+        print("Telegram buffer:", whatsapp_buffer)
+
+        await asyncio.sleep(600)
 
 
 whatsapp_buffer = []
@@ -1355,6 +1367,7 @@ async def whatsapp_worker():
 
         while ota_lock:
             await asyncio.sleep(5)
+        print("WhatsApp worker cycle")
 
         if whatsapp_buffer and wifi.isconnected():
             print("Try to send Whatsapp notification")
@@ -1365,7 +1378,9 @@ async def whatsapp_worker():
                     _msg = _msg + _
                 print("Send message:\r\n", _msg.replace("%0A", "\r\n"))
                 response = whatsapp_webhook.send_message(_msg)
-                if response.status_code == 200:
+                if not response:
+                    print("Whatsapp nofirication crash")
+                elif response.status_code == 200:
                     print("Whatsapp notification succeed")
                     whatsapp_buffer = []
                 elif response.status_code in [404, 203]:
@@ -1373,15 +1388,17 @@ async def whatsapp_worker():
                     whatsapp_buffer = []
                 else:
                     print("Whatsapp notification failed")
-                print("Status Code: ", response.status_code, "\n", response.text)
+                if response:
+                    print("Status Code: ", response.status_code, "\n", response.text)
 
             except Exception as e:
                 print("Failed to send Whatsapp message: ", e)
-            while len(whatsapp_buffer) > 20:
+            while len(whatsapp_buffer) > 600:
                 print("whatsapp buffer full, clean")
                 del whatsapp_buffer[0]
+        print("Whatsapp buffer:", whatsapp_buffer)
 
-        await asyncio.sleep(60)
+        await asyncio.sleep(600)
 
 
 async def main():
