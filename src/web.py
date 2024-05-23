@@ -771,9 +771,9 @@ def setting_responce(request):
         response = send_file(f'static/{src}', compressed=web_compress,
                              file_extension=web_file_extension)
     response.set_cookie('hostname', hostname)
-    response.set_cookie(f'Mac', mac_address)
-    response.set_cookie(f'timezone', timezone)
-    response.set_cookie(f'timeformat', timeformat)
+    response.set_cookie('Mac', mac_address)
+    response.set_cookie('timezone', timezone)
+    response.set_cookie('timeformat', timeformat)
     response.set_cookie("mqttTopic", f"/ReefRhythm/{unique_id}/")
     response.set_cookie("mqttBroker", mqtt_broker)
     response.set_cookie("mqttLogin", mqtt_login)
@@ -784,6 +784,11 @@ def setting_responce(request):
     response.set_cookie("pumpNames", json.dumps({"pumpNames": pump_names}))
     response.set_cookie("color", color)
     response.set_cookie("theme", theme)
+    response.set_cookie("telegram", telegram)
+    response.set_cookie("whatsappNumber", whatsapp_number)
+    response.set_cookie("whatsappApikey", whatsapp_apikey)
+    response.set_cookie("emptyContainerMsg", empty_container_msg)
+    response.set_cookie("doseMsg", dose_msg)
 
     if 'ssid' in globals():
         response.set_cookie('current_ssid', ssid)
@@ -818,6 +823,15 @@ def setting_process_post(request):
     new_color = request.json["color"]
     new_theme = request.json["theme"]
 
+    new_telegram = request.json["telegram"]
+    new_whatsapp_number = request.json["whatsappNumber"]
+    new_whatsapp_apikey = request.json["whatsappApikey"]
+
+    new_empty_container_msg = int(request.json["emptyContainerMsg"])
+    new_dose_msg = int(request.json["doseMsg"])
+
+
+
     if new_ssid and new_psw:
         with open("./config/wifi.json", "w") as f:
             f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
@@ -836,7 +850,12 @@ def setting_process_post(request):
                             "names": new_names,
                             "inversion": new_inversion,
                             "color": new_color,
-                            "theme": new_theme}))
+                            "theme": new_theme,
+                            "telegram": new_telegram,
+                            "whatsapp_number": new_whatsapp_number,
+                            "whatsapp_apikey": new_whatsapp_apikey,
+                            "empty_container_msg": new_empty_container_msg,
+                            "dose_msg": new_dose_msg}))
 
     with open("./config/analog_settings.json", "w") as f:
         json.dump(analog_settings, f)

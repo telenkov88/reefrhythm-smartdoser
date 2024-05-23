@@ -207,6 +207,32 @@ if "theme" not in settings:
 else:
     theme = settings["theme"]
 
+if "whatsapp_number" not in settings:
+    whatsapp_number = ""
+else:
+    whatsapp_number = settings["whatsapp_number"]
+
+if "whatsapp_apikey" not in settings:
+    whatsapp_apikey = ""
+else:
+    whatsapp_apikey = settings["whatsapp_apikey"]
+
+if "telegram" not in settings:
+    telegram = ""
+else:
+    telegram = settings["telegram"]
+
+if "empty_container_msg" not in settings:
+    empty_container_msg = 0
+else:
+    empty_container_msg = settings["empty_container_msg"]
+
+if "dose_msg" not in settings:
+    dose_msg = 0
+else:
+    dose_msg = settings["dose_msg"]
+
+
 PUMP_NUM = settings["pump_number"]
 
 
