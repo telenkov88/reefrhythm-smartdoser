@@ -164,6 +164,7 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
             if whatsapp_apikey and whatsapp_number and (empty_container_msg or dose_msg):
                 whatsapp_buffer.append(msg)
 
+
     wday = time.localtime()[6]
     print(f"Check weekdays: {wday} in {weekdays}")
     if wday not in weekdays:
