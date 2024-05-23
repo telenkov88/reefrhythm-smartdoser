@@ -71,9 +71,14 @@
         <a class="nav-link" data-bs-toggle="tab" href="#mqtttab" aria-selected="false" role="tab">MQTT</a>
     </li>
     <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#notificationtab" aria-selected="false" tabindex="-1"
+           role="tab">Notification</a>
+    </li>
+    <li class="nav-item" role="presentation">
         <a class="nav-link" data-bs-toggle="tab" href="#othertab" aria-selected="false" tabindex="-1"
            role="tab">Other</a>
     </li>
+
 </ul>
 
 <div id="myTabContent" class="tab-content">
@@ -244,10 +249,39 @@
 
     </div>
 
+    <div class="tab-pane fade container" id="notificationtab" role="tabpanel">
+        <h2 class="mt-2">CallbeBot</h2>
+        <label for="colorSelect" class="form-label mt-1">Whatsapp number</label>
+        <input type="tel" style="width: 300px" class="form-control" id="whatsappNumber"
+               placeholder="Enter number 99111888444" oninput="checkWhatsAppInput()">
+
+        <label for="colorSelect" class="form-label mt-1">Whatsapp Api Key</label>
+        <input type="number" style="width: 300px" class="form-control" id="whatsappApiKey"
+               placeholder="Enter whatsapp api key" oninput="checkWhatsAppInput()">
+
+
+        <label for="themeSelect" class="form-label mt-1">Telegram nickname</label>
+        <input type="text" style="width: 300px" class="form-control" id="telegram"
+               placeholder="Enter telegram @nickname" oninput="checkTelegramNickname()">
+
+        <fieldset>
+            <legend class="mt-4">Notifications</legend>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="emptyContainerMsg" checked="">
+                <label class="form-check-label" for="emptyContainerMsg">Empty container</label>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="doseMsg" checked="">
+                <label class="form-check-label" for="doseMsg">Dosing</label>
+            </div>
+        </fieldset>
+
+    </div>
+
 
     <div class="tab-pane fade container" id="othertab" role="tabpanel">
         <h4 class="mt-2">UI Color theme</h4>
-        <label for="modeSelect" class="form-label mt-1">Color mode</label>
+        <label for="colorSelect" class="form-label mt-1">Color mode</label>
         <select class="form-select" id="colorSelect" style="width: 200px" onchange="switchColor()">
             <option value="dark">Dark</option>
             <option value="light">Light</option>
@@ -279,6 +313,63 @@
     let pumpInversion
     let pumpsCurrent
     let theme
+    let telegram
+    let whatsappNumber
+    let whatsappApikey
+    let emptyContainerMsg
+    let doseMsg
+
+
+    function checkWhatsAppInput() {
+        const whatsappNumberInput = document.getElementById('whatsappNumber');
+        const whatsappApiKeyInput = document.getElementById('whatsappApiKey');
+
+        const whatsappNumber = whatsappNumberInput.value;
+        const whatsappApiKey = whatsappApiKeyInput.value;
+        let valid = true
+
+        // Validate WhatsApp number
+        const whatsappNumberPattern = /^\d{11,13}$/;
+        if (whatsappNumber === '' || whatsappNumberPattern.test(whatsappNumber)) {
+            whatsappNumberInput.classList.remove("is-invalid");
+            whatsappNumberInput.classList.add("is-valid");
+        } else {
+            whatsappNumberInput.classList.remove("is-valid");
+            whatsappNumberInput.classList.add("is-invalid");
+            valid = false
+        }
+
+        // Validate WhatsApp API Key
+        const whatsappApiKeyPattern = /^\d{1,30}$/;
+        if (whatsappApiKey === '' || whatsappApiKeyPattern.test(whatsappApiKey)) {
+            whatsappApiKeyInput.classList.remove("is-invalid");
+            whatsappApiKeyInput.classList.add("is-valid");
+        } else {
+            whatsappApiKeyInput.classList.remove("is-valid");
+            whatsappApiKeyInput.classList.add("is-invalid");
+            valid = false
+        }
+        return valid
+    }
+
+    function checkTelegramNickname() {
+        let valid = true
+        const telegramInput = document.getElementById('telegram');
+        const telegramNickname = telegramInput.value;
+
+        // Validate Telegram nickname
+        const telegramNicknamePattern = /^@[a-zA-Z0-9]{1,29}$/;
+        if (telegramNickname === '' || telegramNicknamePattern.test(telegramNickname)) {
+            telegramInput.classList.remove("is-invalid");
+            telegramInput.classList.add("is-valid");
+        } else {
+            valid = false
+            telegramInput.classList.remove("is-valid");
+            telegramInput.classList.add("is-invalid");
+        }
+        return valid
+    }
+
 
     function convertTo12HFormat(time) {
         // Split the time string into hours and minutes
@@ -368,6 +459,15 @@
 
     document.getElementById('uploadDataBtn').addEventListener('click', function () {
         const url = window.location.href;
+        if (checkWhatsAppInput()) {
+            whatsappNumber = document.getElementById("whatsappNumber").value
+            whatsappApikey = document.getElementById("whatsappApiKey").value
+        }
+        if (checkTelegramNickname()) {
+            telegram = document.getElementById("telegram").value
+        }
+
+
         const data = {
             "ssid": document.getElementById('ssidInput1').value,
             "psw": document.getElementById('password').value,
@@ -383,7 +483,12 @@
             "pumpInversion": pumpInversion,
             "pumpsCurrent": pumpsCurrent,
             "color": document.getElementById("colorSelect").value,
-            "theme": document.getElementById("themeSelect").value
+            "theme": document.getElementById("themeSelect").value,
+            "telegram": telegram,
+            "whatsappNumber": whatsappNumber,
+            "whatsappApikey": whatsappApikey,
+            "emptyContainerMsg": document.getElementById("emptyContainerMsg").checked ? 1 : 0,
+            "doseMsg": document.getElementById("doseMsg").checked ? 1 : 0
         };
         console.log("upload data", data)
 
@@ -475,8 +580,25 @@
         // Initiate loading CDN CSS with fallback
         document.getElementById("colorSelect").value = color
         document.getElementById("themeSelect").value = theme
-        loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/'+ theme +'/bootstrap.min.css', 'styles/'+ theme +'/bootstrap.min.css');
+        loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/' + theme + '/bootstrap.min.css', 'styles/' + theme + '/bootstrap.min.css');
         switchColor()
+
+        telegram = getCookie("telegram")
+        whatsappNumber = getCookie("whatsappNumber")
+        whatsappApikey = getCookie("whatsappApikey")
+
+        emptyContainerMsg = getCookie("emptyContainerMsg")
+        doseMsg = getCookie("doseMsg")
+
+        document.getElementById("telegram").value = telegram
+        document.getElementById("whatsappNumber").value = whatsappNumber
+        document.getElementById("whatsappApiKey").value = whatsappApikey
+
+        document.getElementById("doseMsg").checked = !!Number(doseMsg);
+        document.getElementById("emptyContainerMsg").checked = !!Number(emptyContainerMsg);
+
+        checkWhatsAppInput()
+        checkTelegramNickname()
 
         PumpNumber = JSON.parse(getCookie('PumpNumber'));
         console.log(PumpNumber)

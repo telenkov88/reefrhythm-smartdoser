@@ -1,16 +1,18 @@
 import sys
+import time
 
 from lib.microdot.microdot import Microdot, redirect, send_file
 from lib.microdot.sse import with_sse
 import re
-import requests
 import lib.mcron as mcron
 from load_configs import *
 from lib.exec_code import evaluate_expression
+from lib.callmebot import *
 
 try:
     # Import 3-part Add-ons
     import extension
+
     addon = True
 except ImportError as extension_error:
     print("Failed to import extension, ", extension_error)
@@ -46,6 +48,7 @@ except ImportError:
     RELEASE_TAG = "local_debug"
     os.system("python ../scripts/compress_web.py --path ./")
     USE_RAM = False
+
 
     # Dummy decorator to simulate @micropython.native
     # Creating a more structured mock for micropython module
@@ -126,6 +129,7 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
         if pump_dose and pump_id is not None:
             _remaining = storage[f"remaining{pump_id}"] - pump_dose
             _remaining = 0 if _remaining < 0 else _remaining
+            _storage = storage[f"pump{pump_id}"]
             storage[f"remaining{pump_id}"] = _remaining
             print(storage)
 
@@ -138,6 +142,29 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
                 print({"topic": _topic, "data": _data})
                 mqtt_publish_buffer.append({"topic": _topic, "data": _data})
 
+            _localtime = time.localtime()
+
+            # Extract hours, minutes, and seconds
+            hours = _localtime[3]
+            minutes = _localtime[4]
+            seconds = _localtime[5]
+
+            # Format the time with leading zeros
+            formatted_time = f"{hours:02}:{minutes:02}:{seconds:02}"
+
+            msg = ""
+
+            if empty_container_msg and _remaining == 0:
+                msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: Container empty!%0A"
+            if dose_msg:
+                msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: "
+                msg += f"Dose {pump_dose}mL/{execution_time}sec, {_remaining}/{_storage}mL%0A"
+            if telegram and (empty_container_msg or dose_msg):
+                telegram_buffer.append(msg)
+            if whatsapp_apikey and whatsapp_number and (empty_container_msg or dose_msg):
+                whatsapp_buffer.append(msg)
+
+
     wday = time.localtime()[6]
     print(f"Check weekdays: {wday} in {weekdays}")
     if wday not in weekdays:
@@ -145,7 +172,7 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
         return
 
     print(f"Desired {to_float(desired_rpm_rate)}rpm, mstep")
-    if inversion[pump_id-1]:
+    if inversion[pump_id - 1]:
         direction = 0 if direction == 1 else 1
 
     if expression:
@@ -173,7 +200,7 @@ async def stepper_stop(mks):
 async def adc_sampling():
     global adc_dict
     sampling_size = 5
-    sampling_delay = 1/sampling_size
+    sampling_delay = 1 / sampling_size
     global adc_sampler_started
     adc_buffer = {}
     for _ in analog_pins:
@@ -188,8 +215,8 @@ async def adc_sampling():
         for pin in analog_pins:
             adc_dict[pin] = sum(adc_buffer[pin]) // sampling_size
         adc_sampler_started = True
-            # print(f"Pin{pin} buffer {[int(x) for x in adc_buffer[pin]]}")
-        #print(adc_dict)
+        # print(f"Pin{pin} buffer {[int(x) for x in adc_buffer[pin]]}")
+        # print(adc_dict)
 
 
 async def download_file_async(url, filename, progress=False):
@@ -222,10 +249,6 @@ def to_float(arr):
         return arr[0]
     else:
         return arr
-
-
-async def adc_worker():
-    print()
 
 
 async def analog_control_worker():
@@ -771,9 +794,9 @@ def setting_responce(request):
         response = send_file(f'static/{src}', compressed=web_compress,
                              file_extension=web_file_extension)
     response.set_cookie('hostname', hostname)
-    response.set_cookie(f'Mac', mac_address)
-    response.set_cookie(f'timezone', timezone)
-    response.set_cookie(f'timeformat', timeformat)
+    response.set_cookie('Mac', mac_address)
+    response.set_cookie('timezone', timezone)
+    response.set_cookie('timeformat', timeformat)
     response.set_cookie("mqttTopic", f"/ReefRhythm/{unique_id}/")
     response.set_cookie("mqttBroker", mqtt_broker)
     response.set_cookie("mqttLogin", mqtt_login)
@@ -784,6 +807,11 @@ def setting_responce(request):
     response.set_cookie("pumpNames", json.dumps({"pumpNames": pump_names}))
     response.set_cookie("color", color)
     response.set_cookie("theme", theme)
+    response.set_cookie("telegram", telegram)
+    response.set_cookie("whatsappNumber", whatsapp_number)
+    response.set_cookie("whatsappApikey", whatsapp_apikey)
+    response.set_cookie("emptyContainerMsg", empty_container_msg)
+    response.set_cookie("doseMsg", dose_msg)
 
     if 'ssid' in globals():
         response.set_cookie('current_ssid', ssid)
@@ -818,6 +846,13 @@ def setting_process_post(request):
     new_color = request.json["color"]
     new_theme = request.json["theme"]
 
+    new_telegram = request.json["telegram"]
+    new_whatsapp_number = request.json["whatsappNumber"]
+    new_whatsapp_apikey = request.json["whatsappApikey"]
+
+    new_empty_container_msg = int(request.json["emptyContainerMsg"])
+    new_dose_msg = int(request.json["doseMsg"])
+
     if new_ssid and new_psw:
         with open("./config/wifi.json", "w") as f:
             f.write(json.dumps({"ssid": new_ssid, "password": new_psw}))
@@ -836,7 +871,12 @@ def setting_process_post(request):
                             "names": new_names,
                             "inversion": new_inversion,
                             "color": new_color,
-                            "theme": new_theme}))
+                            "theme": new_theme,
+                            "telegram": new_telegram,
+                            "whatsapp_number": new_whatsapp_number,
+                            "whatsapp_apikey": new_whatsapp_apikey,
+                            "empty_container_msg": new_empty_container_msg,
+                            "dose_msg": new_dose_msg}))
 
     with open("./config/analog_settings.json", "w") as f:
         json.dump(analog_settings, f)
@@ -882,12 +922,13 @@ async def settings(request):
     update_schedule(schedule)
     return {'logs': 'Success'}
 
+
 @app.route('/refill', methods=['POST'])
 async def refill(request):
     global storage
     _storage = request.json
     for _ in range(MAX_PUMPS):
-        storage[f"pump{_+1}"] = _storage[f"pump{_+1}"]
+        storage[f"pump{_ + 1}"] = _storage[f"pump{_ + 1}"]
         storage[f"remaining{_ + 1}"] = _storage[f"remaining{_ + 1}"]
     print("New storage data: ", storage)
     with open("config/storage.json", 'w') as write_file:
@@ -983,6 +1024,7 @@ async def sync_time():
 
     # Initial time sync is Mandatory to job scheduler
     while not time_synced:
+        i = 0
         try:
             print("Local time before synchronization：%s" % str(time.localtime()))
             ntptime.settime(timezone)
@@ -990,6 +1032,11 @@ async def sync_time():
             time_synced = True
             break
         except Exception as _e:
+            i += 1
+            if i == 10:
+                wifi.active(False)
+            elif i > 40:
+                machine.reset()
             print("Failed to sync time on start. ", _e)
         await asyncio.sleep(10)
 
@@ -1254,6 +1301,107 @@ async def storage_tracker():
         await asyncio.sleep(3600)
 
 
+telegram_buffer = []
+
+
+async def telegram_worker():
+    global telegram_buffer
+    global ota_lock
+    if telegram:
+        telegram_webhook = Telegram(telegram)
+    else:
+        return
+    print("Start Telegram CallmeBot")
+    while True:
+        while not time_synced:
+            await asyncio.sleep(1)
+        while ota_lock:
+            await asyncio.sleep(5)
+
+        print("Telegram worker cycle")
+
+        if telegram_buffer and wifi.isconnected():
+            print("Try to send telegram notification")
+            print(telegram_buffer)
+            try:
+                _msg = ""
+                for _ in telegram_buffer:
+                    _msg = _msg + _
+                print("Send message:\r\n", _msg.replace("%0A", "\r\n"))
+                response = telegram_webhook.send_message(_msg)
+                if not response:
+                    print("Telegram nofirication crash")
+                elif response.status_code == 200 and "Telegram Error Code: 400" not in response.text:
+                    print("Telegram notification succeed")
+                    telegram_buffer = []
+                elif response.status_code in [404, 203]:
+                    print("Telegram notification rejected")
+                    telegram_buffer = []
+                else:
+                    print("Telegram notification failed")
+                if response:
+                    print("Status Code: ", response.status_code, "\n", response.text)
+            except Exception as e:
+                print("Failed to send Telegram message: ", e)
+            while len(telegram_buffer) > 600:
+                print("telegram_buffer full, clean")
+                del telegram_buffer[0]
+        print("Telegram buffer:", whatsapp_buffer)
+
+        await asyncio.sleep(600)
+
+
+whatsapp_buffer = []
+
+
+async def whatsapp_worker():
+    global whatsapp_buffer
+    global ota_lock
+    if whatsapp_number and whatsapp_apikey:
+        whatsapp_webhook = Whatsapp(whatsapp_number, whatsapp_apikey)
+    else:
+        return
+    print("Start WhatsApp CallmeBot")
+    while True:
+        while not time_synced:
+            await asyncio.sleep(1)
+
+        while ota_lock:
+            await asyncio.sleep(5)
+        print("WhatsApp worker cycle")
+
+        if whatsapp_buffer and wifi.isconnected():
+            print("Try to send Whatsapp notification")
+            print(whatsapp_buffer)
+            try:
+                _msg = ""
+                for _ in whatsapp_buffer:
+                    _msg = _msg + _
+                print("Send message:\r\n", _msg.replace("%0A", "\r\n"))
+                response = whatsapp_webhook.send_message(_msg)
+                if not response:
+                    print("Whatsapp nofirication crash")
+                elif response.status_code == 200:
+                    print("Whatsapp notification succeed")
+                    whatsapp_buffer = []
+                elif response.status_code in [404, 203]:
+                    print("Whatsapp notification rejected")
+                    whatsapp_buffer = []
+                else:
+                    print("Whatsapp notification failed")
+                if response:
+                    print("Status Code: ", response.status_code, "\n", response.text)
+
+            except Exception as e:
+                print("Failed to send Whatsapp message: ", e)
+            while len(whatsapp_buffer) > 600:
+                print("whatsapp buffer full, clean")
+                del whatsapp_buffer[0]
+        print("Whatsapp buffer:", whatsapp_buffer)
+
+        await asyncio.sleep(600)
+
+
 async def main():
     print("Start Web server")
     from connect_wifi import maintain_wifi
@@ -1270,7 +1418,9 @@ async def main():
         asyncio.create_task(maintain_memory()),
         asyncio.create_task(mqtt_worker()),
         asyncio.create_task(process_mqtt_cmd()),
-        asyncio.create_task(storage_tracker())
+        asyncio.create_task(storage_tracker()),
+        asyncio.create_task(telegram_worker()),
+        asyncio.create_task(whatsapp_worker())
     ]
 
     # load async tasks from extension
