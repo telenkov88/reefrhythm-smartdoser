@@ -1319,10 +1319,10 @@ async def telegram_worker():
         telegram_webhook = Telegram(telegram)
     else:
         return
+    while not time_synced:
+        await asyncio.sleep(1)
     print("Start Telegram CallmeBot")
     while True:
-        while not time_synced:
-            await asyncio.sleep(1)
         while ota_lock:
             await asyncio.sleep(5)
 
@@ -1369,11 +1369,10 @@ async def whatsapp_worker():
         whatsapp_webhook = Whatsapp(whatsapp_number, whatsapp_apikey)
     else:
         return
+    while not time_synced:
+        await asyncio.sleep(1)
     print("Start WhatsApp CallmeBot")
     while True:
-        while not time_synced:
-            await asyncio.sleep(1)
-
         while ota_lock:
             await asyncio.sleep(5)
         print("WhatsApp worker cycle")
