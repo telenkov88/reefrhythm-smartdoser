@@ -1168,61 +1168,69 @@ async def mqtt_worker():
     mqtt_client.set_last_will(last_will_topic, 'Disconnected', retain=True)
 
     mqtt_client.set_callback(sub)
-    print(f"connect to {mqtt_broker}")
-    mqtt_client.connect()
-    print(f"subscribe {doser_topic}/dose")
-    mqtt_client.subscribe(f"{doser_topic}/dose")
-    print(f"subscribe {doser_topic}/run")
-    mqtt_client.subscribe(f"{doser_topic}/run")
-    print(f"subscribe {doser_topic}/stop")
-    mqtt_client.subscribe(f"{doser_topic}/stop")
-    print(f"subscribe {doser_topic}/refill")
-    mqtt_client.subscribe(f"{doser_topic}/refill")
-    mqtt_client.publish(last_will_topic, 'Connected', retain=True)
-    msg = {"free_mem": gc.mem_free() // 1024}
-    mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
+    try:
+        print(f"connect to {mqtt_broker}")
+        mqtt_client.connect()
+        print(f"subscribe {doser_topic}/dose")
+        mqtt_client.subscribe(f"{doser_topic}/dose")
+        print(f"subscribe {doser_topic}/run")
+        mqtt_client.subscribe(f"{doser_topic}/run")
+        print(f"subscribe {doser_topic}/stop")
+        mqtt_client.subscribe(f"{doser_topic}/stop")
+        print(f"subscribe {doser_topic}/refill")
+        mqtt_client.subscribe(f"{doser_topic}/refill")
+        mqtt_client.publish(last_will_topic, 'Connected', retain=True)
+        msg = {"free_mem": gc.mem_free() // 1024}
+        mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
+    except Exception as e:
+        print("Failed to init MQTT ", e)
     while 1:
         while ota_lock:
             await asyncio.sleep(200)
         # At this point in the code you must consider how to handle
         # connection errors.  And how often to resume the connection.
-        if mqtt_client.is_conn_issue():
-            while mqtt_client.is_conn_issue():
-                # If the connection is successful, the is_conn_issue
-                # method will not return a connection error.
-                print("mqtt reconnect")
-                mqtt_client.reconnect()
-                if not mqtt_client.is_conn_issue():
-                    print("mqtt publush status")
-                    mqtt_client.publish(last_will_topic, 'Connected', retain=True)
-                    print("mqtt resubscribe")
-                    mqtt_client.resubscribe()
-                    msg = {"free_mem": gc.mem_free() // 1024}
-                    mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
-                    if mqtt_publish_buffer:
-                        for msg in mqtt_publish_buffer:
-                            mqtt_client.publish(msg["topic"], json.dumps(msg["data"]))
-                        mqtt_publish_buffer = []
-                    break
-                await asyncio.sleep(60)
-
-        # WARNING!!!
-        # The below functions should be run as often as possible.
-        # There may be a problem with the connection. (MQTTException(7,), 9)
-        # In the following way, we clear the queue.
-        for _ in range(50):
-            # print("mqtt check_msg")
+        try:
             if mqtt_client.is_conn_issue():
-                break
-            if mqtt_publish_buffer:
-                for msg in mqtt_publish_buffer:
-                    mqtt_client.publish(msg["topic"], json.dumps(msg["data"]))
-                mqtt_publish_buffer = []
-            mqtt_client.check_msg()  # needed when publish(qos=1), ping(), subscribe()
-            mqtt_client.send_queue()  # needed when using the caching capabilities for unsent messages
-            if not mqtt_client.things_to_do():
-                break
-            await asyncio.sleep(1)
+                while mqtt_client.is_conn_issue():
+                    # If the connection is successful, the is_conn_issue
+                    # method will not return a connection error.
+                    print("mqtt reconnect")
+                    mqtt_client.reconnect()
+                    if not mqtt_client.is_conn_issue():
+                        print("mqtt publush status")
+                        mqtt_client.publish(last_will_topic, 'Connected', retain=True)
+                        print("mqtt resubscribe")
+                        mqtt_client.resubscribe()
+                        msg = {"free_mem": gc.mem_free() // 1024}
+                        mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
+                        if mqtt_publish_buffer:
+                            for msg in mqtt_publish_buffer:
+                                mqtt_client.publish(msg["topic"], json.dumps(msg["data"]))
+                            mqtt_publish_buffer = []
+                        break
+                    print("Failed to reconnect MQTT")
+                    await asyncio.sleep(60)
+
+            # WARNING!!!
+            # The below functions should be run as often as possible.
+            # There may be a problem with the connection. (MQTTException(7,), 9)
+            # In the following way, we clear the queue.
+            for _ in range(50):
+                # print("mqtt check_msg")
+                if mqtt_client.is_conn_issue():
+                    break
+                if mqtt_publish_buffer:
+                    for msg in mqtt_publish_buffer:
+                        mqtt_client.publish(msg["topic"], json.dumps(msg["data"]))
+                    mqtt_publish_buffer = []
+                mqtt_client.check_msg()  # needed when publish(qos=1), ping(), subscribe()
+                mqtt_client.send_queue()  # needed when using the caching capabilities for unsent messages
+                if not mqtt_client.things_to_do():
+                    break
+                await asyncio.sleep(1)
+        except Exception as e:
+            print("MQTT Error: ", e)
+            await asyncio.sleep(10)
         await asyncio.sleep(0.5)
 
 
