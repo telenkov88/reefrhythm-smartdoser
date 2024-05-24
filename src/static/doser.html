@@ -908,7 +908,7 @@
             if (minutesStartTime >= minutesEndTime) {
 
                 document.getElementById("endTime").className = "form-control is-invalid"
-                document.getElementById("schedToFeedback").textContent = "Much be earlier than start time"
+                document.getElementById("schedToFeedback").textContent = "Earlier than the start time"
                 document.getElementById("schedAddBtn").className = "btn btn-primary disabled"
                 return false
             } else if ((minutesEndTime - minutesStartTime) / frequency < 0.25) {
