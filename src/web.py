@@ -1,5 +1,6 @@
 import sys
 import time
+from machine import Timer
 
 from lib.microdot.microdot import Microdot, redirect, send_file
 from lib.microdot.sse import with_sse
@@ -117,6 +118,24 @@ for _ in analog_pins:
     adc_dict[_] = 0
 
 adc_sampler_started = False
+
+
+# Define the maximum value for a 32-bit unsigned integer
+UINT32_MAX = 0xFFFFFFFF
+
+# Initialize the uptime counter
+uptime_counter = 0
+
+
+# Function to increment the uptime counter
+def increment_uptime_counter(timer):
+    global uptime_counter
+    uptime_counter = (uptime_counter + 1) & UINT32_MAX
+
+
+# Set up a timer to call increment_uptime_counter every second
+timer = Timer(0)
+timer.init(period=1000, mode=Timer.PERIODIC, callback=increment_uptime_counter)
 
 
 async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_table, expression=False,
@@ -1257,6 +1276,7 @@ async def mqtt_worker():
                 if (_ + 1) % 20 == 0:
                     msg = {"free_mem": gc.mem_free() // 1024}
                     mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
+                    mqtt_client.publish(f"{doser_topic}/uptime", str(uptime_counter))
                 mqtt_client.check_msg()  # needed when publish(qos=1), ping(), subscribe()
                 mqtt_client.send_queue()  # needed when using the caching capabilities for unsent messages
                 #if not mqtt_client.things_to_do():
