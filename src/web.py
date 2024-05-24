@@ -119,7 +119,6 @@ for _ in analog_pins:
 
 adc_sampler_started = False
 
-
 # Define the maximum value for a 32-bit unsigned integer
 UINT32_MAX = 0xFFFFFFFF
 
@@ -178,7 +177,7 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
             msg = ""
 
             if empty_container_msg and storage[f"pump{pump_id}"]:
-                filling_persentage = round(_remaining/storage[f"pump{pump_id}"]*100, 1)
+                filling_persentage = round(_remaining / storage[f"pump{pump_id}"] * 100, 1)
                 if 0 < filling_persentage < empty_container_lvl:
                     msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: Container {filling_persentage}% full%0A"
                 elif filling_persentage == 0:
@@ -1283,7 +1282,7 @@ async def mqtt_worker():
                 if (_ + 1) % 20 == 0:
                     msg = {"free_mem": gc.mem_free() // 1024}
                     mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
-                    mqtt_client.publish(f"{doser_topic}/uptime", str(uptime_counter)+" seconds")
+                    mqtt_client.publish(f"{doser_topic}/uptime", str(uptime_counter) + " seconds")
                 mqtt_client.check_msg()  # needed when publish(qos=1), ping(), subscribe()
                 mqtt_client.send_queue()  # needed when using the caching capabilities for unsent messages
 
@@ -1417,10 +1416,10 @@ async def telegram_worker():
                     print("Status Code: ", response.status_code, "\n", response.text)
             except Exception as e:
                 print("Failed to send Telegram message: ", e)
-            while len(telegram_buffer) > 600:
+            while len(telegram_buffer) > 50:
                 print("telegram_buffer full, clean")
                 del telegram_buffer[0]
-        print("Telegram worker cycle finished, buffer:", whatsapp_buffer)
+        print("Telegram worker cycle finished, buffer:", telegram_buffer)
 
         await asyncio.sleep(600)
 
@@ -1471,11 +1470,10 @@ async def whatsapp_worker():
 
             except Exception as e:
                 print("Failed to send Whatsapp message: ", e)
-            while len(whatsapp_buffer) > 600:
+            while len(whatsapp_buffer) > 10:
                 print("whatsapp buffer full, clean")
                 del whatsapp_buffer[0]
         print("Whatsapp worker cycle finished, buffer:", whatsapp_buffer)
-
 
         await asyncio.sleep(600)
 
