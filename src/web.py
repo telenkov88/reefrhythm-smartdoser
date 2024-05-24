@@ -161,6 +161,10 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
                 print({"topic": _topic, "data": _data})
                 mqtt_publish_buffer.append({"topic": _topic, "data": _data})
 
+                while len(mqtt_publish_buffer) > 75:
+                    print("Warning! MQTT Buffer overflow, clean it")
+                    del mqtt_publish_buffer[0]
+
             _localtime = time.localtime()
 
             # Extract hours, minutes, and seconds
