@@ -190,12 +190,12 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
             if telegram and (empty_container_msg or dose_msg):
                 telegram_buffer.append(msg)
 
-                while len(telegram_buffer) > 75:
+                while len(telegram_buffer) > 50:
                     print("Warning! Telegram buffer overflow")
                     del telegram_buffer[0]
             if whatsapp_apikey and whatsapp_number and (empty_container_msg or dose_msg):
                 whatsapp_buffer.append(msg)
-                while len(whatsapp_buffer) > 75:
+                while len(whatsapp_buffer) > 50:
                     print("Warning! WhatsApp buffer overflow")
                     del whatsapp_buffer[0]
 
