@@ -189,9 +189,15 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
                 msg += f"Dose {pump_dose}mL/{execution_time}sec, {_remaining}/{_storage}mL%0A"
             if telegram and (empty_container_msg or dose_msg):
                 telegram_buffer.append(msg)
+
+                while len(telegram_buffer) > 75:
+                    print("Warning! Telegram buffer overflow")
+                    del telegram_buffer[0]
             if whatsapp_apikey and whatsapp_number and (empty_container_msg or dose_msg):
                 whatsapp_buffer.append(msg)
-
+                while len(whatsapp_buffer) > 75:
+                    print("Warning! WhatsApp buffer overflow")
+                    del whatsapp_buffer[0]
 
     wday = time.localtime()[6]
     print(f"Check weekdays: {wday} in {weekdays}")
@@ -1402,7 +1408,7 @@ async def telegram_worker():
                 elif response.status_code == 200 and "Telegram Error Code: 400" not in response.text:
                     print("Telegram notification succeed")
                     telegram_buffer = []
-                elif response.status_code in [404, 203]:
+                elif response.status_code in [404, 203, 414]:
                     print("Telegram notification rejected")
                     telegram_buffer = []
                 else:
@@ -1455,7 +1461,7 @@ async def whatsapp_worker():
                 elif response.status_code == 200:
                     print("Whatsapp notification succeed")
                     whatsapp_buffer = []
-                elif response.status_code in [404, 203]:
+                elif response.status_code in [404, 203, 414]:
                     print("Whatsapp notification rejected")
                     whatsapp_buffer = []
                 else:
