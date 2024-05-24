@@ -158,7 +158,7 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
                 filling_persentage = round(_remaining/storage[f"pump{pump_id}"]*100, 1)
                 if 0 < filling_persentage < empty_container_lvl:
                     msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: Container {filling_persentage}% full%0A"
-                else:
+                elif filling_persentage == 0:
                     msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: Container empty%0A"
 
             if dose_msg:
@@ -1213,6 +1213,7 @@ async def mqtt_worker():
         try:
             if mqtt_client.is_conn_issue():
                 while mqtt_client.is_conn_issue():
+                    mqtt_client.log()
                     # If the connection is successful, the is_conn_issue
                     # method will not return a connection error.
                     result = []
