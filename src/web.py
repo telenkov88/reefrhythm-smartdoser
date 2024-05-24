@@ -1186,7 +1186,10 @@ async def mqtt_worker():
         mqtt_client.subscribe(f"{doser_topic}/stop")
         print(f"subscribe {doser_topic}/refill")
         mqtt_client.subscribe(f"{doser_topic}/refill")
+        print(f"subscribe $SYS/broker/uptime")
+        mqtt_client.subscribe("$SYS/broker/uptime")
         mqtt_client.publish(last_will_topic, 'Connected', retain=True)
+
         msg = {"free_mem": gc.mem_free() // 1024}
         mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
     except Exception as e:
@@ -1213,7 +1216,6 @@ async def mqtt_worker():
         try:
             if mqtt_client.is_conn_issue():
                 while mqtt_client.is_conn_issue():
-                    mqtt_client.log()
                     # If the connection is successful, the is_conn_issue
                     # method will not return a connection error.
                     result = []
@@ -1228,8 +1230,7 @@ async def mqtt_worker():
                         mqtt_client.publish(last_will_topic, 'Connected', retain=True)
                         print("mqtt resubscribe")
                         mqtt_client.resubscribe()
-                        msg = {"free_mem": gc.mem_free() // 1024}
-                        mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
+
                         if mqtt_publish_buffer:
                             for msg in mqtt_publish_buffer:
                                 mqtt_client.publish(msg["topic"], json.dumps(msg["data"]))
@@ -1242,19 +1243,26 @@ async def mqtt_worker():
             # The below functions should be run as often as possible.
             # There may be a problem with the connection. (MQTTException(7,), 9)
             # In the following way, we clear the queue.
+            if mqtt_publish_buffer:
+                print("MQTT publish buffer")
             for _ in range(50):
                 # print("mqtt check_msg")
                 if mqtt_client.is_conn_issue():
+                    mqtt_client.log()
                     break
-                if mqtt_publish_buffer:
                     for msg in mqtt_publish_buffer:
+                        print("MQTT publish ", msg)
                         mqtt_client.publish(msg["topic"], json.dumps(msg["data"]))
                     mqtt_publish_buffer = []
+                if (_ + 1) % 20 == 0:
+                    msg = {"free_mem": gc.mem_free() // 1024}
+                    mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
                 mqtt_client.check_msg()  # needed when publish(qos=1), ping(), subscribe()
                 mqtt_client.send_queue()  # needed when using the caching capabilities for unsent messages
-                if not mqtt_client.things_to_do():
-                    break
+                #if not mqtt_client.things_to_do():
+                #    break
                 await asyncio.sleep(1)
+            print("MQTT finished cycle")
         except Exception as e:
             print("MQTT Error: ", e)
             await asyncio.sleep(10)

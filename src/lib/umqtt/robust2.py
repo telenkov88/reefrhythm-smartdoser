@@ -3,7 +3,7 @@ from . import simple2
 
 
 class MQTTClient(simple2.MQTTClient):
-    DEBUG = False
+    DEBUG = True
 
     # Information whether we store unsent messages with the flag QoS==0 in the queue.
     KEEP_QOS0 = True
