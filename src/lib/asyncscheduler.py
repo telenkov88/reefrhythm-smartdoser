@@ -29,51 +29,25 @@ class CommandBuffer:
 
     async def add_command(self, func, callback, *args, **kwargs):
         async with self.lock:
-            print("add command to buffer")
+            print("Adding command to buffer")
             self.buffer.append((func, callback, args, kwargs))
+            print(f"Buffer length after adding: {len(self.buffer)}")
             if len(self.buffer) == 1:
-                await self.process_commands()
+                asyncio.create_task(self.process_commands())
 
     async def process_commands(self):
         while self.buffer:
-            func, callback, args, kwargs = self.buffer[0]
-            result = await func(*args, **kwargs)
-            if callback:
-                callback(result)
-            print("remove task from buffer")
-            del self.buffer[0]
-
-
-class TaskManager:
-    def __init__(self, cmd_buffer):
-        super().__init__()
-        self.tasks = {}
-        self.cmd_buffer = cmd_buffer
-
-    async def add_task(self, coro, name):
-        """Add a new task."""
-        task = asyncio.create_task(coro)
-        self.tasks[name] = task
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            print(f"Task {name} encountered an error: {e}")
-        finally:
-            self.tasks.pop(name, None)
-
-    def cancel_task(self, name):
-        """Cancel a specific task by name."""
-        task = self.tasks.get(name)
-        if task:
-            task.cancel()
-            print(f"Task {name} has been cancelled.")
-        else:
-            print(f"No task with name {name} found.")
-
-    def cancel_all_tasks(self):
-        """Cancel all tasks."""
-        for task in self.tasks.values():
-            task.cancel()
-        print("All tasks have been cancelled.")
+            print("Attempting to process commands")
+            async with self.lock:
+                if not self.buffer:
+                    print("Buffer was empty when trying to process")
+                    return
+                func, callback, args, kwargs = self.buffer.pop(0)
+            try:
+                print("Processing a command")
+                result = await func(*args, **kwargs)
+                if callback:
+                    callback(result)
+            except Exception as e:
+                print("Process command exception: ", e)
+            print("Command processed, current buffer length: ", len(self.buffer))

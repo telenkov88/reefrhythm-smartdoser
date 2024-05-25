@@ -9,6 +9,7 @@ import lib.mcron as mcron
 from load_configs import *
 from lib.exec_code import evaluate_expression
 from lib.callmebot import *
+from machine import Timer
 
 try:
     # Import 3-part Add-ons
@@ -32,7 +33,7 @@ try:
     from release_tag import *
     from lib.umqtt.robust2 import MQTTClient
 
-    mqtt_client = MQTTClient(f"ReefRhythm-{unique_id}", mqtt_broker, keepalive=20, socket_timeout=5)
+    mqtt_client = MQTTClient(f"ReefRhythm-{unique_id}", mqtt_broker, keepalive=40, socket_timeout=5)
 
     USE_RAM = False
 
@@ -120,21 +121,25 @@ for _ in analog_pins:
 adc_sampler_started = False
 
 # Define the maximum value for a 32-bit unsigned integer
-UINT32_MAX = 0xFFFFFFFF
+UINT32_MAX = 4294967295
 
 # Initialize the uptime counter
 uptime_counter = 0
 
 
 # Function to increment the uptime counter
-def increment_uptime_counter(timer):
+def increment_uptime_counter(step=10):
     global uptime_counter
-    uptime_counter = (uptime_counter + 1) & UINT32_MAX
+    if uptime_counter > UINT32_MAX - step:
+        uptime_counter = (uptime_counter + step) - (UINT32_MAX + 1)
+    else:
+        uptime_counter += step
+    print(f"uptime {uptime_counter} seconds")
 
 
-# Set up a timer to call increment_uptime_counter every second
+# Set up a timer to call increment_uptime_counter every 10 seconds
 timer = Timer(0)
-timer.init(period=1000, mode=Timer.PERIODIC, callback=increment_uptime_counter)
+timer.init(period=10 * 1000, mode=Timer.PERIODIC, callback=lambda t: increment_uptime_counter())
 
 
 async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_table, expression=False,
@@ -1248,10 +1253,12 @@ async def mqtt_worker():
 
     while 1:
         while ota_lock:
+            print("MQTT OTA lock")
             await asyncio.sleep(200)
         # At this point in the code you must consider how to handle
         # connection errors.  And how often to resume the connection.
         try:
+            print("MQTT start new cycle")
             if mqtt_client.is_conn_issue():
                 while mqtt_client.is_conn_issue():
                     # If the connection is successful, the is_conn_issue
@@ -1266,6 +1273,7 @@ async def mqtt_worker():
                         print("Failed to reconnect MQTT")
                         await asyncio.sleep(5)
 
+            print("MQTT start polling")
             # WARNING!!!
             # The below functions should be run as often as possible.
             # There may be a problem with the connection. (MQTTException(7,), 9)
@@ -1390,7 +1398,8 @@ async def telegram_worker():
 
         if telegram_buffer:
             print("Try to send telegram notification")
-            print(telegram_buffer)
+            _telegram_buffer = telegram_buffer.copy()
+            print(_telegram_buffer)
             if not wifi.isconnected():
                 print("Telegram notification- wait for wifi")
             while not wifi.isconnected():
@@ -1398,7 +1407,7 @@ async def telegram_worker():
 
             try:
                 _msg = ""
-                for _ in telegram_buffer:
+                for _ in _telegram_buffer:
                     _msg = _msg + _
                 print("Send message:\r\n", _msg.replace("%0A", "\r\n"))
                 response = telegram_webhook.send_message(_msg)
@@ -1416,9 +1425,6 @@ async def telegram_worker():
                     print("Status Code: ", response.status_code, "\n", response.text)
             except Exception as e:
                 print("Failed to send Telegram message: ", e)
-            while len(telegram_buffer) > 50:
-                print("telegram_buffer full, clean")
-                del telegram_buffer[0]
         print("Telegram worker cycle finished, buffer:", telegram_buffer)
 
         await asyncio.sleep(600)
@@ -1444,14 +1450,15 @@ async def whatsapp_worker():
 
         if whatsapp_buffer:
             print("Try to send Whatsapp notification")
-            print(whatsapp_buffer)
+            _whatsapp_buffer = whatsapp_buffer.copy()
+            print(_whatsapp_buffer)
             if not wifi.isconnected():
                 print("WhatsApp notification- wait for wifi")
             while not wifi.isconnected():
                 await asyncio.sleep(0.5)
             try:
                 _msg = ""
-                for _ in whatsapp_buffer:
+                for _ in _whatsapp_buffer:
                     _msg = _msg + _
                 print("Send message:\r\n", _msg.replace("%0A", "\r\n"))
                 response = whatsapp_webhook.send_message(_msg)
@@ -1470,9 +1477,6 @@ async def whatsapp_worker():
 
             except Exception as e:
                 print("Failed to send Whatsapp message: ", e)
-            while len(whatsapp_buffer) > 10:
-                print("whatsapp buffer full, clean")
-                del whatsapp_buffer[0]
         print("Whatsapp worker cycle finished, buffer:", whatsapp_buffer)
 
         await asyncio.sleep(600)
