@@ -1,14 +1,13 @@
 import sys
 import time
 from machine import Timer
-
+from lib.notifications import *
 from lib.microdot.microdot import Microdot, redirect, send_file
 from lib.microdot.sse import with_sse
 import re
 import lib.mcron as mcron
 from load_configs import *
 from lib.exec_code import evaluate_expression
-from lib.callmebot import *
 from machine import Timer
 
 try:
@@ -126,6 +125,9 @@ UINT32_MAX = 4294967295
 # Initialize the uptime counter
 uptime_counter = 0
 
+whatsapp_worker = NotificationWorker(Whatsapp(whatsapp_number, whatsapp_apikey), wifi)
+telegram_worker = NotificationWorker(Telegram(telegram), wifi)
+
 
 # Function to increment the uptime counter
 def increment_uptime_counter(step=10):
@@ -147,14 +149,17 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
     if weekdays is None:
         weekdays = [0, 1, 2, 3, 4, 5, 6]
 
-    def change_remaining():
+    async def change_remaining():
+        print(1)
+        print("\r\n CHANGE REMAINING!!!!!\r\n")
         print("id:", pump_id, " dose:", pump_dose)
         if pump_dose and pump_id is not None:
+            print("Inside pump_dose and pump_id check")
             _remaining = storage[f"remaining{pump_id}"] - pump_dose
-            _remaining = 0 if _remaining < 0 else _remaining
+            _remaining = max(0, _remaining)
             _storage = storage[f"pump{pump_id}"]
             storage[f"remaining{pump_id}"] = _remaining
-            print(storage)
+            print("Updated storage:", storage)
 
             if mqtt_broker:
                 print("Publish to mqtt")
@@ -182,26 +187,23 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
             msg = ""
 
             if empty_container_msg and storage[f"pump{pump_id}"]:
-                filling_persentage = round(_remaining / storage[f"pump{pump_id}"] * 100, 1)
-                if 0 < filling_persentage < empty_container_lvl:
-                    msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: Container {filling_persentage}% full%0A"
-                elif filling_persentage == 0:
+                filling_percentage = round(_remaining / storage[f"pump{pump_id}"] * 100, 1)
+                if 0 < filling_percentage < empty_container_lvl:
+                    msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: Container {filling_percentage}% full%0A"
+                elif filling_percentage == 0:
                     msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: Container empty%0A"
 
             if dose_msg:
                 msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: "
                 msg += f"Dose {pump_dose}mL/{execution_time}sec, {_remaining}/{_storage}mL%0A"
+            print("ADD notification")
             if telegram and (empty_container_msg or dose_msg):
-                telegram_buffer.append(msg)
+                print("add telegram notification")
+                await telegram_worker.add_message(msg)
 
-                while len(telegram_buffer) > 50:
-                    print("Warning! Telegram buffer overflow")
-                    del telegram_buffer[0]
             if whatsapp_apikey and whatsapp_number and (empty_container_msg or dose_msg):
-                whatsapp_buffer.append(msg)
-                while len(whatsapp_buffer) > 10:
-                    print("Warning! WhatsApp buffer overflow")
-                    del whatsapp_buffer[0]
+                print("add whatsapp notification")
+                await whatsapp_worker.add_message(msg)
 
     wday = time.localtime()[6]
     print(f"Check weekdays: {wday} in {weekdays}")
@@ -209,7 +211,7 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
         print("Skip dosing job")
         return
 
-    print(f"Desired {to_float(desired_rpm_rate)}rpm, mstep")
+    print(f"Desired {desired_rpm_rate}rpm, mstep")
     if inversion[pump_id - 1]:
         direction = 0 if direction == 1 else 1
 
@@ -219,11 +221,12 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
         if result:
             print(f"Limits check pass")
             calc_time = move_with_rpm(mks, desired_rpm_rate, execution_time, rpm_table, direction)
-            change_remaining()
+            await change_remaining()
             return [calc_time]
     else:
         calc_time = move_with_rpm(mks, desired_rpm_rate, execution_time, rpm_table, direction)
-        change_remaining()
+        await change_remaining()
+        await asyncio.sleep(1)
         return [calc_time]
     print(f"Limits check not pass, skip dosing")
     return False
@@ -532,7 +535,6 @@ async def dose(request):
     task = asyncio.create_task(
         command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], desired_rpm_rate, execution_time,
                                    direction, rpm_table, pump_dose=amount, pump_id=id))
-    # await uart_buffer.process_commands()
     await task
 
     await callback_result_future.wait()
@@ -1377,116 +1379,9 @@ async def storage_tracker():
         await asyncio.sleep(3600)
 
 
-telegram_buffer = []
-
-
-async def telegram_worker():
-    global telegram_buffer
-    global ota_lock
-    if telegram:
-        telegram_webhook = Telegram(telegram)
-    else:
-        return
-    while not time_synced:
-        await asyncio.sleep(1)
-    print("Start Telegram CallmeBot")
-    while True:
-        while ota_lock:
-            await asyncio.sleep(5)
-
-        print("Telegram worker cycle")
-
-        if telegram_buffer:
-            print("Try to send telegram notification")
-            _telegram_buffer = telegram_buffer.copy()
-            print(_telegram_buffer)
-            if not wifi.isconnected():
-                print("Telegram notification- wait for wifi")
-            while not wifi.isconnected():
-                await asyncio.sleep(0.5)
-
-            try:
-                _msg = ""
-                for _ in _telegram_buffer:
-                    _msg = _msg + _
-                print("Send message:\r\n", _msg.replace("%0A", "\r\n"))
-                response = telegram_webhook.send_message(_msg)
-                if not response:
-                    print("Telegram nofirication crash")
-                elif response.status_code == 200 and "Telegram Error Code: 400" not in response.text:
-                    print("Telegram notification succeed")
-                    telegram_buffer = []
-                elif response.status_code in [404, 203, 414]:
-                    print("Telegram notification rejected")
-                    telegram_buffer = []
-                else:
-                    print("Telegram notification failed")
-                if response:
-                    print("Status Code: ", response.status_code, "\n", response.text)
-            except Exception as e:
-                print("Failed to send Telegram message: ", e)
-        print("Telegram worker cycle finished, buffer:", telegram_buffer)
-
-        await asyncio.sleep(600)
-
-
-whatsapp_buffer = []
-
-
-async def whatsapp_worker():
-    global whatsapp_buffer
-    global ota_lock
-    if whatsapp_number and whatsapp_apikey:
-        whatsapp_webhook = Whatsapp(whatsapp_number, whatsapp_apikey)
-    else:
-        return
-    while not time_synced:
-        await asyncio.sleep(1)
-    print("Start WhatsApp CallmeBot")
-    while True:
-        while ota_lock:
-            await asyncio.sleep(5)
-        print("WhatsApp worker cycle")
-
-        if whatsapp_buffer:
-            print("Try to send Whatsapp notification")
-            _whatsapp_buffer = whatsapp_buffer.copy()
-            print(_whatsapp_buffer)
-            if not wifi.isconnected():
-                print("WhatsApp notification- wait for wifi")
-            while not wifi.isconnected():
-                await asyncio.sleep(0.5)
-            try:
-                _msg = ""
-                for _ in _whatsapp_buffer:
-                    _msg = _msg + _
-                print("Send message:\r\n", _msg.replace("%0A", "\r\n"))
-                response = whatsapp_webhook.send_message(_msg)
-                if not response:
-                    print("Whatsapp nofirication crash")
-                elif response.status_code == 200:
-                    print("Whatsapp notification succeed")
-                    whatsapp_buffer = []
-                elif response.status_code in [404, 203, 414]:
-                    print("Whatsapp notification rejected")
-                    whatsapp_buffer = []
-                else:
-                    print("Whatsapp notification failed")
-                if response:
-                    print("Status Code: ", response.status_code, "\n", response.text)
-
-            except Exception as e:
-                print("Failed to send Whatsapp message: ", e)
-        print("Whatsapp worker cycle finished, buffer:", whatsapp_buffer)
-
-        await asyncio.sleep(600)
-
-
 async def main():
     print("Start Web server")
     from connect_wifi import maintain_wifi
-
-    # Importing external @app.route to support add-ons
 
     tasks = [
         asyncio.create_task(adc_sampling()),
@@ -1499,8 +1394,7 @@ async def main():
         asyncio.create_task(mqtt_worker()),
         asyncio.create_task(process_mqtt_cmd()),
         asyncio.create_task(storage_tracker()),
-        asyncio.create_task(telegram_worker()),
-        asyncio.create_task(whatsapp_worker())
+        asyncio.create_task(telegram_worker.process_messages())
     ]
 
     # load async tasks from extension
