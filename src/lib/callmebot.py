@@ -45,7 +45,6 @@ class Whatsapp:
         return response
 
 
-
 class Telegram:
     def __init__(self, username):
         self.USERNAME = username
