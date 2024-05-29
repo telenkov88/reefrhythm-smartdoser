@@ -275,7 +275,8 @@
                 <label class="form-check-label" for="doseMsg">Dosing</label>
             </div>
             <label for="alarmLvl" class="form-label mt-1">Notification threshold %</label>
-            <input type="tel" style="width: 300px" class="form-control" id="alarmLvl"  placeholder="Enter number 0-100" oninput="checkAlarmLvl()">
+            <input type="tel" style="width: 300px" class="form-control" id="alarmLvl" placeholder="Enter number 0-100"
+                   oninput="checkAlarmLvl()">
         </fieldset>
 
     </div>
@@ -397,7 +398,7 @@
         if (time === "") {
             return ""
         }
-        console.log("convert time to 12H format: ", time)
+        //console.log("convert time to 12H format: ", time)
         const [hours24, minutes] = time.split(':');
 
         // Parse the hour component to an integer
@@ -411,12 +412,11 @@
         const formattedMinutes = minutes.padStart(2, '0');
 
         // Return the formatted time string in 12-hour format
-        console.log("New format:", `${hours12}:${formattedMinutes} ${suffix}`)
+        //console.log("New format:", `${hours12}:${formattedMinutes} ${suffix}`)
         return `${hours12}:${formattedMinutes} ${suffix}`;
     }
 
     function switchColor() {
-        console.log(this.value)
         let color
         if (document.getElementById("colorSelect").value === 'auto') {
             const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
@@ -428,6 +428,7 @@
         } else {
             color = document.getElementById("colorSelect").value
         }
+        console.log("Set Color Mode: ", color)
         document.documentElement.setAttribute('data-bs-theme', color)
     }
 
@@ -444,18 +445,14 @@
     };
 
     eventSource.onerror = function (event) {
-        if (event.currentTarget.readyState === EventSource.CLOSED) {
-            console.log("SSE connection was closed.");
-        } else {
-            console.log("SSE Error occurred: ", event);
-        }
+        console.log("SSE connection was closed.");
     };
 
     eventSource.onmessage = function (event) {
         const data = JSON.parse(event.data);
         console.log("got sse data: ", data)
         let time = data["time"]
-        console.log("time format:", document.getElementById("timeFormat").value)
+        //console.log("time format:", document.getElementById("timeFormat").value)
         if (document.getElementById("timeFormat").value === "1") {
             time = convertTo12HFormat(data["time"])
         }
@@ -488,7 +485,7 @@
             telegram = document.getElementById("telegram").value
         }
 
-        if (checkAlarmLvl()){
+        if (checkAlarmLvl()) {
             emptyContainerAlarmLvl = Number(document.getElementById("alarmLvl").value)
         }
 
@@ -573,29 +570,30 @@
     }
 
     function loadCdnCSS(cdn_css, fallback_css) {
-        // Remove existing stylesheet if it exists
-        var existingLink = document.querySelector("link[rel='stylesheet']");
-        if (existingLink) {
-            document.head.removeChild(existingLink);
-        }
+        var existingLinks = document.querySelectorAll("link[rel='stylesheet'][href*='" + cdn_css + "'], link[rel='stylesheet'][href*='" + fallback_css + "']");
 
-        // Create new link for the new CSS
-        var link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = cdn_css;
-        link.onerror = function () {
+        // Iterate over all selected links and remove them if they are children of document.head
+        existingLinks.forEach(function (link) {
+            if (document.head.contains(link)) {  // Check if the link is a child of document.head
+                try {
+                    console.log("Remove Styles link", link)
+                    document.head.removeChild(link);
+                } catch (error) {
+                    console.error("Failed to remove existing link:", link, error);
+                }
+            }
+        });
+
+        // Create new link element for the CDN CSS
+        var newLink = document.createElement('link');
+        newLink.rel = 'stylesheet';
+        newLink.href = cdn_css;
+        newLink.onerror = function () {
             console.error("Failed to load CDN CSS. Loading fallback.");
-            loadLocalCSS(fallback_css);
+            loadLocalCSS(fallback_css); // Ensure loadLocalCSS function is defined or replace it with your function
         };
-        document.head.appendChild(link);
-    }
-
-    function loadLocalCSS(local_css) {
-        console.log("Loading local CSS: ", local_css)
-        var link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = local_css;
-        document.head.appendChild(link);
+        console.log("Add Styles: ", newLink)
+        document.head.appendChild(newLink);
     }
 
 
@@ -614,7 +612,7 @@
         whatsappApikey = getCookie("whatsappApikey")
 
         emptyContainerMsg = getCookie("emptyContainerMsg")
-        emptyContainerAlarmLvl =getCookie("emptyContainerLvl")
+        emptyContainerAlarmLvl = getCookie("emptyContainerLvl")
         doseMsg = getCookie("doseMsg")
 
         document.getElementById("telegram").value = telegram
@@ -635,7 +633,7 @@
         pumpNames = JSON.parse(getCookie("pumpNames"))["pumpNames"]
         pumpInversion = JSON.parse(getCookie("pumpInversion"))["inversion"]
         pumpsCurrent = JSON.parse(getCookie('pumpsCurrent'))["current"]
-        console.log(">>>>>>>>>>", pumpsCurrent)
+        //console.log("Pump Current:", pumpsCurrent)
 
         const current_ssid = getCookie('current_ssid');
         if (current_ssid === "") {

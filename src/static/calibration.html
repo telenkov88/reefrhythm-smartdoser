@@ -163,21 +163,30 @@
     }
 
     function loadCdnCSS(cdn_css, fallback_css) {
-        // Remove existing stylesheet if it exists
-        var existingLink = document.querySelector("link[rel='stylesheet']");
-        if (existingLink) {
-            document.head.removeChild(existingLink);
-        }
+        var existingLinks = document.querySelectorAll("link[rel='stylesheet'][href*='" + cdn_css + "'], link[rel='stylesheet'][href*='" + fallback_css + "']");
 
-        // Create new link for the new CSS
-        var link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = cdn_css;
-        link.onerror = function () {
+        // Iterate over all selected links and remove them if they are children of document.head
+        existingLinks.forEach(function (link) {
+            if (document.head.contains(link)) {  // Check if the link is a child of document.head
+                try {
+                    console.log("Remove Styles link", link)
+                    document.head.removeChild(link);
+                } catch (error) {
+                    console.error("Failed to remove existing link:", link, error);
+                }
+            }
+        });
+
+        // Create new link element for the CDN CSS
+        var newLink = document.createElement('link');
+        newLink.rel = 'stylesheet';
+        newLink.href = cdn_css;
+        newLink.onerror = function () {
             console.error("Failed to load CDN CSS. Loading fallback.");
-            loadLocalCSS(fallback_css);
+            loadLocalCSS(fallback_css); // Ensure loadLocalCSS function is defined or replace it with your function
         };
-        document.head.appendChild(link);
+        console.log("Add Styles: ", newLink)
+        document.head.appendChild(newLink);
     }
 
     function loadLocalCSS(local_css) {
