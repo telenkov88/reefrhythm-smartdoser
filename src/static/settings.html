@@ -4,20 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-
-    <script>
-        function loadLocalScript(local_js) {
-            console.log("Loading local JS: ", local_js)
-            var script = document.createElement('script');
-            script.src = local_js;
-            document.head.appendChild(script);
-        }
-
-    </script>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-            onerror="loadLocalScript('javascript/bootstrap.bundle.min.js')"></script>
-
     <title>wifi settings</title>
     <style>
         label, select, input, button {
@@ -27,7 +13,8 @@
 
 
     </style>
-    <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg">
+
 
 </head>
 <body>
@@ -435,7 +422,12 @@
     function switchTheme() {
         theme = document.getElementById("themeSelect").value
         console.log("New theme", theme)
-        loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/' + theme + '/bootstrap.min.css', 'styles/' + theme + '/bootstrap.min.css');
+        if (CaptivePortal) {
+            loadLocalCSS('styles/' + theme + '/bootstrap.min.css')
+        } else {
+            loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/' + theme + '/bootstrap.min.css', 'styles/' + theme + '/bootstrap.min.css');
+
+        }
     }
 
 
@@ -569,42 +561,97 @@
         }
     }
 
-    function loadCdnCSS(cdn_css, fallback_css) {
-        var existingLinks = document.querySelectorAll("link[rel='stylesheet'][href*='" + cdn_css + "'], link[rel='stylesheet'][href*='" + fallback_css + "']");
+    function removeCSS(name){
+        let existingLinks = document.querySelectorAll("link[rel='stylesheet']");
 
-        // Iterate over all selected links and remove them if they are children of document.head
+        // Iterate over all selected links and remove them if they match the base URLs
         existingLinks.forEach(function (link) {
-            if (document.head.contains(link)) {  // Check if the link is a child of document.head
+            //console.log(link.href)
+            if (link.href.includes(name)) {
                 try {
-                    console.log("Remove Styles link", link)
+                    console.log("Removing existing link:", link);
                     document.head.removeChild(link);
                 } catch (error) {
                     console.error("Failed to remove existing link:", link, error);
                 }
             }
         });
+    }
+
+    function loadCdnCSS(cdn_css, fallback_css, cashing = true) {
+        removeCSS("bootstrap.min.css")
 
         // Create new link element for the CDN CSS
         var newLink = document.createElement('link');
         newLink.rel = 'stylesheet';
-        newLink.href = cdn_css;
+        if (cashing) {
+            newLink.href = cdn_css
+        } else {
+            newLink.href = cdn_css + "?" + Date.now();  // Add timestamp to prevent caching issues
+        }
         newLink.onerror = function () {
             console.error("Failed to load CDN CSS. Loading fallback.");
-            loadLocalCSS(fallback_css); // Ensure loadLocalCSS function is defined or replace it with your function
+            loadLocalCSS(fallback_css);
         };
-        console.log("Add Styles: ", newLink)
+        console.log("Adding new CDN CSS link:", newLink);
         document.head.appendChild(newLink);
+    }
+
+    function loadLocalCSS(local_css) {
+        removeCSS("bootstrap.min.css")
+
+        console.log("Loading local CSS: ", local_css)
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = local_css;
+        document.head.appendChild(link);
+    }
+
+    function loadCdnScript(cnd_js, fallback_js) {
+        console.log("Loading CDN JS: ", cnd_js)
+        var script = document.createElement('script');
+        script.src = cnd_js;
+        script.onerror = function () {
+            console.error("Failed to load CDN js. Loading fallback.");
+            loadLocalScript(fallback_js);
+        };
+        document.head.appendChild(script);
+    }
+
+    function loadLocalScript(local_js) {
+        console.log("Loading local JS: ", local_js)
+        var script = document.createElement('script');
+        script.src = local_js;
+        document.head.appendChild(script);
     }
 
 
     document.addEventListener('DOMContentLoaded', function () {
         console.log("Cookie update event")
+
+        const current_ssid = getCookie('current_ssid');
+        if (current_ssid === "") {
+            CaptivePortal = true
+        }
+
+        if (CaptivePortal){
+            loadLocalScript('javascript/bootstrap.bundle.min.js')
+        }else {
+            loadCdnScript("https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js",
+                'javascript/bootstrap.bundle.min.js')
+        }
+
+
         const color = getCookie("color")
         theme = getCookie("theme")
         // Initiate loading CDN CSS with fallback
         document.getElementById("colorSelect").value = color
         document.getElementById("themeSelect").value = theme
-        loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/' + theme + '/bootstrap.min.css', 'styles/' + theme + '/bootstrap.min.css');
+        if (CaptivePortal) {
+            loadLocalCSS('styles/' + theme + '/bootstrap.min.css');
+        } else {
+            loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/' + theme + '/bootstrap.min.css', 'styles/' + theme + '/bootstrap.min.css');
+        }
         switchColor()
 
         telegram = getCookie("telegram")
@@ -635,10 +682,6 @@
         pumpsCurrent = JSON.parse(getCookie('pumpsCurrent'))["current"]
         //console.log("Pump Current:", pumpsCurrent)
 
-        const current_ssid = getCookie('current_ssid');
-        if (current_ssid === "") {
-            CaptivePortal = true
-        }
 
         document.getElementById('hostName').value = getCookie('hostname');
         document.getElementById('mac').value = getCookie('Mac')

@@ -21,7 +21,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"
             onerror="loadLocalScript('javascript/chart.min.js')"></script>
 
-    <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg">
 
     <style>
         header {
@@ -362,7 +362,7 @@
             }
         } else {
             if (timeFormat === 1) {
-                end_time = convertTo24HFormat(end_time)+":00"
+                end_time = convertTo24HFormat(end_time) + ":00"
             } else {
                 end_time += ":00"
             }
@@ -400,14 +400,15 @@
         document.documentElement.setAttribute('data-bs-theme', color_mod)
     }
 
-    function loadCdnCSS(cdn_css, fallback_css) {
-        var existingLinks = document.querySelectorAll("link[rel='stylesheet'][href*='" + cdn_css + "'], link[rel='stylesheet'][href*='" + fallback_css + "']");
+    function loadCdnCSS(cdn_css, fallback_css, cashing = true) {
+        var existingLinks = document.querySelectorAll("link[rel='stylesheet']");
 
-        // Iterate over all selected links and remove them if they are children of document.head
+        // Iterate over all selected links and remove them if they match the base URLs
         existingLinks.forEach(function (link) {
-            if (document.head.contains(link)) {  // Check if the link is a child of document.head
+            //console.log(link.href)
+            if (link.href.includes("bootstrap.min.css")) {
                 try {
-                    console.log("Remove Styles link", link)
+                    console.log("Removing existing link:", link);
                     document.head.removeChild(link);
                 } catch (error) {
                     console.error("Failed to remove existing link:", link, error);
@@ -418,12 +419,16 @@
         // Create new link element for the CDN CSS
         var newLink = document.createElement('link');
         newLink.rel = 'stylesheet';
-        newLink.href = cdn_css;
+        if (cashing) {
+            newLink.href = cdn_css
+        } else {
+            newLink.href = cdn_css + "?" + Date.now();  // Add timestamp to prevent caching issues
+        }
         newLink.onerror = function () {
             console.error("Failed to load CDN CSS. Loading fallback.");
-            loadLocalCSS(fallback_css); // Ensure loadLocalCSS function is defined or replace it with your function
+            loadLocalCSS(fallback_css);
         };
-        console.log("Add Styles: ", newLink)
+        console.log("Adding new CDN CSS link:", newLink);
         document.head.appendChild(newLink);
     }
 
@@ -714,7 +719,7 @@
             });
     }
 
-    function convertTo12HFormat(time, full=false) {
+    function convertTo12HFormat(time, full = false) {
         if (time === "") {
             return "";
         }
@@ -739,7 +744,7 @@
 
         // Return the formatted time string in 12-hour format
         let formattedTime
-        if (full){
+        if (full) {
             formattedTime = `${hours12}:${formattedMinutes}:${formattedSeconds} ${suffix}`;
         } else {
             formattedTime = `${hours12}:${formattedMinutes} ${suffix}`;
@@ -1232,7 +1237,7 @@
             } else {
                 textContent += "CCW\n";
             }
-            if (timeFormat){
+            if (timeFormat) {
                 textContent += convertTo12HFormat(point["start_time"]) + "-"
             } else {
                 textContent += point["start_time"] + "-"
@@ -1244,7 +1249,7 @@
                 end_time = point["end_time"]
             }
 
-            if (timeFormat){
+            if (timeFormat) {
                 textContent += convertTo12HFormat(end_time) + ", "
             } else {
                 textContent += end_time + ", "
@@ -1298,26 +1303,25 @@
 
 
             pointCell.textContent = textContent
-            if (timeFormat){
+            if (timeFormat) {
                 pointCell.onclick = function () {
-                showSchedModal(point['totalAmount'],
-                    point['amount'],
-                    point['frequency'],
-                    point['duration'],
-                    convertTo12HFormat(point['start_time']),
-                    convertTo12HFormat(point['end_time']))
+                    showSchedModal(point['totalAmount'],
+                        point['amount'],
+                        point['frequency'],
+                        point['duration'],
+                        convertTo12HFormat(point['start_time']),
+                        convertTo12HFormat(point['end_time']))
                 }
-            }else {
+            } else {
                 pointCell.onclick = function () {
-                showSchedModal(point['totalAmount'],
-                    point['amount'],
-                    point['frequency'],
-                    point['duration'],
-                    point['start_time'],
-                    point['end_time'])
+                    showSchedModal(point['totalAmount'],
+                        point['amount'],
+                        point['frequency'],
+                        point['duration'],
+                        point['start_time'],
+                        point['end_time'])
                 }
             }
-
 
 
             // Delete button cell
