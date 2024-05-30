@@ -238,34 +238,48 @@
 
     <div class="tab-pane fade container" id="notificationtab" role="tabpanel">
         <h2 class="mt-2">CallbeBot</h2>
-        <label for="colorSelect" class="form-label mt-1">Whatsapp number</label>
-        <input type="tel" style="width: 300px" class="form-control" id="whatsappNumber"
-               placeholder="Enter number 99111888444" oninput="checkWhatsAppInput()">
 
-        <label for="colorSelect" class="form-label mt-1">Whatsapp Api Key</label>
-        <input type="number" style="width: 300px" class="form-control" id="whatsappApiKey"
-               placeholder="Enter whatsapp api key" oninput="checkWhatsAppInput()">
-
-
-        <label for="themeSelect" class="form-label mt-1">Telegram nickname</label>
-        <input type="text" style="width: 300px" class="form-control" id="telegram"
-               placeholder="Enter telegram @nickname" oninput="checkTelegramNickname()">
+        <label for="alarmLvl" class="form-label mt-1">Notification threshold %</label>
+        <input type="tel" style="width: 300px" class="form-control" id="alarmLvl" placeholder="Enter number 0-100"
+               oninput="checkAlarmLvl()">
 
         <fieldset>
-            <legend class="mt-4">Notifications</legend>
-            <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" id="emptyContainerMsg" checked="">
-                <label class="form-check-label" for="emptyContainerMsg">Empty container</label>
+            <legend class="mt-4">Whatsapp Notifications</legend>
+
+            <label for="colorSelect" class="form-label mt-1">Whatsapp number</label>
+            <input type="tel" style="width: 300px" class="form-control" id="whatsappNumber"
+                   placeholder="Enter number 99111888444" oninput="checkWhatsAppInput()">
+
+            <label for="colorSelect" class="form-label mt-1">Whatsapp Api Key</label>
+            <input type="number" style="width: 300px" class="form-control" id="whatsappApiKey"
+                   placeholder="Enter whatsapp api key" oninput="checkWhatsAppInput()">
+
+            <div class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" id="whatsappEmptyContainerMsg" checked="">
+                <label class="form-check-label" for="whatsappEmptyContainerMsg">Empty container</label>
             </div>
             <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" id="doseMsg" checked="">
-                <label class="form-check-label" for="doseMsg">Dosing</label>
+                <input class="form-check-input" type="checkbox" id="whatsappDoseMsg" checked="">
+                <label class="form-check-label" for="whatsappDoseMsg">Dosing</label>
             </div>
-            <label for="alarmLvl" class="form-label mt-1">Notification threshold %</label>
-            <input type="tel" style="width: 300px" class="form-control" id="alarmLvl" placeholder="Enter number 0-100"
-                   oninput="checkAlarmLvl()">
         </fieldset>
 
+
+        <fieldset>
+            <legend class="mt-4">Telegram Notifications</legend>
+            <label for="themeSelect" class="form-label mt-1">Telegram nickname</label>
+            <input type="text" style="width: 300px" class="form-control" id="telegram"
+                   placeholder="Enter telegram @nickname" oninput="checkTelegramNickname()">
+
+            <div class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" id="telegramEmptyContainerMsg" checked="">
+                <label class="form-check-label" for="telegramEmptyContainerMsg">Empty container</label>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="telegramDoseMsg" checked="">
+                <label class="form-check-label" for="telegramDoseMsg">Dosing</label>
+            </div>
+        </fieldset>
     </div>
 
 
@@ -306,9 +320,11 @@
     let telegram
     let whatsappNumber
     let whatsappApikey
-    let emptyContainerMsg
     let emptyContainerAlarmLvl
-    let doseMsg
+    let whatsappEmptyContainerMsg
+    let telegramEmptyContainerMsg
+    let whatsappDoseMsg
+    let telegramDoseMsg
 
 
     function checkWhatsAppInput() {
@@ -501,8 +517,10 @@
             "telegram": telegram,
             "whatsappNumber": whatsappNumber,
             "whatsappApikey": whatsappApikey,
-            "emptyContainerMsg": document.getElementById("emptyContainerMsg").checked ? 1 : 0,
-            "doseMsg": document.getElementById("doseMsg").checked ? 1 : 0,
+            "whatsappEmptyContainerMsg": document.getElementById("whatsappEmptyContainerMsg").checked ? 1 : 0,
+            "telegramEmptyContainerMsg": document.getElementById("telegramEmptyContainerMsg").checked ? 1 : 0,
+            "whatsappDoseMsg": document.getElementById("whatsappDoseMsg").checked ? 1 : 0,
+            "telegramDoseMsg": document.getElementById("telegramDoseMsg").checked ? 1 : 0,
             "emptyContainerLvl": emptyContainerAlarmLvl
         };
         console.log("upload data", data)
@@ -561,7 +579,7 @@
         }
     }
 
-    function removeCSS(name){
+    function removeCSS(name) {
         let existingLinks = document.querySelectorAll("link[rel='stylesheet']");
 
         // Iterate over all selected links and remove them if they match the base URLs
@@ -634,9 +652,9 @@
             CaptivePortal = true
         }
 
-        if (CaptivePortal){
+        if (CaptivePortal) {
             loadLocalScript('javascript/bootstrap.bundle.min.js')
-        }else {
+        } else {
             loadCdnScript("https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js",
                 'javascript/bootstrap.bundle.min.js')
         }
@@ -658,16 +676,24 @@
         whatsappNumber = getCookie("whatsappNumber")
         whatsappApikey = getCookie("whatsappApikey")
 
-        emptyContainerMsg = getCookie("emptyContainerMsg")
+        whatsappEmptyContainerMsg = getCookie("whatsappEmptyContainerMsg")
+        telegramEmptyContainerMsg = getCookie("telegramEmptyContainerMsg")
+
         emptyContainerAlarmLvl = getCookie("emptyContainerLvl")
-        doseMsg = getCookie("doseMsg")
+        telegramDoseMsg = getCookie("telegramDoseMsg")
+        whatsappDoseMsg = getCookie("whatsappDoseMsg")
+
 
         document.getElementById("telegram").value = telegram
         document.getElementById("whatsappNumber").value = whatsappNumber
         document.getElementById("whatsappApiKey").value = whatsappApikey
 
-        document.getElementById("doseMsg").checked = !!Number(doseMsg);
-        document.getElementById("emptyContainerMsg").checked = !!Number(emptyContainerMsg);
+        document.getElementById("telegramDoseMsg").checked = !!Number(telegramDoseMsg);
+        document.getElementById("whatsappDoseMsg").checked = !!Number(whatsappDoseMsg);
+
+        document.getElementById("telegramEmptyContainerMsg").checked = !!Number(telegramEmptyContainerMsg);
+        document.getElementById("whatsappEmptyContainerMsg").checked = !!Number(whatsappEmptyContainerMsg);
+
         document.getElementById("alarmLvl").value = emptyContainerAlarmLvl
 
         checkAlarmLvl()

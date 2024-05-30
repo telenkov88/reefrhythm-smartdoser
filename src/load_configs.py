@@ -222,21 +222,30 @@ if "telegram" not in settings:
 else:
     telegram = settings["telegram"]
 
-if "empty_container_msg" not in settings:
-    empty_container_msg = 0
+if "telegram_empty_container_msg" not in settings:
+    telegram_empty_container_msg = 0
 else:
-    empty_container_msg = settings["empty_container_msg"]
+    telegram_empty_container_msg = settings["telegram_empty_container_msg"]
+
+if "whatsapp_empty_container_msg" not in settings:
+    whatsapp_empty_container_msg = 0
+else:
+    whatsapp_empty_container_msg = settings["whatsapp_empty_container_msg"]
+
+if "telegram_dose_msg" not in settings:
+    telegram_dose_msg = 0
+else:
+    telegram_dose_msg = settings["telegram_dose_msg"]
+
+if "whatsapp_dose_msg" not in settings:
+    whatsapp_dose_msg = 0
+else:
+    whatsapp_dose_msg = settings["whatsapp_dose_msg"]
 
 if "empty_container_lvl" not in settings:
     empty_container_lvl = 0
 else:
     empty_container_lvl = settings["empty_container_lvl"]
-
-if "dose_msg" not in settings:
-    dose_msg = 0
-else:
-    dose_msg = settings["dose_msg"]
-
 
 PUMP_NUM = settings["pump_number"]
 
