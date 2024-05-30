@@ -189,8 +189,8 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
 
             msg = ""
             if whatsapp_dose_msg or telegram_dose_msg:
-                msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: " \
-                       f"Dose {pump_dose}mL/{execution_time}sec, {_remaining}/{_storage}mL"
+                msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: "
+                msg += f"Dose {pump_dose}mL/{execution_time}sec, {_remaining}/{_storage}mL"
             if msg and telegram_dose_msg:
                 await telegram_worker.add_message(msg)
             if msg and whatsapp_dose_msg:
@@ -885,6 +885,9 @@ def setting_process_post(request):
     new_mqtt_broker = request.json["mqttBroker"]
     new_mqtt_login = request.json["mqttLogin"]
     new_mqtt_password = request.json["mqttPassword"]
+    if not new_mqtt_password and mqtt_password and mqtt_broker:
+        # Save mqtt password if mqtt broker set
+        new_mqtt_password = mqtt_password
 
     new_analog_period = request.json["analogPeriod"]
 
