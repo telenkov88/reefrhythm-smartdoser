@@ -1244,6 +1244,11 @@ async def mqtt_worker():
         mqtt_client.publish(last_will_topic, 'Connected', retain=True)
         print("mqtt publish version:", RELEASE_TAG)
         mqtt_client.publish(f"{doser_topic}/version", RELEASE_TAG, retain=True)
+        ip_addr = wifi.ifconfig()[0]
+        print("mqtt publish ip:", ip_addr)
+        mqtt_client.publish(f"{doser_topic}/ip", ip_addr, retain=True)
+        print("mqtt publish hostname:", ip_addr)
+        mqtt_client.publish(f"{doser_topic}/hostname", hostname, retain=True)
 
         msg = {"free_mem": gc.mem_free() // 1024}
         mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
@@ -1262,6 +1267,11 @@ async def mqtt_worker():
             mqtt_client.publish(last_will_topic, 'Connected', retain=True)
             print("mqtt publish version:", RELEASE_TAG)
             mqtt_client.publish(f"{doser_topic}/version", RELEASE_TAG, retain=True)
+            ip_addr = wifi.ifconfig()[0]
+            print("mqtt publish ip:", ip_addr)
+            mqtt_client.publish(f"{doser_topic}/ip", ip_addr, retain=True)
+            print("mqtt publish hostname:", ip_addr)
+            mqtt_client.publish(f"{doser_topic}/hostname", hostname, retain=True)
             print("mqtt resubscribe")
             mqtt_client.resubscribe()
             mqtt_client.check_msg()
