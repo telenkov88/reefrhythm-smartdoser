@@ -156,11 +156,8 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
         weekdays = [0, 1, 2, 3, 4, 5, 6]
 
     async def change_remaining():
-        print(1)
-        print("\r\n CHANGE REMAINING!!!!!\r\n")
         print("id:", pump_id, " dose:", pump_dose)
         if pump_dose and pump_id is not None:
-            print("Inside pump_dose and pump_id check")
             _remaining = storage[f"remaining{pump_id}"] - pump_dose
             _remaining = max(0, _remaining)
             _storage = storage[f"pump{pump_id}"]
@@ -191,24 +188,24 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
             formatted_time = f"{hours:02}:{minutes:02}:{seconds:02}"
 
             msg = ""
+            if whatsapp_dose_msg or telegram_dose_msg:
+                msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: " \
+                       f"Dose {pump_dose}mL/{execution_time}sec, {_remaining}/{_storage}mL"
+            if msg and telegram_dose_msg:
+                await telegram_worker.add_message(msg)
+            if msg and whatsapp_dose_msg:
+                await whatsapp_worker.add_message(msg)
 
-            if empty_container_msg and storage[f"pump{pump_id}"]:
+            msg = ""
+            if (whatsapp_empty_container_msg or telegram_empty_container_msg) and storage[f"pump{pump_id}"]:
                 filling_percentage = round(_remaining / storage[f"pump{pump_id}"] * 100, 1)
                 if 0 < filling_percentage < empty_container_lvl:
-                    msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: Container {filling_percentage}% full%0A"
+                    msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: Container {filling_percentage}% full"
                 elif filling_percentage == 0:
-                    msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: Container empty%0A"
-
-            if dose_msg:
-                msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: "
-                msg += f"Dose {pump_dose}mL/{execution_time}sec, {_remaining}/{_storage}mL%0A"
-            print("ADD notification")
-            if telegram and (empty_container_msg or dose_msg):
-                print("add telegram notification")
+                    msg += f"{formatted_time} Pump{pump_id} {pump_names[pump_id - 1]}: Container empty"
+            if msg and telegram_empty_container_msg:
                 await telegram_worker.add_message(msg)
-
-            if whatsapp_apikey and whatsapp_number and (empty_container_msg or dose_msg):
-                print("add whatsapp notification")
+            if msg and whatsapp_empty_container_msg:
                 await whatsapp_worker.add_message(msg)
 
     wday = time.localtime()[6]
@@ -857,9 +854,15 @@ def setting_responce(request):
     response.set_cookie("telegram", telegram)
     response.set_cookie("whatsappNumber", whatsapp_number)
     response.set_cookie("whatsappApikey", whatsapp_apikey)
-    response.set_cookie("emptyContainerMsg", empty_container_msg)
+
+    response.set_cookie("whatsappEmptyContainerMsg", whatsapp_empty_container_msg)
+    response.set_cookie("telegramEmptyContainerMsg", telegram_empty_container_msg)
+
+    response.set_cookie("whatsappDoseMsg", whatsapp_dose_msg)
+    response.set_cookie("telegramDoseMsg", telegram_dose_msg)
+
     response.set_cookie("emptyContainerLvl", empty_container_lvl)
-    response.set_cookie("doseMsg", dose_msg)
+
 
     if 'ssid' in globals():
         response.set_cookie('current_ssid', ssid)
@@ -898,9 +901,12 @@ def setting_process_post(request):
     new_whatsapp_number = request.json["whatsappNumber"]
     new_whatsapp_apikey = request.json["whatsappApikey"]
 
-    new_empty_container_msg = int(request.json["emptyContainerMsg"])
+    new_whatsapp_empty_container_msg = int(request.json["whatsappEmptyContainerMsg"])
+    new_telegram_empty_container_msg = int(request.json["telegramEmptyContainerMsg"])
+    new_whatapp_dose_msg = int(request.json["whatsappDoseMsg"])
+    new_telegram_dose_msg = int(request.json["telegramDoseMsg"])
     new_empty_container_lvl = int(request.json["emptyContainerLvl"])
-    new_dose_msg = int(request.json["doseMsg"])
+
 
     if new_ssid and new_psw:
         with open("./config/wifi.json", "w") as f:
@@ -924,9 +930,11 @@ def setting_process_post(request):
                             "telegram": new_telegram,
                             "whatsapp_number": new_whatsapp_number,
                             "whatsapp_apikey": new_whatsapp_apikey,
-                            "empty_container_msg": new_empty_container_msg,
-                            "empty_container_lvl": new_empty_container_lvl,
-                            "dose_msg": new_dose_msg}))
+                            "whatsapp_empty_container_msg": new_whatsapp_empty_container_msg,
+                            "telegram_empty_container_msg": new_telegram_empty_container_msg,
+                            "whatsapp_dose_msg": new_whatapp_dose_msg,
+                            "telegram_dose_msg": new_telegram_dose_msg,
+                            "empty_container_lvl": new_empty_container_lvl}))
 
     with open("./config/analog_settings.json", "w") as f:
         json.dump(analog_settings, f)
@@ -1401,8 +1409,11 @@ async def main():
         asyncio.create_task(mqtt_worker()),
         asyncio.create_task(process_mqtt_cmd()),
         asyncio.create_task(storage_tracker()),
-        asyncio.create_task(telegram_worker.process_messages())
+        asyncio.create_task(telegram_worker.process_messages()),
+        asyncio.create_task(whatsapp_worker.process_messages())
     ]
+
+
 
     # load async tasks from extension
     if addon:

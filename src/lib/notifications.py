@@ -7,14 +7,14 @@ except ImportError:
     import asyncio
 
 # Seconds between notifications send attend
-DELAY = 5
+DELAY = 60*10
 # Retries if network error
 RETRIES = 3
 RETRY_DELAY = 20
 
 
 def quote_plus(s):
-    return s.replace(' ', '+').replace('&', '%26').replace('?', '%3F')
+    return s.replace('%', '%25').replace('+', '%2B').replace(' ', '+').replace('&', '%26').replace('?', '%3F') + '%0A'
 
 
 class MessagingService:
@@ -72,10 +72,10 @@ class Whatsapp(MessagingService):
 
         self.phone = phone
         self.apikey = apikey
+        self.buffer_size = 10
 
     def prepare_message_url(self, message):
-        message_encoded = quote_plus(message)
-        return f'https://api.callmebot.com/whatsapp.php?phone={self.phone}&apikey={self.apikey}&text={message_encoded}'
+        return f'https://api.callmebot.com/whatsapp.php?phone={self.phone}&apikey={self.apikey}&text={message}'
 
 
 class Telegram(MessagingService):
@@ -89,10 +89,10 @@ class Telegram(MessagingService):
             print("Telegram username ", username)
 
         self.username = username
+        self.buffer_size = 50
 
     def prepare_message_url(self, message):
-        message_encoded = quote_plus(message)
-        return f'https://api.callmebot.com/text.php?user={self.username}&text={message_encoded}'
+        return f'https://api.callmebot.com/text.php?user={self.username}&text={message}'
 
 
 class NotificationWorker:
@@ -102,6 +102,7 @@ class NotificationWorker:
         self.buffer = []
         self.lock = asyncio.Lock()
         self.active = True if service.active else False
+        self.message = ""
 
     async def add_message(self, message):
         if not self.active:
@@ -109,28 +110,36 @@ class NotificationWorker:
         async with self.lock:
             self.buffer.append(message)
             print(f"{self.service.service_name} add message: {message}")
+            while len(self.buffer) > self.service.buffer_size:
+                self.buffer.pop(0)
+
+    async def buffer_to_message(self):
+        self.message = ""
+        async with self.lock:
+            for msg in self.buffer:
+                self.message += quote_plus(msg)
+            self.buffer = []
 
     async def process_messages(self):
         while self.active:
             print(f"{self.service.service_name} Start")
-            print(f"await DELAY", DELAY)
+            print(f"{self.service.service_name} await {DELAY}sec")
             print("Wifi status: ", self.net.isconnected())
             print(self.buffer)
             await asyncio.sleep(DELAY)
             print(self.buffer)
             if self.buffer and self.net.isconnected():
-                async with self.lock:
-                    for message in list(self.buffer):
-                        url = self.service.prepare_message_url(message)
-                        _thread.start_new_thread(self.send_request_in_thread, (url,))
-                        self.buffer.remove(message)
+                await self.buffer_to_message()
+                url = self.service.prepare_message_url(self.message)
+                _thread.start_new_thread(self.send_request_in_thread, (url,))
             print(f"{self.service.service_name} Finish")
 
     def send_request_in_thread(self, url):
         asyncio.run(self.service.send_request(url))
 
 
-async def check_notification():
+# Example of notifications usage
+async def debug_notification():
     import time
     global DELAY
     DELAY = 5
@@ -144,6 +153,7 @@ async def check_notification():
     except ImportError:
         import json
         import network
+        # {"ssid": "ssid name", "password": "your wifi password"}
         with open("./config/wifi.json", 'r') as wifi_config:
             wifi_settings = json.load(wifi_config)
             wifi = network.WLAN(network.STA_IF)
@@ -156,11 +166,15 @@ async def check_notification():
             time.sleep(3)
     try:
         import json
+        # {"telegram": "nickname", "whatsapp_number": "phone number", "whatsapp_apikey": "callmebot apikey number"}
         with open("./config/settings.json", 'r') as read_file:
             settings = json.load(read_file)
             whatsapp_number = settings["whatsapp_number"]
             whatsapp_apikey = settings["whatsapp_apikey"]
+            print(f"Using whatsapp phone: {whatsapp_number}")
+
             telegram_nickname = settings["telegram"]
+            print(f"Using telegram nickname: {telegram_nickname}")
     except OSError:
         print("Using fake CallMeBot accounts")
         whatsapp_number = "whatsapp_phone"
@@ -176,10 +190,12 @@ async def check_notification():
     asyncio.create_task(whatsapp_worker.process_messages())
     asyncio.create_task(telegram_worker.process_messages())
 
-    await whatsapp_worker.add_message("Hello again from WhatsApp!")
-    await telegram_worker.add_message("Hello again from Telegram!")
+    for i in range(51):
+        await whatsapp_worker.add_message(f"WhatsApp&No{i}? 100% Run+Test")
+        await telegram_worker.add_message(f"Telegram&No{i}? 100% Run+Test")
+
     await asyncio.sleep(15)
 
 
 if __name__ == "__main__":
-    asyncio.run(check_notification())
+    asyncio.run(debug_notification())
