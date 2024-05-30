@@ -4,20 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-
-    <script>
-        function loadLocalScript(local_js) {
-            console.log("Loading local JS: ", local_js)
-            var script = document.createElement('script');
-            script.src = local_js;
-            document.head.appendChild(script);
-        }
-
-    </script>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-            onerror="loadLocalScript('javascript/bootstrap.bundle.min.js')"></script>
-
     <title>wifi settings</title>
     <style>
         label, select, input, button {
@@ -27,7 +13,8 @@
 
 
     </style>
-    <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg">
+
 
 </head>
 <body>
@@ -275,7 +262,8 @@
                 <label class="form-check-label" for="doseMsg">Dosing</label>
             </div>
             <label for="alarmLvl" class="form-label mt-1">Notification threshold %</label>
-            <input type="tel" style="width: 300px" class="form-control" id="alarmLvl"  placeholder="Enter number 0-100" oninput="checkAlarmLvl()">
+            <input type="tel" style="width: 300px" class="form-control" id="alarmLvl" placeholder="Enter number 0-100"
+                   oninput="checkAlarmLvl()">
         </fieldset>
 
     </div>
@@ -397,7 +385,7 @@
         if (time === "") {
             return ""
         }
-        console.log("convert time to 12H format: ", time)
+        //console.log("convert time to 12H format: ", time)
         const [hours24, minutes] = time.split(':');
 
         // Parse the hour component to an integer
@@ -411,12 +399,11 @@
         const formattedMinutes = minutes.padStart(2, '0');
 
         // Return the formatted time string in 12-hour format
-        console.log("New format:", `${hours12}:${formattedMinutes} ${suffix}`)
+        //console.log("New format:", `${hours12}:${formattedMinutes} ${suffix}`)
         return `${hours12}:${formattedMinutes} ${suffix}`;
     }
 
     function switchColor() {
-        console.log(this.value)
         let color
         if (document.getElementById("colorSelect").value === 'auto') {
             const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
@@ -428,13 +415,19 @@
         } else {
             color = document.getElementById("colorSelect").value
         }
+        console.log("Set Color Mode: ", color)
         document.documentElement.setAttribute('data-bs-theme', color)
     }
 
     function switchTheme() {
         theme = document.getElementById("themeSelect").value
         console.log("New theme", theme)
-        loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/' + theme + '/bootstrap.min.css', 'styles/' + theme + '/bootstrap.min.css');
+        if (CaptivePortal) {
+            loadLocalCSS('styles/' + theme + '/bootstrap.min.css')
+        } else {
+            loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/' + theme + '/bootstrap.min.css', 'styles/' + theme + '/bootstrap.min.css');
+
+        }
     }
 
 
@@ -444,18 +437,14 @@
     };
 
     eventSource.onerror = function (event) {
-        if (event.currentTarget.readyState === EventSource.CLOSED) {
-            console.log("SSE connection was closed.");
-        } else {
-            console.log("SSE Error occurred: ", event);
-        }
+        console.log("SSE connection was closed.");
     };
 
     eventSource.onmessage = function (event) {
         const data = JSON.parse(event.data);
         console.log("got sse data: ", data)
         let time = data["time"]
-        console.log("time format:", document.getElementById("timeFormat").value)
+        //console.log("time format:", document.getElementById("timeFormat").value)
         if (document.getElementById("timeFormat").value === "1") {
             time = convertTo12HFormat(data["time"])
         }
@@ -488,7 +477,7 @@
             telegram = document.getElementById("telegram").value
         }
 
-        if (checkAlarmLvl()){
+        if (checkAlarmLvl()) {
             emptyContainerAlarmLvl = Number(document.getElementById("alarmLvl").value)
         }
 
@@ -572,25 +561,45 @@
         }
     }
 
-    function loadCdnCSS(cdn_css, fallback_css) {
-        // Remove existing stylesheet if it exists
-        var existingLink = document.querySelector("link[rel='stylesheet']");
-        if (existingLink) {
-            document.head.removeChild(existingLink);
-        }
+    function removeCSS(name){
+        let existingLinks = document.querySelectorAll("link[rel='stylesheet']");
 
-        // Create new link for the new CSS
-        var link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = cdn_css;
-        link.onerror = function () {
+        // Iterate over all selected links and remove them if they match the base URLs
+        existingLinks.forEach(function (link) {
+            //console.log(link.href)
+            if (link.href.includes(name)) {
+                try {
+                    console.log("Removing existing link:", link);
+                    document.head.removeChild(link);
+                } catch (error) {
+                    console.error("Failed to remove existing link:", link, error);
+                }
+            }
+        });
+    }
+
+    function loadCdnCSS(cdn_css, fallback_css, cashing = true) {
+        removeCSS("bootstrap.min.css")
+
+        // Create new link element for the CDN CSS
+        var newLink = document.createElement('link');
+        newLink.rel = 'stylesheet';
+        if (cashing) {
+            newLink.href = cdn_css
+        } else {
+            newLink.href = cdn_css + "?" + Date.now();  // Add timestamp to prevent caching issues
+        }
+        newLink.onerror = function () {
             console.error("Failed to load CDN CSS. Loading fallback.");
             loadLocalCSS(fallback_css);
         };
-        document.head.appendChild(link);
+        console.log("Adding new CDN CSS link:", newLink);
+        document.head.appendChild(newLink);
     }
 
     function loadLocalCSS(local_css) {
+        removeCSS("bootstrap.min.css")
+
         console.log("Loading local CSS: ", local_css)
         var link = document.createElement('link');
         link.rel = 'stylesheet';
@@ -598,15 +607,51 @@
         document.head.appendChild(link);
     }
 
+    function loadCdnScript(cnd_js, fallback_js) {
+        console.log("Loading CDN JS: ", cnd_js)
+        var script = document.createElement('script');
+        script.src = cnd_js;
+        script.onerror = function () {
+            console.error("Failed to load CDN js. Loading fallback.");
+            loadLocalScript(fallback_js);
+        };
+        document.head.appendChild(script);
+    }
+
+    function loadLocalScript(local_js) {
+        console.log("Loading local JS: ", local_js)
+        var script = document.createElement('script');
+        script.src = local_js;
+        document.head.appendChild(script);
+    }
+
 
     document.addEventListener('DOMContentLoaded', function () {
         console.log("Cookie update event")
+
+        const current_ssid = getCookie('current_ssid');
+        if (current_ssid === "") {
+            CaptivePortal = true
+        }
+
+        if (CaptivePortal){
+            loadLocalScript('javascript/bootstrap.bundle.min.js')
+        }else {
+            loadCdnScript("https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js",
+                'javascript/bootstrap.bundle.min.js')
+        }
+
+
         const color = getCookie("color")
         theme = getCookie("theme")
         // Initiate loading CDN CSS with fallback
         document.getElementById("colorSelect").value = color
         document.getElementById("themeSelect").value = theme
-        loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/' + theme + '/bootstrap.min.css', 'styles/' + theme + '/bootstrap.min.css');
+        if (CaptivePortal) {
+            loadLocalCSS('styles/' + theme + '/bootstrap.min.css');
+        } else {
+            loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/' + theme + '/bootstrap.min.css', 'styles/' + theme + '/bootstrap.min.css');
+        }
         switchColor()
 
         telegram = getCookie("telegram")
@@ -614,7 +659,7 @@
         whatsappApikey = getCookie("whatsappApikey")
 
         emptyContainerMsg = getCookie("emptyContainerMsg")
-        emptyContainerAlarmLvl =getCookie("emptyContainerLvl")
+        emptyContainerAlarmLvl = getCookie("emptyContainerLvl")
         doseMsg = getCookie("doseMsg")
 
         document.getElementById("telegram").value = telegram
@@ -635,12 +680,8 @@
         pumpNames = JSON.parse(getCookie("pumpNames"))["pumpNames"]
         pumpInversion = JSON.parse(getCookie("pumpInversion"))["inversion"]
         pumpsCurrent = JSON.parse(getCookie('pumpsCurrent'))["current"]
-        console.log(">>>>>>>>>>", pumpsCurrent)
+        //console.log("Pump Current:", pumpsCurrent)
 
-        const current_ssid = getCookie('current_ssid');
-        if (current_ssid === "") {
-            CaptivePortal = true
-        }
 
         document.getElementById('hostName').value = getCookie('hostname');
         document.getElementById('mac').value = getCookie('Mac')

@@ -21,7 +21,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"
             onerror="loadLocalScript('javascript/chart.min.js')"></script>
 
-    <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg">
 
     <style>
         header {
@@ -362,7 +362,7 @@
             }
         } else {
             if (timeFormat === 1) {
-                end_time = convertTo24HFormat(end_time)+":00"
+                end_time = convertTo24HFormat(end_time) + ":00"
             } else {
                 end_time += ":00"
             }
@@ -400,22 +400,36 @@
         document.documentElement.setAttribute('data-bs-theme', color_mod)
     }
 
-    function loadCdnCSS(cdn_css, fallback_css) {
-        // Remove existing stylesheet if it exists
-        var existingLink = document.querySelector("link[rel='stylesheet']");
-        if (existingLink) {
-            document.head.removeChild(existingLink);
-        }
+    function loadCdnCSS(cdn_css, fallback_css, cashing = true) {
+        var existingLinks = document.querySelectorAll("link[rel='stylesheet']");
 
-        // Create new link for the new CSS
-        var link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = cdn_css;
-        link.onerror = function () {
+        // Iterate over all selected links and remove them if they match the base URLs
+        existingLinks.forEach(function (link) {
+            //console.log(link.href)
+            if (link.href.includes("bootstrap.min.css")) {
+                try {
+                    console.log("Removing existing link:", link);
+                    document.head.removeChild(link);
+                } catch (error) {
+                    console.error("Failed to remove existing link:", link, error);
+                }
+            }
+        });
+
+        // Create new link element for the CDN CSS
+        var newLink = document.createElement('link');
+        newLink.rel = 'stylesheet';
+        if (cashing) {
+            newLink.href = cdn_css
+        } else {
+            newLink.href = cdn_css + "?" + Date.now();  // Add timestamp to prevent caching issues
+        }
+        newLink.onerror = function () {
             console.error("Failed to load CDN CSS. Loading fallback.");
             loadLocalCSS(fallback_css);
         };
-        document.head.appendChild(link);
+        console.log("Adding new CDN CSS link:", newLink);
+        document.head.appendChild(newLink);
     }
 
     function loadLocalCSS(local_css) {
@@ -538,11 +552,7 @@
     };
 
     eventSource.onerror = function (event) {
-        if (event.currentTarget.readyState === EventSource.CLOSED) {
-            console.log("SSE connection was closed.");
-        } else {
-            console.log("SSE Error occurred: ", event);
-        }
+        console.log("SSE connection was closed.");
     };
 
     eventSource.onmessage = function (event) {
@@ -709,7 +719,7 @@
             });
     }
 
-    function convertTo12HFormat(time, full=false) {
+    function convertTo12HFormat(time, full = false) {
         if (time === "") {
             return "";
         }
@@ -734,7 +744,7 @@
 
         // Return the formatted time string in 12-hour format
         let formattedTime
-        if (full){
+        if (full) {
             formattedTime = `${hours12}:${formattedMinutes}:${formattedSeconds} ${suffix}`;
         } else {
             formattedTime = `${hours12}:${formattedMinutes} ${suffix}`;
@@ -1227,7 +1237,7 @@
             } else {
                 textContent += "CCW\n";
             }
-            if (timeFormat){
+            if (timeFormat) {
                 textContent += convertTo12HFormat(point["start_time"]) + "-"
             } else {
                 textContent += point["start_time"] + "-"
@@ -1239,7 +1249,7 @@
                 end_time = point["end_time"]
             }
 
-            if (timeFormat){
+            if (timeFormat) {
                 textContent += convertTo12HFormat(end_time) + ", "
             } else {
                 textContent += end_time + ", "
@@ -1293,26 +1303,25 @@
 
 
             pointCell.textContent = textContent
-            if (timeFormat){
+            if (timeFormat) {
                 pointCell.onclick = function () {
-                showSchedModal(point['totalAmount'],
-                    point['amount'],
-                    point['frequency'],
-                    point['duration'],
-                    convertTo12HFormat(point['start_time']),
-                    convertTo12HFormat(point['end_time']))
+                    showSchedModal(point['totalAmount'],
+                        point['amount'],
+                        point['frequency'],
+                        point['duration'],
+                        convertTo12HFormat(point['start_time']),
+                        convertTo12HFormat(point['end_time']))
                 }
-            }else {
+            } else {
                 pointCell.onclick = function () {
-                showSchedModal(point['totalAmount'],
-                    point['amount'],
-                    point['frequency'],
-                    point['duration'],
-                    point['start_time'],
-                    point['end_time'])
+                    showSchedModal(point['totalAmount'],
+                        point['amount'],
+                        point['frequency'],
+                        point['duration'],
+                        point['start_time'],
+                        point['end_time'])
                 }
             }
-
 
 
             // Delete button cell

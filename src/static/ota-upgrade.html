@@ -41,7 +41,8 @@
             margin-bottom: 10px;
         }
     </style>
-    <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg">
+
 
 </head>
 <body>
@@ -53,10 +54,10 @@
             <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarColor01">
-            <li class="nav-item">
-                <a class="nav-link" href="/">Dosing</a>
-            </li>
             <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="/">Dosing</a>
+                </li>
                 <li class="nav-item">
                     <a class="nav-link" href="/calibration">Calibration</a>
                 </li>
@@ -112,22 +113,36 @@
         document.documentElement.setAttribute('data-bs-theme', color_mod)
     }
 
-    function loadCdnCSS(cdn_css, fallback_css) {
-        // Remove existing stylesheet if it exists
-        var existingLink = document.querySelector("link[rel='stylesheet']");
-        if (existingLink) {
-            document.head.removeChild(existingLink);
-        }
+    function loadCdnCSS(cdn_css, fallback_css, cashing = true) {
+        var existingLinks = document.querySelectorAll("link[rel='stylesheet']");
 
-        // Create new link for the new CSS
-        var link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = cdn_css;
-        link.onerror = function () {
+        // Iterate over all selected links and remove them if they match the base URLs
+        existingLinks.forEach(function (link) {
+            //console.log(link.href)
+            if (link.href.includes("bootstrap.min.css")) {
+                try {
+                    console.log("Removing existing link:", link);
+                    document.head.removeChild(link);
+                } catch (error) {
+                    console.error("Failed to remove existing link:", link, error);
+                }
+            }
+        });
+
+        // Create new link element for the CDN CSS
+        var newLink = document.createElement('link');
+        newLink.rel = 'stylesheet';
+        if (cashing) {
+            newLink.href = cdn_css
+        } else {
+            newLink.href = cdn_css + "?" + Date.now();  // Add timestamp to prevent caching issues
+        }
+        newLink.onerror = function () {
             console.error("Failed to load CDN CSS. Loading fallback.");
             loadLocalCSS(fallback_css);
         };
-        document.head.appendChild(link);
+        console.log("Adding new CDN CSS link:", newLink);
+        document.head.appendChild(newLink);
     }
 
     function loadLocalCSS(local_css) {
@@ -137,6 +152,7 @@
         link.href = local_css;
         document.head.appendChild(link);
     }
+
 
     function switchTheme(theme) {
         loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/' + theme + '/bootstrap.min.css', 'styles/' + theme + '/bootstrap.min.css');
@@ -228,6 +244,10 @@
 
     // Subscribe to Server-Sent Events (SSE) from the server
     const eventSource = new EventSource("/ota-sse");
+
+    eventSource.onerror = function (event) {
+        console.log("SSE connection was closed.");
+    };
 
     eventSource.onmessage = function (event) {
         const data = JSON.parse(event.data);

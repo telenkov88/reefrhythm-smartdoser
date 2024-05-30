@@ -86,8 +86,14 @@ for file in js_files:
 
 if USE_RAM:
     print("\nload css to memory")
-    filenames = ['bootstrap.min.css']
-    css_files = load_files_to_ram('static/styles/', filenames, f'{web_file_extension}')
+    filenames = ['cerulean/bootstrap.min.css',
+                 'cyborg/bootstrap.min.css',
+                 'darkly/bootstrap.min.css',
+                 'minty/bootstrap.min.css',
+                 'pulse/bootstrap.min.css',
+                 'united/bootstrap.min.css',
+                 'vapor/bootstrap.min.css']
+    css_files = load_files_to_ram('static/styles', filenames, f'{web_file_extension}')
 else:
     css_files = []
 
@@ -398,6 +404,7 @@ async def favicon(request, path):
     if '..' in path:
         # directory traversal is not allowed
         return 'Not found', 404
+    print(f"sending static/favicon/{path}")
     return send_file('static/favicon/' + path)
 
 
