@@ -1218,6 +1218,7 @@ async def mqtt_worker():
 
     mqtt_client.pswd = mqtt_password
     mqtt_client.user = mqtt_login
+    _pump_settings = {"names": pump_names, "number": PUMP_NUM, "current": pumps_current, "inversion": inversion}
 
     # Option, limits the possibility of only one unique message being queued.
     mqtt_client.NO_QUEUE_DUPS = True
@@ -1252,6 +1253,8 @@ async def mqtt_worker():
         mqtt_client.publish(f"{doser_topic}/ip", ip_addr, retain=True)
         print("mqtt publish hostname:", ip_addr)
         mqtt_client.publish(f"{doser_topic}/hostname", hostname, retain=True)
+        print("mqtt publish pump settings:", pump_names)
+        mqtt_client.publish(f"{doser_topic}/pump_settings", json.dumps(_pump_settings), retain=True)
 
         msg = {"free_mem": gc.mem_free() // 1024}
         mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
@@ -1272,6 +1275,8 @@ async def mqtt_worker():
             mqtt_client.publish(f"{doser_topic}/ip", ip_addr, retain=True)
             print("mqtt publish hostname:", ip_addr)
             mqtt_client.publish(f"{doser_topic}/hostname", hostname, retain=True)
+            print("mqtt publish pump settings:", pump_names)
+            mqtt_client.publish(f"{doser_topic}/pump_settings", json.dumps(_pump_settings), retain=True)
             print("mqtt resubscribe")
             mqtt_client.resubscribe()
             mqtt_client.check_msg()
