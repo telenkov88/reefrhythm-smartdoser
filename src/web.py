@@ -32,7 +32,7 @@ try:
     from release_tag import *
     from lib.umqtt.robust2 import MQTTClient
 
-    mqtt_client = MQTTClient(f"ReefRhythm-{unique_id}", mqtt_broker, keepalive=40, socket_timeout=5)
+    mqtt_client = MQTTClient(f"ReefRhythm-{unique_id}", mqtt_broker, keepalive=40, socket_timeout=2)
 
     USE_RAM = False
 
@@ -1255,14 +1255,11 @@ async def mqtt_worker():
     except Exception as e:
         print("Failed to init MQTT ", e)
 
-    import _thread
-
-    def blocking_reconnect(mqtt, result):
+    async def mqtt_reconnect(mqtt):
         try:
             print("mqtt reconnect")
             mqtt_client.log()
             mqtt.reconnect()
-            result.append(mqtt.is_conn_issue())
             print("mqtt publish status")
             mqtt_client.publish(last_will_topic, 'Connected', retain=True)
             print("mqtt publish version:", RELEASE_TAG)
@@ -1276,10 +1273,8 @@ async def mqtt_worker():
             mqtt_client.resubscribe()
             mqtt_client.check_msg()
             mqtt_client.send_queue()
-            result.append(mqtt.is_conn_issue())
         except Exception as _e:
             print("MQTT Error: ", _e)
-            result.append(e)
 
     while 1:
         while ota_lock:
@@ -1293,12 +1288,7 @@ async def mqtt_worker():
                 while mqtt_client.is_conn_issue():
                     # If the connection is successful, the is_conn_issue
                     # method will not return a connection error.
-                    result = []
-                    _thread.start_new_thread(blocking_reconnect, (mqtt_client, result))
-                    while not result:
-                        print("Wait MQTT reconnect")
-                        await asyncio.sleep(1)
-
+                    await mqtt_reconnect(mqtt_client)
                     if mqtt_client.is_conn_issue():
                         print("Failed to reconnect MQTT")
                         await asyncio.sleep(5)

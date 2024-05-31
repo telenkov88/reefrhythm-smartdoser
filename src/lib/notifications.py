@@ -1,4 +1,3 @@
-import _thread
 import requests
 
 try:
@@ -131,11 +130,8 @@ class NotificationWorker:
             if self.buffer and self.net.isconnected():
                 await self.buffer_to_message()
                 url = self.service.prepare_message_url(self.message)
-                _thread.start_new_thread(self.send_request_in_thread, (url,))
+                await self.service.send_request(url)
             print(f"{self.service.service_name} Finish")
-
-    def send_request_in_thread(self, url):
-        asyncio.run(self.service.send_request(url))
 
 
 # Example of notifications usage
