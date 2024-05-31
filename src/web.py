@@ -9,6 +9,7 @@ import lib.mcron as mcron
 from load_configs import *
 from lib.exec_code import evaluate_expression
 from machine import Timer
+from lib.decorator import restart_on_failure
 
 try:
     # Import 3-part Add-ons
@@ -1134,6 +1135,7 @@ async def update_sched_onstart():
     update_schedule(schedule)
 
 
+@restart_on_failure
 async def maintain_memory():
     while True:
         gc.collect()
@@ -1141,6 +1143,7 @@ async def maintain_memory():
         await asyncio.sleep(120)
 
 
+@restart_on_failure
 async def mqtt_worker():
     if not mqtt_broker:
         return True
@@ -1328,7 +1331,7 @@ mqtt_stop_buffer = []
 mqtt_refill_buffer = []
 mqtt_publish_buffer = []
 
-
+@restart_on_failure
 async def process_mqtt_cmd():
     while True:
         if mqtt_dose_buffer:
@@ -1383,6 +1386,7 @@ async def process_mqtt_cmd():
         await asyncio.sleep(1)
 
 
+@restart_on_failure
 async def storage_tracker():
     global storage
     _old_storage = storage.copy()
