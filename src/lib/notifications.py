@@ -1,5 +1,5 @@
 import requests
-
+from lib.decorator import restart_on_failure
 try:
     import uasyncio as asyncio
 except ImportError:
@@ -7,6 +7,7 @@ except ImportError:
 
 # Seconds between notifications send attend
 DELAY = 60*10
+
 # Retries if network error
 RETRIES = 3
 RETRY_DELAY = 20
@@ -119,6 +120,7 @@ class NotificationWorker:
                 self.message += quote_plus(msg)
             self.buffer = []
 
+    @restart_on_failure
     async def process_messages(self):
         while self.active:
             print(f"{self.service.service_name} Start")
@@ -139,7 +141,6 @@ async def debug_notification():
     import time
     global DELAY
     DELAY = 5
-    global wifi
     try:
         # Debug on PC
         from unittest.mock import MagicMock
