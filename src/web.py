@@ -1,6 +1,4 @@
 import sys
-import time
-from machine import Timer
 from lib.notifications import *
 from lib.microdot.microdot import Microdot, redirect, send_file
 from lib.microdot.sse import with_sse
@@ -50,7 +48,6 @@ except ImportError:
     RELEASE_TAG = "local_debug"
     os.system("python ../scripts/compress_web.py --path ./")
     USE_RAM = False
-
 
     # Dummy decorator to simulate @micropython.native
     # Creating a more structured mock for micropython module
@@ -105,6 +102,7 @@ app = Microdot()
 doser_topic = f"/ReefRhythm/{unique_id}"
 gc.collect()
 ota_lock = False
+notification_lock = False
 ota_progress = 0
 firmware_size = None
 firmware_link = "http://github.com/telenkov88/reefrhythm-smartdoser/releases/download/latest/micropython.bin"
@@ -132,8 +130,8 @@ UINT32_MAX = 4294967295
 # Initialize the uptime counter
 uptime_counter = 0
 
-whatsapp_worker = NotificationWorker(Whatsapp(whatsapp_number, whatsapp_apikey), wifi)
-telegram_worker = NotificationWorker(Telegram(telegram), wifi)
+whatsapp_worker = NotificationWorker(Whatsapp(whatsapp_number, whatsapp_apikey), wifi, background=False)
+telegram_worker = NotificationWorker(Telegram(telegram), wifi, background=False)
 
 
 # Function to increment the uptime counter
@@ -1230,6 +1228,7 @@ async def mqtt_worker():
     last_will_topic = f"/ReefRhythm/{unique_id}/status"
     global doser_topic
     global mqtt_publish_buffer
+    global notification_lock
     print("MQTT last will topic: ", last_will_topic)
     mqtt_client.set_last_will(last_will_topic, 'Disconnected', retain=True)
 
@@ -1286,7 +1285,9 @@ async def mqtt_worker():
         except Exception as _e:
             print("MQTT Error: ", _e)
 
+    notification_timer = time.time() + 600
     while 1:
+
         while ota_lock:
             print("MQTT OTA lock")
             await asyncio.sleep(200)
@@ -1303,6 +1304,16 @@ async def mqtt_worker():
                         print("Failed to reconnect MQTT")
                         await asyncio.sleep(5)
 
+            # Run heavy socket operations sequentially to avoid blocking
+            if time.time() >= notification_timer:
+                print("Process notifications")
+                notification_timer = time.time() + 600
+                try:
+                    await telegram_worker.process_messages()
+                    await whatsapp_worker.process_messages()
+                except Exception as e:
+                    print("Notification exception ", e)
+
             print("MQTT start polling")
             # WARNING!!!
             # The below functions should be run as often as possible.
@@ -1311,7 +1322,7 @@ async def mqtt_worker():
             if mqtt_publish_buffer:
                 print(f"MQTT publish buffer\n{mqtt_publish_buffer}")
 
-            for _ in range(50):
+            for _ in range(60):
                 # print("mqtt check_msg")
                 for msg in mqtt_publish_buffer:
                     print("MQTT publish ", msg)
@@ -1321,11 +1332,20 @@ async def mqtt_worker():
                     msg = {"free_mem": gc.mem_free() // 1024}
                     mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
                     mqtt_client.publish(f"{doser_topic}/uptime", str(uptime_counter) + " seconds")
+                print(f"MQTT Check message {_} Start")
+                if mqtt_client.is_conn_issue() or notification_lock:
+                    break
                 mqtt_client.check_msg()  # needed when publish(qos=1), ping(), subscribe()
+                print(f"MQTT Check message {_} Finish")
+                if mqtt_client.is_conn_issue() or notification_lock:
+                    break
                 mqtt_client.send_queue()  # needed when using the caching capabilities for unsent messages
+                print(f"MQTT Send queue {_} Finish")
 
                 await asyncio.sleep(1)
+
             print("MQTT finished cycle")
+
         except Exception as e:
             print("MQTT Error: ", e)
             await asyncio.sleep(10)
@@ -1337,6 +1357,7 @@ mqtt_run_buffer = []
 mqtt_stop_buffer = []
 mqtt_refill_buffer = []
 mqtt_publish_buffer = []
+
 
 @restart_on_failure
 async def process_mqtt_cmd():
@@ -1422,12 +1443,10 @@ async def main():
         asyncio.create_task(maintain_memory()),
         asyncio.create_task(mqtt_worker()),
         asyncio.create_task(process_mqtt_cmd()),
-        asyncio.create_task(storage_tracker()),
-        asyncio.create_task(telegram_worker.process_messages()),
-        asyncio.create_task(whatsapp_worker.process_messages())
+        asyncio.create_task(storage_tracker())
     ]
-
-
+    #        asyncio.create_task(telegram_worker.process_messages()),
+    #        asyncio.create_task(whatsapp_worker.process_messages())
 
     # load async tasks from extension
     if addon:

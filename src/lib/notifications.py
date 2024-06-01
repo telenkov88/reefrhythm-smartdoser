@@ -96,13 +96,14 @@ class Telegram(MessagingService):
 
 
 class NotificationWorker:
-    def __init__(self, service, net):
+    def __init__(self, service, net, background=True):
         self.service = service
         self.net = net
         self.buffer = []
         self.lock = asyncio.Lock()
         self.active = True if service.active else False
         self.message = ""
+        self.background = background
 
     async def add_message(self, message):
         if not self.active:
@@ -120,20 +121,22 @@ class NotificationWorker:
                 self.message += quote_plus(msg)
             self.buffer = []
 
-    @restart_on_failure
+    #@restart_on_failure
     async def process_messages(self):
         while self.active:
             print(f"{self.service.service_name} Start")
-            print(f"{self.service.service_name} await {DELAY}sec")
+            if self.background:
+                print(f"{self.service.service_name} await {DELAY}sec")
+                await asyncio.sleep(DELAY)
             print("Wifi status: ", self.net.isconnected())
-            print(self.buffer)
-            await asyncio.sleep(DELAY)
             print(self.buffer)
             if self.buffer and self.net.isconnected():
                 await self.buffer_to_message()
                 url = self.service.prepare_message_url(self.message)
                 await self.service.send_request(url)
             print(f"{self.service.service_name} Finish")
+            if not self.background:
+                return
 
 
 # Example of notifications usage
