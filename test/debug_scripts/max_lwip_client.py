@@ -2,6 +2,7 @@ import socket
 import threading
 import time
 
+
 def client_thread(host, port):
     while True:
         try:
@@ -10,7 +11,7 @@ def client_thread(host, port):
                 print(f"Connected to {host} on port {port}")
 
                 while True:
-                    data = s.recv(1024)
+                    data = s.recv(1024*128)
                     if not data:
                         print(f"Connection lost on port {port}. Attempting to reconnect...")
                         break  # Exit this loop to reconnect
@@ -38,6 +39,6 @@ def start_clients(host, start_port, num_ports):
 if __name__ == "__main__":
     server_host = '192.168.254.146'  # Change to the IP address of your server
     starting_port = 10000
-    number_of_ports = 20  # Number of consecutive ports to connect to
+    number_of_ports = 32  # Number of consecutive ports to connect to
 
     start_clients(server_host, starting_port, number_of_ports)
