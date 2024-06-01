@@ -1218,7 +1218,9 @@ async def mqtt_worker():
 
     mqtt_client.pswd = mqtt_password
     mqtt_client.user = mqtt_login
-    _pump_settings = {"names": pump_names, "number": PUMP_NUM, "current": pumps_current, "inversion": inversion}
+    _pump_settings = {"names": pump_names, "number": PUMP_NUM, "current": pumps_current, "inversion": inversion,
+                      "analog_period": analog_period,
+                      "storage": json.dumps([storage[f"pump{x}"] for x in range(1, MAX_PUMPS+1)])}
 
     # Option, limits the possibility of only one unique message being queued.
     mqtt_client.NO_QUEUE_DUPS = True
