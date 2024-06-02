@@ -8,7 +8,7 @@ from load_configs import *
 from lib.exec_code import evaluate_expression
 from machine import Timer
 from lib.decorator import restart_on_failure
-
+import requests
 try:
     # Import 3-part Add-ons
     import extension
@@ -128,9 +128,8 @@ UINT32_MAX = 4294967295
 
 # Initialize the uptime counter
 uptime_counter = 0
-
-whatsapp_worker = NotificationWorker(Whatsapp(whatsapp_number, whatsapp_apikey), wifi, background=False)
-telegram_worker = NotificationWorker(Telegram(telegram), wifi, background=False)
+whatsapp_worker = NotificationWorker(Whatsapp(whatsapp_number, whatsapp_apikey), wifi, delay=600)
+telegram_worker = NotificationWorker(Telegram(telegram), wifi, delay=300)
 global_lock = asyncio.Lock()
 
 
@@ -180,7 +179,6 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
                 except Exception as e:
                     print(e)
 
-
             _localtime = time.localtime()
 
             # Extract hours, minutes, and seconds
@@ -198,6 +196,7 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
             if msg and telegram_dose_msg:
                 await telegram_worker.add_message(msg)
             if msg and whatsapp_dose_msg:
+                print("MSG:", msg)
                 await whatsapp_worker.add_message(msg)
 
             msg = ""
@@ -1289,7 +1288,7 @@ async def mqtt_worker():
         except Exception as _e:
             print("MQTT Error: ", _e)
 
-    notification_timer = time.time() + 600
+    #notification_timer = time.time() + 600
     while 1:
 
         while ota_lock:
@@ -1310,14 +1309,14 @@ async def mqtt_worker():
                         await asyncio.sleep(5)
 
             # Run heavy socket operations sequentially to avoid blocking
-            if time.time() >= notification_timer:
-                print("Process notifications")
-                notification_timer = time.time() + 600
-                try:
-                    await telegram_worker.process_messages()
-                    await whatsapp_worker.process_messages()
-                except Exception as e:
-                    print("Notification exception ", e)
+            #if time.time() >= notification_timer:
+            #    print("Process notifications")
+            #    notification_timer = time.time() + 600
+            #    try:
+            #        await telegram_worker.process_messages()
+            #        await whatsapp_worker.process_messages()
+            #    except Exception as e:
+            #        print("Notification exception ", e)
 
             print("MQTT start polling")
             # WARNING!!!
@@ -1464,10 +1463,10 @@ async def main():
         asyncio.create_task(maintain_memory()),
         asyncio.create_task(mqtt_worker()),
         asyncio.create_task(process_mqtt_cmd()),
-        asyncio.create_task(storage_tracker())
+        asyncio.create_task(storage_tracker()),
+        asyncio.create_task(telegram_worker.process_messages()),
+        asyncio.create_task(whatsapp_worker.process_messages())
     ]
-    #        asyncio.create_task(telegram_worker.process_messages()),
-    #        asyncio.create_task(whatsapp_worker.process_messages())
 
     # load async tasks from extension
     if addon:

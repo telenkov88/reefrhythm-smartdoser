@@ -8,9 +8,6 @@ except ImportError:
 
 import ssl
 
-# Seconds between notifications send attend
-DELAY = 60*10
-
 # Retries if network error
 RETRIES = 3
 RETRY_DELAY = 20
@@ -129,19 +126,20 @@ class Telegram(MessagingService):
 
 
 class NotificationWorker:
-    def __init__(self, service, net, background=True):
+    def __init__(self, service, net, delay=600, background=True):
         self.service = service
         self.net = net
         self.buffer = []
-        self.lock = asyncio.Lock()
         self.active = True if service.active else False
         self.message = ""
         self.background = background
+        self.lock = asyncio.Lock()
+        self.delay = delay
 
     async def add_message(self, message):
         if not self.active:
             return
-        async with self.lock:
+        async with self.lock:  # Now this should work as expected
             self.buffer.append(message)
             print(f"{self.service.service_name} add message: {message}")
             while len(self.buffer) > self.service.buffer_size:
@@ -154,19 +152,19 @@ class NotificationWorker:
                 self.message += quote_plus(msg)
             self.buffer = []
 
-    #@restart_on_failure
+    @restart_on_failure
     async def process_messages(self):
         while self.active:
-            print(f"{self.service.service_name} Start")
+            print(f"[{self.service.service_name}] Start")
             if self.background:
-                print(f"{self.service.service_name} await {DELAY}sec")
-                await asyncio.sleep(DELAY)
-            print("Wifi status: ", self.net.isconnected())
-            print(self.buffer)
+                print(f"[{self.service.service_name}] await {self.delay}sec")
+                await asyncio.sleep(self.delay)
+            print(f"[{self.service.service_name}] Wifi status: ", self.net.isconnected())
+            print(f"[{self.service.service_name}] buffer:", self.buffer)
             if self.buffer and self.net.isconnected():
                 await self.buffer_to_message()
                 await self.service.send_request(self.service.host, self.service.path(self.message))
-            print(f"{self.service.service_name} Finish")
+            print(f"[{self.service.service_name}] Finish")
             if not self.background:
                 break
 
@@ -174,8 +172,6 @@ class NotificationWorker:
 # Example of notifications usage
 async def debug_notification():
     import time
-    global DELAY
-    DELAY = 5
     try:
         # Debug on PC
         from unittest.mock import MagicMock
@@ -217,8 +213,8 @@ async def debug_notification():
     whatsapp = Whatsapp(whatsapp_number, whatsapp_apikey)
     telegram = Telegram(telegram_nickname)
 
-    whatsapp_worker = NotificationWorker(whatsapp, wifi)
-    telegram_worker = NotificationWorker(telegram, wifi)
+    whatsapp_worker = NotificationWorker(whatsapp, wifi, delay=5)
+    telegram_worker = NotificationWorker(telegram, wifi, delay=5)
 
     asyncio.create_task(whatsapp_worker.process_messages())
     asyncio.create_task(telegram_worker.process_messages())
