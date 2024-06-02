@@ -1,9 +1,12 @@
-import requests
 from lib.decorator import restart_on_failure
 try:
     import uasyncio as asyncio
+    import usocket
 except ImportError:
     import asyncio
+    import socket as usocket
+
+import ssl
 
 # Seconds between notifications send attend
 DELAY = 60*10
@@ -17,47 +20,75 @@ def quote_plus(s):
     return s.replace('%', '%25').replace('+', '%2B').replace(' ', '+').replace('&', '%26').replace('?', '%3F') + '%0A'
 
 
+# Initialize SSL context once per application or service
+ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+if hasattr(ssl_context, "check_hostname"):
+    ssl_context.check_hostname = False  # Disable hostname checking
+ssl_context.verify_mode = ssl.CERT_NONE  # Disable certificate verification
+
+
 class MessagingService:
     def __init__(self, service_name):
         self.service_name = service_name
+        self.ssl_context = ssl_context  # Use the same SSL context for each service instance
 
-    async def send_request(self, url):
+    async def send_request(self, host, path):
         max_retries = RETRIES
         retry_delay = RETRY_DELAY
+        request_header = f"GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n"
+        reader, writer = None, None
+
         for attempt in range(max_retries):
             try:
-                print(f"Send message from {self.service_name}: ", url)
-                response = requests.get(url, timeout=5)
+                print(host)
+                reader, writer = await asyncio.open_connection(host, 443, ssl=self.ssl_context, server_hostname=host)
+                writer.write(request_header.encode())
+                await writer.drain()
 
-                if response.status_code == 503:
+                response = await reader.read()
+                response = response.decode()
+                status_code = int(response.split(' ')[1])
+                response_text = response.split('\r\n\r\n', 1)[1]
+
+                writer.close()
+                await writer.wait_closed()
+                if self.process_response(status_code, response_text):
+                    return  # Exit on success
+            except Exception as e:
+                print(f"{self.service_name} Network error on attempt {attempt + 1}: {str(e)}")
+                if attempt < max_retries - 1:
                     await asyncio.sleep(retry_delay)
                     retry_delay *= 2  # Exponential backoff
-                    continue
+            finally:
+                if writer:
+                    writer.close()
+                    await writer.wait_closed()
+                print("Finish")
 
-                elif self.service_name == "WhatsApp" and response.status_code in [404, 203, 414]:
-                    print(f"{self.service_name} Notification rejected")
+    def process_response(self, status_code, response_text):
+        # Handle different status codes and log or act accordingly
+        print("Status code", status_code)
+        print("Response:", response_text)
 
-                elif self.service_name == "WhatsApp" and response.status_code != 200:
-                    print(f"{self.service_name} HTTP Error: {response.status_code}")
-                    print(response.text)
+        if status_code == 503:
+            return False
+        elif self.service_name == "WhatsApp" and status_code in [404, 203, 414]:
+            print(f"{self.service_name} Notification rejected")
 
-                # CallmeBot returns code 200 for all Telegram API messages, even with fake account
-                elif self.service_name == "Telegram" and response.status_code == 200 and "Error Code" in response.text:
-                    print(f"{self.service_name} Notification rejected: \n {response.text}")
+        elif self.service_name == "WhatsApp" and status_code != 200:
+            print(f"{self.service_name} HTTP Error: {status_code}")
 
-                elif response.status_code == 200:
-                    print(f"{self.service_name} send message success \n{response.text}")
-                else:
-                    print(f"{self.service_name} unknown message status, response code: {response.status_code}")
-                    print(response.text)
+        # CallmeBot returns code 200 for all Telegram API messages, even with fake account
+        elif self.service_name == "Telegram" and status_code == 200 and "Error Code" in response_text:
+            print(f"{self.service_name} Notification rejected: \n {response_text}")
 
-                return
+        elif status_code == 200:
+            print(f"{self.service_name} send message success \n{response_text}")
+        else:
+            print(f"{self.service_name} unknown message status, response code: {status_code}")
+            print(response_text)
 
-            except Exception as e:
-                print(f"{self.service_name} Network error: ", e)
-                await asyncio.sleep(retry_delay)
-                retry_delay *= 2  # Exponential backoff
-        return
+        return True
 
 
 class Whatsapp(MessagingService):
@@ -73,9 +104,10 @@ class Whatsapp(MessagingService):
         self.phone = phone
         self.apikey = apikey
         self.buffer_size = 10
+        self.host = 'api.callmebot.com'
 
-    def prepare_message_url(self, message):
-        return f'https://api.callmebot.com/whatsapp.php?phone={self.phone}&apikey={self.apikey}&text={message}'
+    def path(self, message):
+        return f'/whatsapp.php?phone={self.phone}&apikey={self.apikey}&text={message}'
 
 
 class Telegram(MessagingService):
@@ -90,9 +122,10 @@ class Telegram(MessagingService):
 
         self.username = username
         self.buffer_size = 50
+        self.host = 'api.callmebot.com'
 
-    def prepare_message_url(self, message):
-        return f'https://api.callmebot.com/text.php?user={self.username}&text={message}'
+    def path(self, message):
+        return f'/text.php?user={self.username}&text={message}'
 
 
 class NotificationWorker:
@@ -132,11 +165,10 @@ class NotificationWorker:
             print(self.buffer)
             if self.buffer and self.net.isconnected():
                 await self.buffer_to_message()
-                url = self.service.prepare_message_url(self.message)
-                await self.service.send_request(url)
+                await self.service.send_request(self.service.host, self.service.path(self.message))
             print(f"{self.service.service_name} Finish")
             if not self.background:
-                return
+                break
 
 
 # Example of notifications usage
@@ -153,6 +185,7 @@ async def debug_notification():
     except ImportError:
         import json
         import network
+
         # {"ssid": "ssid name", "password": "your wifi password"}
         with open("./config/wifi.json", 'r') as wifi_config:
             wifi_settings = json.load(wifi_config)

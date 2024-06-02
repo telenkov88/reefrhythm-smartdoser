@@ -102,7 +102,6 @@ app = Microdot()
 doser_topic = f"/ReefRhythm/{unique_id}"
 gc.collect()
 ota_lock = False
-notification_lock = False
 ota_progress = 0
 firmware_size = None
 firmware_link = "http://github.com/telenkov88/reefrhythm-smartdoser/releases/download/latest/micropython.bin"
@@ -132,6 +131,7 @@ uptime_counter = 0
 
 whatsapp_worker = NotificationWorker(Whatsapp(whatsapp_number, whatsapp_apikey), wifi, background=False)
 telegram_worker = NotificationWorker(Telegram(telegram), wifi, background=False)
+global_lock = asyncio.Lock()
 
 
 # Function to increment the uptime counter
@@ -170,11 +170,16 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
                          "remain": storage[f"remaining{pump_id}"], "storage": storage[f"pump{pump_id}"]}
                 print("data", _data)
                 print({"topic": _topic, "data": _data})
-                mqtt_publish_buffer.append({"topic": _topic, "data": _data})
+                try:
+                    async with global_lock:
+                        mqtt_publish_buffer.append({"topic": _topic, "data": _data})
 
-                while len(mqtt_publish_buffer) > 75:
-                    print("Warning! MQTT Buffer overflow, clean it")
-                    del mqtt_publish_buffer[0]
+                        while len(mqtt_publish_buffer) > 75:
+                            print("Warning! MQTT Buffer overflow, clean it")
+                            del mqtt_publish_buffer[0]
+                except Exception as e:
+                    print(e)
+
 
             _localtime = time.localtime()
 
@@ -1228,7 +1233,6 @@ async def mqtt_worker():
     last_will_topic = f"/ReefRhythm/{unique_id}/status"
     global doser_topic
     global mqtt_publish_buffer
-    global notification_lock
     print("MQTT last will topic: ", last_will_topic)
     mqtt_client.set_last_will(last_will_topic, 'Disconnected', retain=True)
 
@@ -1297,6 +1301,7 @@ async def mqtt_worker():
             print("MQTT start new cycle")
             if mqtt_client.is_conn_issue():
                 while mqtt_client.is_conn_issue():
+                    mqtt_client.log()
                     # If the connection is successful, the is_conn_issue
                     # method will not return a connection error.
                     await mqtt_reconnect(mqtt_client)
@@ -1319,30 +1324,45 @@ async def mqtt_worker():
             # The below functions should be run as often as possible.
             # There may be a problem with the connection. (MQTTException(7,), 9)
             # In the following way, we clear the queue.
-            if mqtt_publish_buffer:
-                print(f"MQTT publish buffer\n{mqtt_publish_buffer}")
 
-            for _ in range(60):
-                # print("mqtt check_msg")
-                for msg in mqtt_publish_buffer:
+            for _ in range(15):
+                print("MQTT check buffer")
+                while mqtt_publish_buffer:
+                    print(f"MQTT publish buffer\n{mqtt_publish_buffer}")
+                    if mqtt_client.is_conn_issue():
+                        mqtt_client.log()
+                        break
+                    try:
+                        async with global_lock:
+                            msg = mqtt_publish_buffer.pop(0)
+                    except Exception as e:
+                        print(e)
+
                     print("MQTT publish ", msg)
                     mqtt_client.publish(msg["topic"], json.dumps(msg["data"]))
-                mqtt_publish_buffer = []
-                if (_ + 1) % 20 == 0:
+                if (_ + 1) % 15 == 0:
+                    if mqtt_client.is_conn_issue():
+                        mqtt_client.log()
+                        break
                     msg = {"free_mem": gc.mem_free() // 1024}
                     mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
+                    if mqtt_client.is_conn_issue():
+                        break
                     mqtt_client.publish(f"{doser_topic}/uptime", str(uptime_counter) + " seconds")
                 print(f"MQTT Check message {_} Start")
-                if mqtt_client.is_conn_issue() or notification_lock:
+                if mqtt_client.is_conn_issue():
+                    mqtt_client.log()
                     break
                 mqtt_client.check_msg()  # needed when publish(qos=1), ping(), subscribe()
                 print(f"MQTT Check message {_} Finish")
-                if mqtt_client.is_conn_issue() or notification_lock:
+                if mqtt_client.is_conn_issue():
+                    mqtt_client.log()
                     break
                 mqtt_client.send_queue()  # needed when using the caching capabilities for unsent messages
                 print(f"MQTT Send queue {_} Finish")
 
                 await asyncio.sleep(1)
+                print(f"MQTT check No{_}")
 
             print("MQTT finished cycle")
 
@@ -1409,7 +1429,8 @@ async def process_mqtt_cmd():
                      "remain": storage[f"remaining{_pump_id}"], "storage": storage[f"pump{_pump_id}"]}
             print("data", _data)
             print({"topic": _topic, "data": _data})
-            mqtt_publish_buffer.append({"topic": _topic, "data": _data})
+            async with global_lock:
+                mqtt_publish_buffer.append({"topic": _topic, "data": _data})
 
         await asyncio.sleep(1)
 
