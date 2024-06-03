@@ -4,6 +4,10 @@ import random
 unique_id = MagicMock()
 unique_id.return_value = "aabbbccdd".encode()
 
+net = MagicMock()
+net.ifconfig = MagicMock()
+net.ifconfig.return_value = ["127.0.0.1"]
+
 
 class MQTTClient:
     def __init__(self, **kwargs):
@@ -49,3 +53,20 @@ class MQTTClient:
         if random.randint(1, 10) < 3:
             return True
         return False
+
+
+class CommandHandler:
+    def __init__(self, command_buffer):
+        print()
+
+    def dose(self, command):
+        print(f"Handling dosing command: {command}")
+
+    def run(self, command):
+        print(f"Handling run command: {command}")
+
+    def stop(self, command):
+        print(f"Handling stop command: {command}")
+
+    def refill(self, command):
+        print(f"Handling refill command: {command}")
