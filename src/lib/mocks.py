@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock
+import random
 
 unique_id = MagicMock()
 unique_id.return_value = "aabbbccdd".encode()
@@ -8,6 +9,11 @@ class MQTTClient:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
         print(f"MQTT Client initialized with parameters: {kwargs}")
+
+    def log(self):
+        exc = f"MQTT Exception ({random.randint(0, 10)})"
+        print(exc)
+        return exc
 
     def set_callback(self, callback):
         self.callback = callback
@@ -19,11 +25,18 @@ class MQTTClient:
     def connect(self):
         print("Connected to MQTT broker.")
 
+    def reconnect(self):
+        print("Reconnect to MQTT broker.")
+        return True
+
     def subscribe(self, topic):
         print(f"Subscribed to topic: {topic}")
 
-    def publish(self, topic, payload):
-        print(f"Mock publish to {topic}: {payload}")
+    def resubscribe(self):
+        print(f"Resubscribe to topics")
+
+    def publish(self, topic, payload, retain):
+        print(f"Mock publish to {topic}: {payload}. Retain {retain}")
 
     def check_msg(self):
         # Simulate incoming messages if needed
@@ -31,3 +44,8 @@ class MQTTClient:
 
     def disconnect(self):
         print("Disconnected from MQTT broker.")
+
+    def is_conn_issue(self):
+        if random.randint(1, 10) < 3:
+            return True
+        return False
