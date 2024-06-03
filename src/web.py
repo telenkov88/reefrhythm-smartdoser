@@ -1,4 +1,5 @@
 import sys
+from lib.mqtt_worker import *
 from lib.notifications import *
 from lib.microdot.microdot import Microdot, redirect, send_file
 from lib.microdot.sse import with_sse
@@ -129,7 +130,7 @@ UINT32_MAX = 4294967295
 # Initialize the uptime counter
 uptime_counter = 0
 whatsapp_worker = NotificationWorker(Whatsapp(whatsapp_number, whatsapp_apikey), wifi, delay=600)
-telegram_worker = NotificationWorker(Telegram(telegram), wifi, delay=300)
+telegram_worker = NotificationWorker(Telegram(telegram), wifi, delay=600)
 global_lock = asyncio.Lock()
 
 
@@ -141,6 +142,8 @@ def increment_uptime_counter(step=10):
     else:
         uptime_counter += step
     print(f"uptime {uptime_counter} seconds")
+    mqtt_worker.add_message_to_publish("uptime", f"{uptime_counter} seconds")
+    mqtt_worker.add_message_to_publish("free_mem ", json.dumps({"free_mem": gc.mem_free() // 1024}))
 
 
 # Set up a timer to call increment_uptime_counter every 10 seconds
@@ -170,12 +173,7 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
                 print("data", _data)
                 print({"topic": _topic, "data": _data})
                 try:
-                    async with global_lock:
-                        mqtt_publish_buffer.append({"topic": _topic, "data": _data})
-
-                        while len(mqtt_publish_buffer) > 75:
-                            print("Warning! MQTT Buffer overflow, clean it")
-                            del mqtt_publish_buffer[0]
+                    mqtt_worker.add_message_to_publish(f"pump{pump_id}", json.dumps(_data))
                 except Exception as e:
                     print(e)
 
@@ -1145,293 +1143,96 @@ async def maintain_memory():
         await asyncio.sleep(120)
 
 
-@restart_on_failure
-async def mqtt_worker():
-    if not mqtt_broker:
-        return True
-    while not time_synced:
-        await asyncio.sleep(1)
-    print("Start MQTT")
+class CommandHandler:
+    def __init__(self):
+        print()
 
-    def sub(topic, msg, retain, dup):
-        def decode_body():
-            try:
-                print(msg.decode('ascii'))
-                mqtt_body = json.loads(msg.decode('ascii'))
-                print(mqtt_body)
-                return mqtt_body
-            except Exception as mqtt_decode_e:
-                print("Failed to decode mqtt message: {msg}, ", mqtt_decode_e)
-            return False
+    def check_dose_parameters(self, cmd):
+        if all(key in cmd for key in ["id", "amount", "duration", "direction"]):
+            # Check the range and validity of each parameter
+            return (1 <= cmd["id"] <= PUMP_NUM and
+                    cmd["amount"] > 0 and
+                    1 <= cmd["duration"] <= 3600 and
+                    cmd["direction"] in [0, 1])
+        return False
 
-        def check_dose_parameters(cmd):
-            if all(key in cmd for key in ["id", "amount", "duration", "direction"]):
-                # Check the range and validity of each parameter
-                return (1 <= cmd["id"] <= PUMP_NUM and
-                        cmd["amount"] > 0 and
-                        1 <= cmd["duration"] <= 3600 and
-                        cmd["direction"] in [0, 1])
-            return False
+    def check_run_parameters(self, cmd):
+        if all(key in cmd for key in ["id", "rpm", "duration", "direction"]):
+            # Check the range and validity of each parameter
+            return (1 <= cmd["id"] <= PUMP_NUM and
+                    0.5 <= cmd["rpm"] <= 1000 and
+                    1 <= cmd["duration"] <= 3600 and
+                    cmd["direction"] in [0, 1])
+        return False
 
-        def check_run_parameters(cmd):
-            if all(key in cmd for key in ["id", "rpm", "duration", "direction"]):
-                # Check the range and validity of each parameter
-                return (1 <= cmd["id"] <= PUMP_NUM and
-                        0.5 <= cmd["rpm"] <= 1000 and
-                        1 <= cmd["duration"] <= 3600 and
-                        cmd["direction"] in [0, 1])
-            return False
+    def check_stop_parameters(self, cmd):
+        if "id" in cmd:
+            return 1 <= cmd["id"] <= PUMP_NUM
+        return False
 
-        def check_stop_parameters(cmd):
-            if "id" in cmd:
-                return 1 <= cmd["id"] <= PUMP_NUM
-            return False
+    def dose(self, command):
+        print(">>>>>>>>>>>>>>>>>>>>>>>>")
+        print(f"Handling dosing command: {command}")
+        if not self.check_dose_parameters(command):
+            print("Dose cmd parameter error: ")
+            return
+        desired_flow = command["amount"] * (60 / command["duration"])
+        print(f"Desired flow: {round(desired_flow, 2)}")
+        print(f"Direction: {command['direction']}")
+        desired_rpm_rate = np.interp(desired_flow, chart_points[f"pump{command['id']}"][1],
+                                     chart_points[f"pump{command['id']}"][0])
+        print("Calculated RPM: ", desired_rpm_rate)
+        await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate,
+                                         command['duration'], command['direction'], rpm_table,
+                                         limits_dict[int(command['id'])], pump_dose=command["amount"],
+                                         pump_id=int(command['id']))
 
-        print('received message %s on topic %s' % (msg.decode(), topic.decode()))
-        if topic.decode() == f"/ReefRhythm/{unique_id}/dose":
-            command = decode_body()
-            if command and check_dose_parameters(command):
-                print("Dose command ", command)
-                mqtt_dose_buffer.append(command)
-            else:
-                print("error in syntax: ", command)
+    def run(self, command):
+        print(f"Handling run command: {command}")
+        if not self.check_run_parameters(command):
+            print("Run cmd parameter error")
+            return
+        print(f"Direction: {command['direction']}")
+        desired_rpm_rate = command['rpm']
+        print("Desired RPM: ", desired_rpm_rate)
+        await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate,
+                                         command['duration'], command['direction'], rpm_table,
+                                         limits_dict[int(command['id'])], pump_dose=None,
+                                         pump_id=int(command['id']))
 
-        elif topic.decode() == f"/ReefRhythm/{unique_id}/run":
-            command = decode_body()
-            if command and check_run_parameters(command):
-                print("Run command", command)
-                mqtt_run_buffer.append(command)
-            else:
-                print("error in syntax: ", command)
-        elif topic.decode() == f"/ReefRhythm/{unique_id}/stop":
-            command = decode_body()
-            if command and check_stop_parameters(command):
-                print("Stop command", command)
-                mqtt_stop_buffer.append(command)
-            else:
-                print("error in syntax: ", command)
-        elif topic.decode() == f"/ReefRhythm/{unique_id}/refill":
-            command = decode_body()
-            if command and check_stop_parameters(command):
-                print("Refilling command", command)
-                mqtt_refill_buffer.append(command)
-            else:
-                print("error in syntax: ", command)
+    def stop(self, command):
+        print(f"Handling stop command: {command}")
+        if not self.check_stop_parameters(command):
+            print("Stop cmd parameter error")
+            return
+        print(f"Stop pump{command['id']}")
+        await command_buffer.add_command(stepper_stop, None, mks_dict[f"mks{command['id']}"])
 
-    mqtt_client.pswd = mqtt_password
-    mqtt_client.user = mqtt_login
-    _pump_settings = {"names": pump_names, "number": PUMP_NUM, "current": pumps_current, "inversion": inversion,
-                      "analog_period": analog_period,
-                      "storage": json.dumps([storage[f"pump{x}"] for x in range(1, MAX_PUMPS+1)])}
-
-    # Option, limits the possibility of only one unique message being queued.
-    mqtt_client.NO_QUEUE_DUPS = True
-    # Limit the number of unsent messages in the queue.
-    mqtt_client.MSG_QUEUE_MAX = 5
-
-    last_will_topic = f"/ReefRhythm/{unique_id}/status"
-    global doser_topic
-    global mqtt_publish_buffer
-    print("MQTT last will topic: ", last_will_topic)
-    mqtt_client.set_last_will(last_will_topic, 'Disconnected', retain=True)
-
-    mqtt_client.set_callback(sub)
-    try:
-        print(f"connect to {mqtt_broker}")
-        mqtt_client.connect()
-        print(f"subscribe {doser_topic}/dose")
-        mqtt_client.subscribe(f"{doser_topic}/dose")
-        print(f"subscribe {doser_topic}/run")
-        mqtt_client.subscribe(f"{doser_topic}/run")
-        print(f"subscribe {doser_topic}/stop")
-        mqtt_client.subscribe(f"{doser_topic}/stop")
-        print(f"subscribe {doser_topic}/refill")
-        mqtt_client.subscribe(f"{doser_topic}/refill")
-        print(f"subscribe $SYS/broker/uptime")
-        mqtt_client.subscribe("$SYS/broker/uptime")
-        mqtt_client.publish(last_will_topic, 'Connected', retain=True)
-        print("mqtt publish version:", RELEASE_TAG)
-        mqtt_client.publish(f"{doser_topic}/version", RELEASE_TAG, retain=True)
-        ip_addr = wifi.ifconfig()[0]
-        print("mqtt publish ip:", ip_addr)
-        mqtt_client.publish(f"{doser_topic}/ip", ip_addr, retain=True)
-        print("mqtt publish hostname:", ip_addr)
-        mqtt_client.publish(f"{doser_topic}/hostname", hostname, retain=True)
-        print("mqtt publish pump settings:", pump_names)
-        mqtt_client.publish(f"{doser_topic}/pump_settings", json.dumps(_pump_settings), retain=True)
-
-        msg = {"free_mem": gc.mem_free() // 1024}
-        mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
-    except Exception as e:
-        print("Failed to init MQTT ", e)
-
-    async def mqtt_reconnect(mqtt):
-        try:
-            print("mqtt reconnect")
-            mqtt_client.log()
-            mqtt.reconnect()
-            print("mqtt publish status")
-            mqtt_client.publish(last_will_topic, 'Connected', retain=True)
-            print("mqtt publish version:", RELEASE_TAG)
-            mqtt_client.publish(f"{doser_topic}/version", RELEASE_TAG, retain=True)
-            ip_addr = wifi.ifconfig()[0]
-            print("mqtt publish ip:", ip_addr)
-            mqtt_client.publish(f"{doser_topic}/ip", ip_addr, retain=True)
-            print("mqtt publish hostname:", ip_addr)
-            mqtt_client.publish(f"{doser_topic}/hostname", hostname, retain=True)
-            print("mqtt publish pump settings:", pump_names)
-            mqtt_client.publish(f"{doser_topic}/pump_settings", json.dumps(_pump_settings), retain=True)
-            print("mqtt resubscribe")
-            mqtt_client.resubscribe()
-            mqtt_client.check_msg()
-            mqtt_client.send_queue()
-        except Exception as _e:
-            print("MQTT Error: ", _e)
-
-    #notification_timer = time.time() + 600
-    while 1:
-
-        while ota_lock:
-            print("MQTT OTA lock")
-            await asyncio.sleep(200)
-        # At this point in the code you must consider how to handle
-        # connection errors.  And how often to resume the connection.
-        try:
-            print("MQTT start new cycle")
-            if mqtt_client.is_conn_issue():
-                while mqtt_client.is_conn_issue():
-                    mqtt_client.log()
-                    # If the connection is successful, the is_conn_issue
-                    # method will not return a connection error.
-                    await mqtt_reconnect(mqtt_client)
-                    if mqtt_client.is_conn_issue():
-                        print("Failed to reconnect MQTT")
-                        await asyncio.sleep(5)
-
-            # Run heavy socket operations sequentially to avoid blocking
-            #if time.time() >= notification_timer:
-            #    print("Process notifications")
-            #    notification_timer = time.time() + 600
-            #    try:
-            #        await telegram_worker.process_messages()
-            #        await whatsapp_worker.process_messages()
-            #    except Exception as e:
-            #        print("Notification exception ", e)
-
-            print("MQTT start polling")
-            # WARNING!!!
-            # The below functions should be run as often as possible.
-            # There may be a problem with the connection. (MQTTException(7,), 9)
-            # In the following way, we clear the queue.
-
-            for _ in range(15):
-                print("MQTT check buffer")
-                while mqtt_publish_buffer:
-                    print(f"MQTT publish buffer\n{mqtt_publish_buffer}")
-                    if mqtt_client.is_conn_issue():
-                        mqtt_client.log()
-                        break
-                    try:
-                        async with global_lock:
-                            msg = mqtt_publish_buffer.pop(0)
-                    except Exception as e:
-                        print(e)
-
-                    print("MQTT publish ", msg)
-                    mqtt_client.publish(msg["topic"], json.dumps(msg["data"]))
-                if (_ + 1) % 15 == 0:
-                    if mqtt_client.is_conn_issue():
-                        mqtt_client.log()
-                        break
-                    msg = {"free_mem": gc.mem_free() // 1024}
-                    mqtt_client.publish(f"{doser_topic}/free_mem", json.dumps(msg))
-                    if mqtt_client.is_conn_issue():
-                        break
-                    mqtt_client.publish(f"{doser_topic}/uptime", str(uptime_counter) + " seconds")
-                print(f"MQTT Check message {_} Start")
-                if mqtt_client.is_conn_issue():
-                    mqtt_client.log()
-                    break
-                mqtt_client.check_msg()  # needed when publish(qos=1), ping(), subscribe()
-                print(f"MQTT Check message {_} Finish")
-                if mqtt_client.is_conn_issue():
-                    mqtt_client.log()
-                    break
-                mqtt_client.send_queue()  # needed when using the caching capabilities for unsent messages
-                print(f"MQTT Send queue {_} Finish")
-
-                await asyncio.sleep(1)
-                print(f"MQTT check No{_}")
-
-            print("MQTT finished cycle")
-
-        except Exception as e:
-            print("MQTT Error: ", e)
-            await asyncio.sleep(10)
-        await asyncio.sleep(0.5)
+    def refill(self, command):
+        print(f"Handling refill command: {command}")
+        if not self.check_stop_parameters(command):
+            print("Refill cmd parameter error")
+        print(f"Refilling pump{command['id']} storage")
+        storage[f"remaining{command['id']}"] = storage[f"pump{command['id']}"]
+        _pump_id = command['id']
+        _topic = f"{doser_topic}/pump{_pump_id}"
+        _data = {"id": _pump_id, "name": pump_names[_pump_id - 1], "dose": 0,
+                 "remain": storage[f"remaining{_pump_id}"], "storage": storage[f"pump{_pump_id}"]}
+        mqtt_worker.add_message_to_publish(f"pump{command['id']}", json.dumps(_data))
 
 
-mqtt_dose_buffer = []
-mqtt_run_buffer = []
-mqtt_stop_buffer = []
-mqtt_refill_buffer = []
-mqtt_publish_buffer = []
+client_params = {'client_id': "ReefRhythm-" + unique_id, 'server': mqtt_broker, 'port': 1883,
+                 'user': mqtt_login, 'password': mqtt_password}
 
+command_handler = CommandHandler()
 
-@restart_on_failure
-async def process_mqtt_cmd():
-    while True:
-        if mqtt_dose_buffer:
-            print("Process mqtt Dose command")
-            command = mqtt_dose_buffer[0]
-            del mqtt_dose_buffer[0]
-            desired_flow = command["amount"] * (60 / command["duration"])
-            print(f"Desired flow: {round(desired_flow, 2)}")
-            print(f"Direction: {command['direction']}")
-            desired_rpm_rate = np.interp(desired_flow, chart_points[f"pump{command['id']}"][1],
-                                         chart_points[f"pump{command['id']}"][0])
-            print("Calculated RPM: ", desired_rpm_rate)
-            await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate,
-                                             command['duration'], command['direction'], rpm_table,
-                                             limits_dict[int(command['id'])], pump_dose=command["amount"],
-                                             pump_id=int(command['id']))
-
-        if mqtt_run_buffer:
-            print("Process mqtt Run command")
-            command = mqtt_run_buffer[0]
-            del mqtt_run_buffer[0]
-            print(f"Direction: {command['direction']}")
-            desired_rpm_rate = command['rpm']
-            print("Desired RPM: ", desired_rpm_rate)
-            await command_buffer.add_command(stepper_run, None, mks_dict[f"mks{command['id']}"], desired_rpm_rate,
-                                             command['duration'], command['direction'], rpm_table,
-                                             limits_dict[int(command['id'])], pump_dose=None,
-                                             pump_id=int(command['id']))
-
-        if mqtt_stop_buffer:
-            print("Process mqtt Stop command")
-            command = mqtt_stop_buffer[0]
-            del mqtt_stop_buffer[0]
-            print(f"Stop pump{command['id']}")
-            await command_buffer.add_command(stepper_stop, None, mks_dict[f"mks{command['id']}"])
-
-        if mqtt_refill_buffer:
-            print("Process mqtt refill command")
-            command = mqtt_refill_buffer[0]
-            del mqtt_refill_buffer[0]
-            print(f"Refilling pump{command['id']} storage")
-            storage[f"remaining{command['id']}"] = storage[f"pump{command['id']}"]
-            print("Publish to mqtt")
-            _pump_id = command['id']
-            _topic = f"{doser_topic}/pump{_pump_id}"
-            _data = {"id": _pump_id, "name": pump_names[_pump_id - 1], "dose": 0,
-                     "remain": storage[f"remaining{_pump_id}"], "storage": storage[f"pump{_pump_id}"]}
-            print("data", _data)
-            print({"topic": _topic, "data": _data})
-            async with global_lock:
-                mqtt_publish_buffer.append({"topic": _topic, "data": _data})
-
-        await asyncio.sleep(1)
+stats = {"version": RELEASE_TAG, "hostname": hostname,
+         "settings:": json.dumps({"names": pump_names,
+                                  "number": PUMP_NUM,
+                                  "current": pumps_current,
+                                  "inversion": inversion})
+         }
+mqtt_worker = MQTTWorker(client_params, topics, stats, command_handler, wifi)
 
 
 @restart_on_failure
@@ -1461,11 +1262,11 @@ async def main():
         asyncio.create_task(update_sched_onstart()),
         asyncio.create_task(maintain_wifi(ssid, password, hostname)),
         asyncio.create_task(maintain_memory()),
-        asyncio.create_task(mqtt_worker()),
-        asyncio.create_task(process_mqtt_cmd()),
         asyncio.create_task(storage_tracker()),
         asyncio.create_task(telegram_worker.process_messages()),
-        asyncio.create_task(whatsapp_worker.process_messages())
+        asyncio.create_task(whatsapp_worker.process_messages()),
+        asyncio.create_task(mqtt_worker.worker())
+
     ]
 
     # load async tasks from extension

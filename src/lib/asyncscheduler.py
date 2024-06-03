@@ -7,23 +7,6 @@ except ImportError:
     import asyncio as asyncio
 
 
-class CommandHandler:
-    def __init__(self, command_buffer):
-        print()
-
-    def dose(self, command):
-        print(f"Handling dosing command: {command}")
-
-    def run(self, command):
-        print(f"Handling run command: {command}")
-
-    def stop(self, command):
-        print(f"Handling stop command: {command}")
-
-    def refill(self, command):
-        print(f"Handling refill command: {command}")
-
-
 # Implementation of missed asyncio.Future
 class CustomFuture:
     def __init__(self):
