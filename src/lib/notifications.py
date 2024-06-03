@@ -38,7 +38,10 @@ class MessagingService:
         for attempt in range(max_retries):
             try:
                 print(host)
-                reader, writer = await asyncio.open_connection(host, 443, ssl=self.ssl_context, server_hostname=host)
+                callmebot = asyncio.open_connection(host, 443, ssl=self.ssl_context, server_hostname=host)
+                # Wait for 3 seconds, then raise TimeoutError
+                reader, writer = await asyncio.wait_for(callmebot, timeout=3)
+
                 writer.write(request_header.encode())
                 await writer.drain()
 
