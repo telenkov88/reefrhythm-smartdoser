@@ -10,6 +10,7 @@ from lib.exec_code import evaluate_expression
 from machine import Timer
 from lib.decorator import restart_on_failure
 import requests
+
 try:
     # Import 3-part Add-ons
     import extension
@@ -45,10 +46,12 @@ except ImportError:
 
     mcron.remove_all = Mock()
     mcron.insert = Mock()
-    mqtt_client = Mock()
+    from lib.mocks import MQTTClient
+    mqtt_client = MQTTClient()
     RELEASE_TAG = "local_debug"
     os.system("python ../scripts/compress_web.py --path ./")
     USE_RAM = False
+
 
     # Dummy decorator to simulate @micropython.native
     # Creating a more structured mock for micropython module
@@ -466,88 +469,45 @@ async def static(request, path):
     return send_file('static/icon/' + path)
 
 
-@app.route('/stop')
-async def stop(request):
-    _id = request.args.get('id', default=1, type=int)
-
-    print(f"[ID {_id}] Stop")
-    callback_result_future = CustomFuture()
-
-    def callback(result):
-        print(f"Callback received result: {result}")
-        callback_result_future.set_result({"result": result})
-
-    task = asyncio.create_task(
-        command_buffer.add_command(stepper_stop, callback, mks_dict[f"mks{_id}"]))
-    await task
-
-    await callback_result_future.wait()
-    callback_result = await callback_result_future.wait()
-    print("Result of callback:", callback_result)
-
-    return callback_result
+@app.route('/dose', methods=['GET'])
+async def dose(request):
+    pump_id = request.args.get('id', default=1, type=int)
+    amount = request.args.get('amount', default=0, type=float)
+    duration = request.args.get('duration', default=0, type=float)
+    direction = request.args.get('direction', default=1, type=int)
+    print(f"[Pump{pump_id}] Dose {amount}ml in {duration}s ")
+    asyncio.create_task(command_handler.dose({"id": pump_id, "amount": amount, "duration": duration,
+                                              "direction": direction}))
 
 
-@app.route('/run')
+@app.route('/run', methods=['GET'])
 async def run_with_rpm(request):
-    id = request.args.get('id', default=1, type=int)
+    pump_id = request.args.get('id', default=1, type=int)
     rpm = request.args.get('rpm', default=1, type=float)
     direction = request.args.get('direction', default=1, type=int)
-    execution_time = request.args.get('duration', default=1, type=float)
+    duration = request.args.get('duration', default=1, type=float)
 
-    print(f"[ID {id}] Run {rpm}RPM for {execution_time}sec Dir={direction}")
-
-    callback_result_future = CustomFuture()
-
-    def callback(result):
-        print(f"Callback received result: {result}")
-        callback_result_future.set_result({"time": result[0]})
-
-    task = asyncio.create_task(
-        command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], rpm, execution_time, direction,
-                                   rpm_table, False, pump_dose=0, pump_id=id))
-    await task
-
-    await callback_result_future.wait()
-    callback_result = await callback_result_future.wait()
-    print("Result of callback:", callback_result)
-
-    return callback_result
+    print(f"[Pump{pump_id}] Run {rpm}RPM for {duration}sec Dir={direction}")
+    asyncio.create_task(command_handler.run({"id": pump_id, "rpm": rpm, "duration": duration, "direction": direction}))
 
 
-@app.route('/dose')
-async def dose(request):
-    id = request.args.get('id', default=1, type=int)
-    amount = request.args.get('amount', default=0, type=float)
-    execution_time = request.args.get('duration', default=0, type=float)
-    direction = request.args.get('direction', default=1, type=int)
-    print(f"[Pump{id}]")
-    print(f"Dose {amount}ml in {execution_time}s ")
+@app.route('/stop', methods=['GET'])
+async def stop(request):
+    pump_id = request.args.get('id', default=1, type=int)
 
-    # Calculate RPM for Flow Rate
-    desired_flow = amount * (60 / execution_time)
-    print(f"Desired flow: {round(desired_flow, 2)}")
-    print(f"Direction: {direction}")
-    desired_rpm_rate = np.interp(desired_flow, chart_points[f"pump{id}"][1], chart_points[f"pump{id}"][0])
-    desired_rpm_rate = to_float(desired_rpm_rate)
+    print(f"[Pump{pump_id}] Stop")
+    asyncio.create_task(command_handler.stop({"id": pump_id}))
 
-    callback_result_future = CustomFuture()
 
-    def callback(result):
-        print(f"Callback received result: {result}")
-        callback_result_future.set_result({"flow": desired_flow, "rpm": desired_rpm_rate, "time": result[0]})
-
-    task = asyncio.create_task(
-        command_buffer.add_command(stepper_run, callback, mks_dict[f"mks{id}"], desired_rpm_rate, execution_time,
-                                   direction, rpm_table, pump_dose=amount, pump_id=id))
-    await task
-
-    await callback_result_future.wait()
-    callback_result = await callback_result_future.wait()
-    print("Result of callback:", callback_result)
-
-    return callback_result
-
+@app.route('/refill', methods=['GET'])
+async def refill(request):
+    pump_id = request.args.get('id', default=1, type=int)
+    _new_storage = request.args.get('storage', default=-1, type=int)
+    print(f"[Pump{pump_id}] refill")
+    if _new_storage < 0:
+        asyncio.create_task(command_handler.refill({"id": pump_id}))
+    else:
+        asyncio.create_task(command_handler.refill({"id": pump_id, "storage": _new_storage}))
 
 @app.route('/', methods=['GET', 'POST'])
 async def index(request):
@@ -720,6 +680,7 @@ async def ota_upgrade(request):
             try:
                 print("Start upgrading from link")
                 ota_lock = True
+                mqtt_worker.service = False  # Stop MQTT worker during OTA
                 mcron.remove_all()
 
                 filename = link.split('/')[-1]
@@ -864,7 +825,6 @@ def setting_responce(request):
 
     response.set_cookie("emptyContainerLvl", empty_container_lvl)
 
-
     if 'ssid' in globals():
         response.set_cookie('current_ssid', ssid)
         if addon and hasattr(extension, 'extension_navbar'):
@@ -910,7 +870,6 @@ def setting_process_post(request):
     new_whatapp_dose_msg = int(request.json["whatsappDoseMsg"])
     new_telegram_dose_msg = int(request.json["telegramDoseMsg"])
     new_empty_container_lvl = int(request.json["emptyContainerLvl"])
-
 
     if new_ssid and new_psw:
         with open("./config/wifi.json", "w") as f:
@@ -983,19 +942,6 @@ async def settings(request):
         _limits_config.write(json.dumps(limits_dict))
     update_schedule(schedule)
     return {'logs': 'Success'}
-
-
-@app.route('/refill', methods=['POST'])
-async def refill(request):
-    global storage
-    _storage = request.json
-    for _ in range(MAX_PUMPS):
-        storage[f"pump{_ + 1}"] = _storage[f"pump{_ + 1}"]
-        storage[f"remaining{_ + 1}"] = _storage[f"remaining{_ + 1}"]
-    print("New storage data: ", storage)
-    with open("config/storage.json", 'w') as write_file:
-        json.dump(storage, write_file)
-    return {}
 
 
 def update_schedule(data):
@@ -1170,11 +1116,19 @@ class CommandHandler:
             return 1 <= cmd["id"] <= PUMP_NUM
         return False
 
-    def dose(self, command):
-        print(">>>>>>>>>>>>>>>>>>>>>>>>")
+    def check_refill_parameters(self, cmd):
+        if "id" in cmd:
+            if "storage" in cmd:
+                return (1 <= cmd["id"] <= PUMP_NUM and
+                        0 <= int(cmd["storage"]) < 65535)
+            else:
+                return 1 <= cmd["id"] <= PUMP_NUM
+        return False
+
+    async def dose(self, command):
         print(f"Handling dosing command: {command}")
         if not self.check_dose_parameters(command):
-            print("Dose cmd parameter error: ")
+            print("Dose cmd parameter error: ", command)
             return
         desired_flow = command["amount"] * (60 / command["duration"])
         print(f"Desired flow: {round(desired_flow, 2)}")
@@ -1187,10 +1141,10 @@ class CommandHandler:
                                          limits_dict[int(command['id'])], pump_dose=command["amount"],
                                          pump_id=int(command['id']))
 
-    def run(self, command):
+    async def run(self, command):
         print(f"Handling run command: {command}")
         if not self.check_run_parameters(command):
-            print("Run cmd parameter error")
+            print("Run cmd parameter error: ", command)
             return
         print(f"Direction: {command['direction']}")
         desired_rpm_rate = command['rpm']
@@ -1200,25 +1154,31 @@ class CommandHandler:
                                          limits_dict[int(command['id'])], pump_dose=None,
                                          pump_id=int(command['id']))
 
-    def stop(self, command):
+    async def stop(self, command):
         print(f"Handling stop command: {command}")
         if not self.check_stop_parameters(command):
-            print("Stop cmd parameter error")
+            print("Stop cmd parameter error: ", command)
             return
         print(f"Stop pump{command['id']}")
         await command_buffer.add_command(stepper_stop, None, mks_dict[f"mks{command['id']}"])
 
-    def refill(self, command):
+    async def refill(self, command):
         print(f"Handling refill command: {command}")
-        if not self.check_stop_parameters(command):
-            print("Refill cmd parameter error")
+        if not self.check_refill_parameters(command):
+            print("Refill cmd parameter error: ", command)
         print(f"Refilling pump{command['id']} storage")
+        if "storage" in command:
+            storage[f"pump{command['id']}"] = int(command['storage'])
         storage[f"remaining{command['id']}"] = storage[f"pump{command['id']}"]
         _pump_id = command['id']
         _topic = f"{doser_topic}/pump{_pump_id}"
         _data = {"id": _pump_id, "name": pump_names[_pump_id - 1], "dose": 0,
                  "remain": storage[f"remaining{_pump_id}"], "storage": storage[f"pump{_pump_id}"]}
         mqtt_worker.add_message_to_publish(f"pump{command['id']}", json.dumps(_data))
+        mqtt_worker.publish_stats(
+            mqtt_stats(version=RELEASE_TAG, hostname=hostname, names=pump_names, number=PUMP_NUM, current=pumps_current,
+                       inversion=inversion,
+                       storage=storage, max_pumps=MAX_PUMPS))
 
 
 client_params = {'client_id': "ReefRhythm-" + unique_id, 'server': mqtt_broker, 'port': 1883,
@@ -1226,13 +1186,11 @@ client_params = {'client_id': "ReefRhythm-" + unique_id, 'server': mqtt_broker, 
 
 command_handler = CommandHandler()
 
-stats = {"version": RELEASE_TAG, "hostname": hostname,
-         "settings:": json.dumps({"names": pump_names,
-                                  "number": PUMP_NUM,
-                                  "current": pumps_current,
-                                  "inversion": inversion})
-         }
-mqtt_worker = MQTTWorker(client_params, topics, stats, command_handler, wifi)
+mqtt_worker = MQTTWorker(client_params,
+                         mqtt_stats(version=RELEASE_TAG, hostname=hostname, names=pump_names, number=PUMP_NUM,
+                                    current=pumps_current,
+                                    inversion=inversion,
+                                    storage=storage, max_pumps=MAX_PUMPS), command_handler, wifi)
 
 
 @restart_on_failure
@@ -1241,6 +1199,11 @@ async def storage_tracker():
     _old_storage = storage.copy()
     while True:
         if _old_storage != storage:
+            mqtt_worker.publish_stats(
+                mqtt_stats(version=RELEASE_TAG, hostname=hostname, names=pump_names, number=PUMP_NUM,
+                           current=pumps_current,
+                           inversion=inversion,
+                           storage=storage, max_pumps=MAX_PUMPS))
             with open('config/storage.json', 'w') as _write_file:
                 # Print the new remaining values
                 print("Store new remaining values: ", storage)

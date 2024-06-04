@@ -448,33 +448,17 @@
         const pumpSelected = document.getElementById("pumpSelector").value
         storageVolumes["pump" + pumpSelected] = Number(document.getElementById("containerVolume").value)
         storageVolumes["remaining" + pumpSelected] = Number(document.getElementById("containerVolume").value)
-        const url = window.location.href + 'refill';
-        console.log("Refill containers")
+        console.log("Refill Pump",pumpSelected)
 
-        console.log(storageVolumes)
 
-        fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(storageVolumes)
-        })
-            .then(response => {
-                console.log("Response:", response);
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                return response.json(); // Here we convert the response body to JSON
-            })
-            .then(data => {
-                console.log('Success:', data);
-            })
-            .catch((error) => {
-                console.error('Error:', error);
-                document.getElementById("logTextarea").value = 'Error: ' + error.message;
-            });
+        const url = `/refill?id=${pumpSelected}&storage=${storageVolumes["pump" + pumpSelected]}`;
+
+        fetch(url)
+            .then(response => response.json())
+            .then(data => console.log('Success:', data))
+            .catch((error) => console.error('Error:', error));
     }
+
 
     function updateStorage() {
         console.log("update storage")
