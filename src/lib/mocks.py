@@ -5,6 +5,8 @@ import time
 
 
 RELEASE_TAG = "local_debug"
+from unittest.mock import MagicMock
+import random
 
 unique_id = MagicMock()
 unique_id.return_value = "aabbbccdd".encode()

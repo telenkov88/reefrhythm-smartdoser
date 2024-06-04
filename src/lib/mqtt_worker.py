@@ -22,7 +22,6 @@ topics = {
     'subscriptions': ['dose', 'run', 'stop', 'refill'],
 }
 
-
 def mqtt_stats(**kwargs):
     return {
         "version": kwargs['version'],
