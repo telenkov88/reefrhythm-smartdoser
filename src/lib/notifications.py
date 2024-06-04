@@ -2,8 +2,10 @@ from lib.decorator import restart_on_failure
 try:
     import uasyncio as asyncio
     import usocket
+    from lib.async_queue import Queue as asyncQueue
 except ImportError:
     import asyncio
+    from asyncio import Queue as asyncQueue
     import socket as usocket
 
 import ssl
@@ -40,7 +42,7 @@ class MessagingService:
                 print(host)
                 callmebot = asyncio.open_connection(host, 443, ssl=self.ssl_context, server_hostname=host)
                 # Wait for 3 seconds, then raise TimeoutError
-                reader, writer = await asyncio.wait_for(callmebot, timeout=3)
+                reader, writer = await asyncio.wait_for(callmebot, timeout=5)
 
                 writer.write(request_header.encode())
                 await writer.drain()
@@ -132,48 +134,38 @@ class NotificationWorker:
     def __init__(self, service, net, delay=600, background=True):
         self.service = service
         self.net = net
-        self.buffer = []
-        self.active = True if service.active else False
-        self.message = ""
-        self.background = background
-        self.lock = asyncio.Lock()
+        self.buffer = asyncQueue()
+        self.active = service.active
         self.delay = delay
+        self.background = background
 
     async def add_message(self, message):
         if not self.active:
             return
-        async with self.lock:  # Now this should work as expected
-            self.buffer.append(message)
-            print(f"{self.service.service_name} add message: {message}")
-            while len(self.buffer) > self.service.buffer_size:
-                self.buffer.pop(0)
+        await self.buffer.put(message)
+        print(f"{self.service.service_name} add message: {message}")
 
     async def buffer_to_message(self):
-        self.message = ""
-        async with self.lock:
-            for msg in self.buffer:
-                self.message += quote_plus(msg)
-            self.buffer = []
+        message = ""
+        while not self.buffer.empty():
+            msg = await self.buffer.get()
+            message += quote_plus(msg)
+        return message
 
     @restart_on_failure
     async def process_messages(self):
         while self.active:
-            try:
-                print(f"[{self.service.service_name}] Start")
-                if self.background:
-                    print(f"[{self.service.service_name}] await {self.delay}sec")
-                    await asyncio.sleep(self.delay)
-                print(f"[{self.service.service_name}] Wifi status: ", self.net.isconnected())
-                print(f"[{self.service.service_name}] buffer:", self.buffer)
-                if self.buffer and self.net.isconnected():
-                    await self.buffer_to_message()
-                    await self.service.send_request(self.service.host, self.service.path(self.message))
-                print(f"[{self.service.service_name}] Finish")
-                if not self.background:
-                    break
-            except Exception as e:
-                print(f"[{self.service.service_name}] Process Message Error ", e)
-                await asyncio.sleep(80)
+            print(f"[{self.service.service_name}] Start")
+            if self.background:
+                print(f"[{self.service.service_name}] await {self.delay}sec")
+                await asyncio.sleep(self.delay)
+            print(f"[{self.service.service_name}] Wifi status: ", self.net.isconnected())
+            if not self.buffer.empty() and self.net.isconnected():
+                message = await self.buffer_to_message()
+                asyncio.create_task(self.service.send_request(self.service.host, self.service.path(message)))
+            print(f"[{self.service.service_name}] Finish")
+            if not self.background:
+                break
 
 
 # Example of notifications usage
