@@ -38,7 +38,7 @@ def check_defaults_storage(storage, max_pumps):
     for p in range(1, max_pumps + 1):
         if f"pump{p}" not in storage:
             storage[f"pump{p}"] = 0
-        if storage[f"remaining{p}"] not in storage:
+        if f"remaining{p}" not in storage:
             storage[f"remaining{p}"] = 0
 
 

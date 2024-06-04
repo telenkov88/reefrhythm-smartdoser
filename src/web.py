@@ -41,7 +41,7 @@ try:
     from release_tag import *
     from lib.umqtt.robust2 import MQTTClient
 
-    mqtt_client = MQTTClient(f"ReefRhythm-{unique_id}", shared.settings["broker"], keepalive=40, socket_timeout=2)
+    mqtt_client = MQTTClient(f"ReefRhythm-{unique_id}", shared.mqtt_settings["broker"], keepalive=40, socket_timeout=2)
 
     USE_RAM = False
 

@@ -1,7 +1,6 @@
 import json
 from lib.config_defaults import *
 from config.pin_config import rx_pin, tx_pin, analog_pins
-from unittest.mock import Mock, MagicMock
 from lib.servo42c import Servo42c
 from lib.stepper_doser_math import extrapolate_flow_rate, linear_interpolation
 try:
@@ -25,6 +24,7 @@ try:
 
 except ImportError:
     print("import_config debugging on PC")
+    from unittest.mock import Mock, MagicMock
     network = MagicMock()
     wifi = network.WLAN(network.STA_IF)
     wifi.config.return_value = b'\xde\xad\xbe\xef\xca\xfe'
