@@ -158,18 +158,22 @@ class NotificationWorker:
     @restart_on_failure
     async def process_messages(self):
         while self.active:
-            print(f"[{self.service.service_name}] Start")
-            if self.background:
-                print(f"[{self.service.service_name}] await {self.delay}sec")
-                await asyncio.sleep(self.delay)
-            print(f"[{self.service.service_name}] Wifi status: ", self.net.isconnected())
-            print(f"[{self.service.service_name}] buffer:", self.buffer)
-            if self.buffer and self.net.isconnected():
-                await self.buffer_to_message()
-                await self.service.send_request(self.service.host, self.service.path(self.message))
-            print(f"[{self.service.service_name}] Finish")
-            if not self.background:
-                break
+            try:
+                print(f"[{self.service.service_name}] Start")
+                if self.background:
+                    print(f"[{self.service.service_name}] await {self.delay}sec")
+                    await asyncio.sleep(self.delay)
+                print(f"[{self.service.service_name}] Wifi status: ", self.net.isconnected())
+                print(f"[{self.service.service_name}] buffer:", self.buffer)
+                if self.buffer and self.net.isconnected():
+                    await self.buffer_to_message()
+                    await self.service.send_request(self.service.host, self.service.path(self.message))
+                print(f"[{self.service.service_name}] Finish")
+                if not self.background:
+                    break
+            except Exception as e:
+                print(f"[{self.service.service_name}] Process Message Error ", e)
+                await asyncio.sleep(80)
 
 
 # Example of notifications usage
