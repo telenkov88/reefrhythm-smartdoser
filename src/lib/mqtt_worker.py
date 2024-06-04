@@ -67,10 +67,13 @@ class MQTTWorker:
         if not self.service:
             return
 
+        while not self.net.isconnected():
+            await asyncio.sleep(1)
         try:
             self.client.connect()
         except Exception as e:
             print("MQTT error, ", e)
+            self.connected = False
         for topic in self.topics['subscriptions']:
             self.client.subscribe(self.base_topic + topic)
 
@@ -85,7 +88,7 @@ class MQTTWorker:
         await asyncio.sleep(15)  # Await first service message
         while True:
             issue = self.client.is_conn_issue()
-            if issue:
+            if issue or not self.connected:
                 log = self.client.log()
                 print(f"log: {log}, issue: {issue}")
 
@@ -95,20 +98,22 @@ class MQTTWorker:
                 while not self.net.isconnected():
                     await asyncio.sleep(1)
                 try:
-                    if self.client.reconnect():
-                        if self.client.is_conn_issue() is None:
-                            print("MQTT reconnect failed")
-                            self.client.log()
-                        else:
-                            print("MQTT reconnect success")
-                            self.client.resubscribe()
-                            self.publish_stats()
-                            self.add_message_to_publish(self.topics['status'], "Connected", retain=True)
-                            self.connected = True
+                    self.client.reconnect()
+                    await asyncio.sleep(5)
+                    if self.client.is_conn_issue():
+                        print("MQTT reconnect failed")
+                        self.client.log()
+                    else:
+                        print("MQTT reconnect success")
+                        self.connected = True
+                        self.add_message_to_publish(self.topics['status'], "Connected", retain=True)
+                        self.client.resubscribe()
+                        self.publish_stats()
+
                 except Exception as e:
                     print("MQTT Error: ", e)
                     self.connected = False
-            await asyncio.sleep(15)
+            await asyncio.sleep(20)
 
     async def handle_incoming_messages(self):
         while self.connected and self.service:
