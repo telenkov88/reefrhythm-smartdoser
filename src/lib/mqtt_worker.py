@@ -85,12 +85,13 @@ class MQTTWorker:
                 try:
                     if self.client.reconnect():
                         if self.client.is_conn_issue() is None:
-                            print("MQTT Failed to reconnect")
+                            print("MQTT reconnect failed")
                             self.client.log()
                         else:
                             print("MQTT reconnect success")
                             self.client.resubscribe()
                             self.publish_stats()
+                            self.add_message_to_publish(self.topics['status'], "Connected", retain=True)
                             self.connected = True
                 except Exception as e:
                     print("MQTT Error: ", e)
