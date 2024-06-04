@@ -1,20 +1,21 @@
 try:
     import uasyncio as asyncio
     import network
-    import ntptime
+    import lib.ntptime
 except ImportError:
     import asyncio
     from lib.mocks import *
     import lib.mocks
 from random import randint
 import shared
+import time
 
 
 async def sync_time():
     ntptime.host = shared.settings["ntphost"]
     while not shared.wifi.isconnected():
         await asyncio.sleep(1)
-
+    # TODO check time sync
     # Initial time sync is Mandatory to job scheduler
     while not shared.time_synced:
         i = 0
