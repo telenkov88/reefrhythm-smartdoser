@@ -172,7 +172,6 @@ uptime_counter = 0
 whatsapp_worker = NotificationWorker(Whatsapp(shared.settings["whatsapp_number"],
                                               shared.settings["whatsapp_apikey"]), shared.wifi, delay=600)
 telegram_worker = NotificationWorker(Telegram(shared.settings["telegram"]), shared.wifi, delay=600)
-global_lock = asyncio.Lock()
 
 
 # Function to increment the uptime counter
