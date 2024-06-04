@@ -82,7 +82,7 @@ async def maintain_wifi(ssid, password, hostname):
 
 if __name__ == "__main__":
     print("Disconnect AP")
-    from load_configs import *
+    from config import *
     ap = network.WLAN(network.AP_IF)
     ap.active(False)
     wifi = network.WLAN(network.STA_IF)
