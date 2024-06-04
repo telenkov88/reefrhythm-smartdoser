@@ -130,7 +130,10 @@ class MQTTWorker:
                 self.stats = new_stats
             self.add_message_to_publish("ip", "" + self.net.ifconfig()[0], retain=True)
             for _topic in self.stats:
-                self.add_message_to_publish(_topic, self.stats[_topic], retain=True)
+                if "pump" in _topic:
+                    self.add_message_to_publish(_topic, self.stats[_topic], retain=False)
+                else:
+                    self.add_message_to_publish(_topic, self.stats[_topic], retain=True)
 
     def add_message_to_publish(self, topic, data, retain=False):
         if self.service:
