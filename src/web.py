@@ -509,6 +509,7 @@ async def refill(request):
     else:
         asyncio.create_task(command_handler.refill({"id": pump_id, "storage": _new_storage}))
 
+
 @app.route('/', methods=['GET', 'POST'])
 async def index(request):
     if request.method == 'GET':
@@ -1186,11 +1187,15 @@ client_params = {'client_id': "ReefRhythm-" + unique_id, 'server': mqtt_broker, 
 
 command_handler = CommandHandler()
 
-mqtt_worker = MQTTWorker(client_params,
-                         mqtt_stats(version=RELEASE_TAG, hostname=hostname, names=pump_names, number=PUMP_NUM,
+start_mqtt_stats = mqtt_stats(version=RELEASE_TAG, hostname=hostname, names=pump_names, number=PUMP_NUM,
                                     current=pumps_current,
                                     inversion=inversion,
-                                    storage=storage, max_pumps=MAX_PUMPS), command_handler, wifi)
+                                    storage=storage, max_pumps=MAX_PUMPS)
+for _ in range(1, PUMP_NUM+1):
+    start_mqtt_stats[f"pump{_}"] = json.dumps({"dose": 0, "id": _, "remain": storage[f"remaining{_}"],
+                                               "storage": storage[f"pump{_}"],"name": pump_names[_-1]})
+
+mqtt_worker = MQTTWorker(client_params, start_mqtt_stats, command_handler, wifi)
 
 
 @restart_on_failure
