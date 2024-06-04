@@ -1,4 +1,5 @@
 import json
+
 try:
     import gc
     from lib.umqtt.robust2 import MQTTClient
@@ -10,6 +11,7 @@ except ImportError:
     from lib.mocks import MQTTClient, unique_id, CommandHandler, net
     from asyncio import Queue as asyncQueue
     import binascii as ubinascii
+
     RELEASE_TAG = "debug version"
 
 import asyncio
@@ -17,17 +19,27 @@ import asyncio
 unique_id = ubinascii.hexlify(unique_id()).decode('ascii')
 
 topics = {
-        'status': 'status',
-        'subscriptions': ['dose', 'run', 'stop', 'refill'],
-        'dose': 'dose',
-        'run': 'run',
-        'stop': 'stop',
-        'refill': 'refill'
+    'status': 'status',
+    'subscriptions': ['dose', 'run', 'stop', 'refill'],
+}
+
+
+def mqtt_stats(**kwargs):
+    return {
+        "version": kwargs['version'],
+        "hostname": kwargs['hostname'],
+        "settings": json.dumps({
+            "names": kwargs['names'],
+            "number": kwargs['number'],
+            "current": kwargs['current'],
+            "inversion": kwargs['inversion'],
+            "storage": [kwargs['storage'][f"pump{x}"] for x in range(1, kwargs['max_pumps'] + 1)]
+        })
     }
 
 
 class MQTTWorker:
-    def __init__(self, client_params, topics, stats, command_handler, network):
+    def __init__(self, client_params, stats, command_handler, network):
         self.service = True
         if not client_params["server"]:
             print("Initialization Error: No server provided.")
@@ -99,22 +111,26 @@ class MQTTWorker:
             await asyncio.sleep(15)
 
     async def handle_incoming_messages(self):
-        while self.connected:
+        while self.connected and self.service:
             self.client.check_msg()
             await asyncio.sleep(1)
 
     async def publish(self):
-        while self.connected:
+        while self.connected and self.service:
             message = await self.mqtt_publish_queue.get()
             if message:
                 self.client.publish(message['topic'], message['payload'], retain=message['retain'])
                 print(f'Published to {message["topic"]}: {message["payload"]}')
                 self.mqtt_publish_queue.task_done()
 
-    def publish_stats(self):
-        self.add_message_to_publish("ip", "" + self.net.ifconfig()[0], retain=True)
-        for _topic in self.stats:
-            self.add_message_to_publish(_topic, self.stats[_topic], retain=True)
+    def publish_stats(self, new_stats=None):
+        if self.service:
+            if new_stats is not None:
+                print("MQTT Update stats: ", new_stats)
+                self.stats = new_stats
+            self.add_message_to_publish("ip", "" + self.net.ifconfig()[0], retain=True)
+            for _topic in self.stats:
+                self.add_message_to_publish(_topic, self.stats[_topic], retain=True)
 
     def add_message_to_publish(self, topic, data, retain=False):
         if self.service:
@@ -141,15 +157,16 @@ class MQTTWorker:
                 self.process_command(_topic.split("/")[-1], message)
 
     def process_command(self, topic, command):
-        print(f"process MQTT command, {topic}, {command}")
-        if topic == self.topics['dose']:
-            self.command_handler.dose(command)
-        elif topic == self.topics['run']:
-            self.command_handler.run(command)
-        elif topic == self.topics['stop']:
-            self.command_handler.stop(command)
-        elif topic == self.topics['refill']:
-            self.command_handler.refill(command)
+        print(f"MQTT process command, {topic}, {command}")
+        if topic == 'dose':
+            asyncio.create_task(self.command_handler.dose(command))
+        elif topic == 'run':
+            asyncio.create_task(self.command_handler.run(command))
+        elif topic == 'stop':
+            asyncio.create_task(self.command_handler.stop(command))
+        elif topic == 'refill':
+            asyncio.create_task(self.command_handler.refill(command))
+        print("MQTT process command finish")
 
 
 async def main():
@@ -175,7 +192,7 @@ async def main():
     from asyncscheduler import CommandBuffer
     command_buffer = CommandBuffer
     command_handler = CommandHandler(command_buffer)
-    mqtt_worker = MQTTWorker(client_params, topics, stats, command_handler, net)
+    mqtt_worker = MQTTWorker(client_params, stats, command_handler, net)
     asyncio.create_task(mqtt_worker.worker())
     await asyncio.sleep(1)
     for i in range(10):

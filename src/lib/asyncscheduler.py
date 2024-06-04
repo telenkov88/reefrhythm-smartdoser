@@ -51,3 +51,6 @@ class CommandBuffer:
             except Exception as e:
                 print("Process command exception: ", e)
             print("Command processed, current buffer length: ", len(self.buffer))
+
+
+
