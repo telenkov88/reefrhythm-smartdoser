@@ -1,12 +1,60 @@
 try:
     import uasyncio as asyncio
     import network
+    import ntptime
 except ImportError:
     import asyncio
-    from unittest.mock import MagicMock, Mock
-    network = Mock()
-    network.AP_IF = Mock()
+    from lib.mocks import *
+    import lib.mocks
 from random import randint
+import shared
+
+
+async def sync_time():
+    ntptime.host = shared.settings["ntphost"]
+    while not shared.wifi.isconnected():
+        await asyncio.sleep(1)
+
+    # Initial time sync is Mandatory to job scheduler
+    while not shared.time_synced:
+        i = 0
+        try:
+            print("Local time before synchronization：%s" % str(time.localtime()))
+            ntptime.settime(shared.settings["timezone"])
+            print("Local time after synchronization：%s" % str(time.localtime()))
+            shared.time_synced = True
+            break
+        except Exception as _e:
+            i += 1
+            if i == 10:
+                shared.wifi.active(False)
+            elif i > 40:
+                machine.reset()
+            print("Failed to sync time on start. ", _e)
+        await asyncio.sleep(10)
+
+    while True:
+        if shared.wifi.isconnected():
+            x = 0
+            while True:
+                try:
+                    print("Local time before synchronization：%s" % str(time.localtime()))
+                    ntptime.settime(shared.settings["timezone"])
+                    print("Local time after synchronization：%s" % str(time.localtime()))
+                    shared.time_synced = True
+                    break
+                except Exception as _e:
+                    x += 1
+                    print(f'{x} time sync failed, Error: {_e}')
+                if x >= 3600:
+                    print("Time sync not working, reboot")
+                    sys.exit()
+
+                await asyncio.sleep(60)
+        else:
+            print("wifi disconnected")
+
+        await asyncio.sleep(1800)
 
 
 async def reconnect_wifi(wifi, ssid, password, hostname):
@@ -81,9 +129,7 @@ async def maintain_wifi(ssid, password, hostname):
 
 
 if __name__ == "__main__":
-    print("Disconnect AP")
-    from config import *
     ap = network.WLAN(network.AP_IF)
     ap.active(False)
     wifi = network.WLAN(network.STA_IF)
-    asyncio.run(maintain_wifi(ssid, password))
+    asyncio.run(maintain_wifi(shared.ssid, shared.password))

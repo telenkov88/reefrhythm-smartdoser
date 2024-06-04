@@ -1,5 +1,4 @@
 import json
-
 try:
     import gc
     from lib.umqtt.robust2 import MQTTClient
@@ -8,7 +7,7 @@ try:
     from machine import unique_id
     from release_tag import *
 except ImportError:
-    from lib.mocks import MQTTClient, unique_id, CommandHandler, net
+    from lib.mocks import MQTTClient, unique_id, net
     from asyncio import Queue as asyncQueue
     import binascii as ubinascii
 
@@ -196,10 +195,8 @@ async def main():
                      'server': broker, 'port': 1883, 'user': user, 'password': password}
 
     stats = {"version": "debug_version", "hostname": "localhost"}
-
-    from asyncscheduler import CommandBuffer
-    command_buffer = CommandBuffer
-    command_handler = CommandHandler(command_buffer)
+    from lib.pump_control import CommandHandler
+    command_handler = CommandHandler()
     mqtt_worker = MQTTWorker(client_params, stats, command_handler, net)
     asyncio.create_task(mqtt_worker.worker())
     await asyncio.sleep(1)

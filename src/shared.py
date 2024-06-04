@@ -1,9 +1,15 @@
 import json
+from lib.pump_control import CommandHandler
+from lib.asyncscheduler import CommandBuffer
 from lib.config_defaults import *
 from config.pin_config import rx_pin, tx_pin, analog_pins
+from lib.mqtt_worker import MQTTWorker, mqtt_stats
+from lib.notifications import NotificationWorker, Telegram, Whatsapp
 from lib.servo42c import Servo42c
-from lib.stepper_doser_math import extrapolate_flow_rate, linear_interpolation
+from lib.stepper_doser_math import extrapolate_flow_rate, linear_interpolation, make_rpm_table
+
 try:
+    from release_tag import *
     import gc
     import utime
     from machine import UART, Pin, ADC, unique_id
@@ -18,55 +24,18 @@ try:
     wifi = network.WLAN(network.STA_IF)
     import ubinascii
 
-    unique_id = ubinascii.hexlify(unique_id()).decode('ascii')
     web_compress = True
     web_file_extension = ".gz"
 
 except ImportError:
     print("import_config debugging on PC")
-    from unittest.mock import Mock, MagicMock
-    network = MagicMock()
-    wifi = network.WLAN(network.STA_IF)
-    wifi.config.return_value = b'\xde\xad\xbe\xef\xca\xfe'
-    ADC = Mock()
-    Pin = Mock()
-    ntptime = Mock()
-    unique_id = 'aaaabbbb'
-    utime = Mock()
-    import time
-
-    utime.time = Mock(return_value=(time.time() - 946684800))
-
-
-    def localtime():
-        import datetime
-        return datetime.datetime.now().strftime("%Y %m %d %H %M %S").split()
-
-
-    utime.localtime = localtime
-
-
-    def random_adc_read():
-        import random
-        return random.randint(800, 1000)
-
-
-    mock_adc = Mock()
-    mock_adc.read.side_effect = random_adc_read
-    ADC.return_value = mock_adc
-
-    uart = Mock()
-    uart.read = Mock(return_value=b"\xe0\x01\xe1")
-    gc = Mock()
-    gc.mem_free = Mock(return_value=8000 * 1024)
-    machine = Mock()
-    machine.reset = Mock(return_value=True)
-    web_compress = False
-    web_file_extension = ""
+    from lib.mocks import unique_id, RELEASE_TAG, wifi, uart, web_compress, web_file_extension
+    import lib.mocks
+    import binascii as ubinascii
 
 MAX_PUMPS = 9
 EXTRAPOLATE_ANGLE = 4
-
+unique_id = ubinascii.hexlify(unique_id()).decode('ascii')
 adc_sampler_started = False
 
 
@@ -134,6 +103,8 @@ except Exception as e:
     print("Failed to load MQTT settings ", e)
 check_defaults_mqtt(mqtt_settings)
 
+doser_topic = f"/ReefRhythm/{unique_id}"
+
 
 limits_settings = {}
 try:
@@ -199,3 +170,35 @@ try:
             password = wifi_settings["password"]
 except Exception as e:
     print("Failed to load config/wifi.json ", e)
+
+command_handler = CommandHandler()
+command_buffer = CommandBuffer()
+rpm_table = make_rpm_table()
+
+
+client_params = {'client_id': "ReefRhythm-" + unique_id, 'server': mqtt_settings["broker"], 'port': 1883,
+                 'user': mqtt_settings["login"], 'password': mqtt_settings["password"]}
+
+
+start_mqtt_stats = mqtt_stats(version=RELEASE_TAG, hostname=settings["hostname"], names=settings["names"],
+                              number=PUMP_NUM,
+                                    current=settings["pumps_current"],
+                                    inversion=settings["inversion"],
+                                    storage=storage, max_pumps=MAX_PUMPS)
+for _ in range(1, PUMP_NUM+1):
+    start_mqtt_stats[f"pump{_}"] = json.dumps({"dose": 0, "id": _, "remain": storage[f"remaining{_}"],
+                                               "storage": storage[f"pump{_}"],
+                                               "name": settings["names"][_-1]})
+
+mqtt_worker = MQTTWorker(client_params, start_mqtt_stats, command_handler, wifi)
+
+adc_dict = {}
+for _ in analog_pins:
+    adc_dict[_] = 0
+
+ota_lock = False
+
+whatsapp_worker = NotificationWorker(Whatsapp(settings["whatsapp_number"],
+                                              settings["whatsapp_apikey"]), wifi, delay=600)
+telegram_worker = NotificationWorker(Telegram(settings["telegram"]), wifi, delay=600)
+time_synced = False

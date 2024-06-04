@@ -1,22 +1,20 @@
 import shared
-import sys
-
 import machine
-from lib.asyncscheduler import CommandBuffer
+from connect_wifi import sync_time
 from lib.mqtt_worker import *
-from lib.notifications import *
 from lib.microdot.microdot import Microdot, redirect, send_file
 from lib.microdot.sse import with_sse
 import re
-import lib.mcron as mcron
 from lib.exec_code import evaluate_expression
 from machine import Timer
 from lib.decorator import restart_on_failure
 import requests
 import time
-from lib.stepper_doser_math import move_with_rpm, make_rpm_table, linear_interpolation, extrapolate_flow_rate
+from lib.pump_control import stepper_run, analog_control_worker
+from lib.stepper_doser_math import linear_interpolation, extrapolate_flow_rate
 from config.pin_config import *
 import array
+
 try:
     # Import 3-part Add-ons
     import extension
@@ -30,8 +28,8 @@ import binascii
 
 try:
     import lib.ntptime as ntptime
+    import lib.mcron as mcron
     import uasyncio as asyncio
-    # Micropython
     import gc
     import ota.status
     import ota.update
@@ -48,59 +46,13 @@ try:
 except ImportError:
     import asyncio
     import numpy as np
-    print("Mocking on PC")
-    from unittest.mock import Mock, MagicMock
+    from lib.mocks import *
+
+    mqtt_client = MQTTClient()
     import os
 
-    gc = Mock()
-    gc.collect = Mock()
-    gc.mem_free = Mock(return_value=8000 * 1024)
-    uart = Mock()
-    uart.read = Mock(return_value=b"\xe0\x01\xe1")
-
-    sys = Mock()
-    sys.implementation = Mock
-    sys.implementation._machine = None
-
-    ota = Mock()
-    ota.status = Mock()
-    ota.rollback.cancel = Mock(return_value=True)
-    ota.status.current_ota = "<Partition type=0, subtype=16, address=65536, size=2555904, label=ota_0, encrypted=0>"
-    ota.status.boot_ota = Mock(
-        return_value="<Partition type=0, subtype=17, address=2621440, size=2555904, label=ota_1, encrypted=0>")
-
-
-    def random_adc_read():
-        import random
-        return random.randint(800, 1000)
-
-
-    ntptime = Mock()
-    ADC = Mock()
-    Pin = Mock()
-    mock_adc = Mock()
-    mock_adc.read.side_effect = random_adc_read
-    ADC.return_value = mock_adc
-
-    mcron.remove_all = Mock()
-    mcron.insert = Mock()
-    from lib.mocks import MQTTClient
-    mqtt_client = MQTTClient()
-    RELEASE_TAG = "local_debug"
     os.system("python ../scripts/compress_web.py --path ./")
     USE_RAM = False
-
-    # Dummy decorator to simulate @micropython.native
-    # Creating a more structured mock for micropython module
-    class Micropython:
-        @staticmethod
-        def native(func):
-            # Decorator that simply returns the function unchanged
-            return func
-
-
-    # Assign the mock class to a variable with the module's name
-    micropython = Micropython()
 
 if USE_RAM:
     print("\nload html to memory")
@@ -140,9 +92,7 @@ for file in css_files:
     print(file)
 
 app = Microdot()
-doser_topic = f"/ReefRhythm/{shared.unique_id}"
 gc.collect()
-ota_lock = False
 ota_progress = 0
 firmware_size = None
 firmware_link = "http://github.com/telenkov88/reefrhythm-smartdoser/releases/download/latest/micropython.bin"
@@ -151,28 +101,18 @@ should_continue = True  # Flag for shutdown
 c = 0
 mcron.init_timer()
 mcron_keys = []
-time_synced = False
 
 byte_string = shared.wifi.config('mac')
 print(byte_string)
 hex_string = binascii.hexlify(byte_string).decode('utf-8')
 mac_address = ':'.join(hex_string[i:i + 2] for i in range(0, len(hex_string), 2)).upper()
 
-adc_dict = {}
-for _ in shared.analog_pins:
-    adc_dict[_] = 0
-
 
 # Define the maximum value for a 32-bit unsigned integer
 UINT32_MAX = 4294967295
 
-
 # Initialize the uptime counter
 uptime_counter = 0
-whatsapp_worker = NotificationWorker(Whatsapp(shared.settings["whatsapp_number"],
-                                              shared.settings["whatsapp_apikey"]), shared.wifi, delay=600)
-telegram_worker = NotificationWorker(Telegram(shared.settings["telegram"]), shared.wifi, delay=600)
-global_lock = asyncio.Lock()
 
 
 # Function to increment the uptime counter
@@ -183,96 +123,13 @@ def increment_uptime_counter(step=10):
     else:
         uptime_counter += step
     print(f"uptime {uptime_counter} seconds")
-    mqtt_worker.add_message_to_publish("uptime", f"{uptime_counter} seconds")
-    mqtt_worker.add_message_to_publish("free_mem ", json.dumps({"free_mem": gc.mem_free() // 1024}))
+    shared.mqtt_worker.add_message_to_publish("uptime", f"{uptime_counter} seconds")
+    shared.mqtt_worker.add_message_to_publish("free_mem ", json.dumps({"free_mem": gc.mem_free() // 1024}))
 
 
 # Set up a timer to call increment_uptime_counter every 10 seconds
 timer = Timer(0)
 timer.init(period=10 * 1000, mode=Timer.PERIODIC, callback=lambda t: increment_uptime_counter())
-
-
-async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_table, expression=False,
-                      pump_dose=0, pump_id=None, weekdays=None):
-    if weekdays is None:
-        weekdays = [0, 1, 2, 3, 4, 5, 6]
-
-    async def change_remaining():
-        print("id:", pump_id, " dose:", pump_dose)
-        if pump_dose and pump_id is not None:
-            _remaining = shared.storage[f"remaining{pump_id}"] - pump_dose
-            _remaining = max(0, _remaining)
-            _storage = shared.storage[f"pump{pump_id}"]
-            shared.storage[f"remaining{pump_id}"] = _remaining
-            print("Updated storage:", shared.storage)
-
-            if shared.mqtt_settings["broker"]:
-                print("Publish to mqtt")
-                _topic = f"{doser_topic}/pump{pump_id}"
-                _data = {"id": pump_id, "name": shared.settings["names"][pump_id - 1], "dose": pump_dose,
-                         "remain": shared.storage[f"remaining{pump_id}"], "storage": shared.storage[f"pump{pump_id}"]}
-                print("data", _data)
-                print({"topic": _topic, "data": _data})
-                try:
-                    mqtt_worker.add_message_to_publish(f"pump{pump_id}", json.dumps(_data))
-                except Exception as e:
-                    print(e)
-
-            # Format the time with leading zeros
-            formatted_time = shared.get_time()
-
-            msg = ""
-            if shared.settings["whatsapp_dose_msg"] or shared.settings["telegram_dose_msg"]:
-                msg += f"{formatted_time} Pump{pump_id} {shared.settings['names'][pump_id - 1]}: "
-                msg += f"Dose {pump_dose}mL/{execution_time}sec, {_remaining}/{_storage}mL"
-            if msg and shared.settings["telegram_dose_msg"]:
-                await telegram_worker.add_message(msg)
-            if msg and shared.settings["whatsapp_dose_msg"]:
-                print("MSG:", msg)
-                await whatsapp_worker.add_message(msg)
-
-            msg = ""
-            if (shared.settings["whatsapp_empty_container_msg"] or shared.settings["telegram_empty_container_msg"]) and shared.storage[f"pump{pump_id}"]:
-                filling_percentage = round(_remaining / shared.storage[f"pump{pump_id}"] * 100, 1)
-                if 0 < filling_percentage < shared.settings["empty_container_lvl"]:
-                    msg += f"{formatted_time} Pump{pump_id} {shared.settings['names'][pump_id - 1]}: Container {filling_percentage}% full"
-                elif filling_percentage == 0:
-                    msg += f"{formatted_time} Pump{pump_id} {shared.settings['names'][pump_id - 1]}: Container empty"
-            if msg and shared.settings["telegram_empty_container_msg"]:
-                await telegram_worker.add_message(msg)
-            if msg and shared.settings["whatsapp_empty_container_msg"]:
-                await whatsapp_worker.add_message(msg)
-
-    wday = time.localtime()[6]
-    print(f"Check weekdays: {wday} in {weekdays}")
-    if wday not in weekdays:
-        print("Skip dosing job")
-        return
-
-    print(f"Desired {desired_rpm_rate}rpm, mstep")
-    if shared.settings["inversion"][pump_id - 1]:
-        direction = 0 if direction == 1 else 1
-
-    if expression:
-        print("Check expression: ", expression)
-        result, logs = evaluate_expression(expression, globals())
-        if result:
-            print(f"Limits check pass")
-            calc_time = move_with_rpm(mks, desired_rpm_rate, execution_time, rpm_table, direction)
-            await change_remaining()
-            return [calc_time]
-    else:
-        calc_time = move_with_rpm(mks, desired_rpm_rate, execution_time, rpm_table, direction)
-        await change_remaining()
-        await asyncio.sleep(1)
-        return [calc_time]
-    print(f"Limits check not pass, skip dosing")
-    return False
-
-
-async def stepper_stop(mks):
-    print(f"Stop {id} stepper")
-    return mks.stop()
 
 
 @micropython.native
@@ -292,7 +149,7 @@ async def adc_sampling():
                 adc_buffer[pin][_] = ADC(Pin(pin)).read()
             await asyncio.sleep(sampling_delay)
         for pin in analog_pins:
-            adc_dict[pin] = sum(adc_buffer[pin]) // sampling_size
+            shared.adc_dict[pin] = sum(adc_buffer[pin]) // sampling_size
         shared.adc_sampler_started = True
 
 
@@ -318,76 +175,6 @@ async def download_file_async(url, filename, progress=False):
                 ota_progress = i
             i += 1
     response.close()
-
-
-def to_float(arr):
-    if isinstance(arr, np.ndarray):
-        # If it's a single-item NumPy array, extract the item and return
-        return arr[0]
-    else:
-        return arr
-
-
-rpm_table = make_rpm_table()
-command_buffer = CommandBuffer()
-
-
-async def analog_control_worker():
-    while not shared.adc_sampler_started:
-        print("Wait for adc sampler finish firts cycle")
-        await asyncio.sleep(0.1)
-    print("Init adc worker")
-    print("adc_dict:", adc_dict)
-    # Init Pumps
-    adc_buffer_values = {}
-    for i, en in enumerate(shared.analog_en):
-        if en and len(shared.analog_settings[f"pump{i + 1}"]["points"]) >= 2:
-            if shared.analog_settings[f"pump{i + 1}"]["pin"] != 99:
-                print("adc_buffer_values append ", adc_dict[shared.analog_settings[f"pump{i + 1}"]["pin"]])
-                adc_buffer_values[i] = [adc_dict[shared.analog_settings[f"pump{i + 1}"]["pin"]]]
-            else:
-                adc_buffer_values[i] = [4095]
-        else:
-            adc_buffer_values[i] = [0]
-
-    print("ota_lock:", ota_lock)
-    print(adc_buffer_values)
-    while True:
-        print("Analog worker cycle")
-        while ota_lock:
-            await asyncio.sleep(200)
-
-        for i, en in enumerate(shared.analog_en):
-            if en and len(shared.analog_settings[f"pump{i + 1}"]["points"]) >= 2:
-                print(f"\r\n================\r\nRun pump{i + 1}, PIN", shared.analog_settings[f"pump{i + 1}"]["pin"])
-                print(adc_buffer_values[i])
-                adc_average = sum(adc_buffer_values[i]) // len(adc_buffer_values[i])
-                print("ADC value: ", adc_average)
-                adc_signal = adc_average / 40.95
-                print(f"Signal: {adc_signal}")
-                signals, flow_rates = zip(*shared.analog_chart_points[f"pump{i + 1}"])
-                desired_flow = to_float(np.interp(adc_signal, signals, flow_rates))
-                amount = desired_flow * shared.settings["analog_period"] / 60
-                print("Desired flow", desired_flow)
-                print("Amount:", amount)
-                if desired_flow >= 0.01:
-                    desired_rpm_rate = to_float(
-                        np.interp(desired_flow, shared.chart_points[f"pump{i + 1}"][1], shared.chart_points[f"pump{i + 1}"][0]))
-
-                    await command_buffer.add_command(stepper_run, None, shared.mks_dict[f"mks{i + 1}"], desired_rpm_rate,
-                                                     shared.settings["analog_period"] + 5,
-                                                     shared.analog_settings[f"pump{i + 1}"]["dir"], rpm_table,
-                                                     shared.limits_settings[str(i + 1)], pump_dose=amount, pump_id=(i + 1))
-        for _ in range(len(shared.analog_en)):
-            adc_buffer_values[_] = []
-        for x in range(0, shared.settings["analog_period"]):
-            for i, en in enumerate(shared.analog_en):
-                if en and shared.analog_settings[f"pump{i + 1}"]["pin"] != 99:
-                    adc_buffer_values[i].append(adc_dict[shared.analog_settings[f"pump{i + 1}"]["pin"]])
-                else:
-                    adc_buffer_values[i] = [4095]
-
-            await asyncio.sleep(1)
 
 
 @app.before_request
@@ -510,8 +297,11 @@ async def dose(request):
     duration = request.args.get('duration', default=0, type=float)
     direction = request.args.get('direction', default=1, type=int)
     print(f"[Pump{pump_id}] Dose {amount}ml in {duration}s ")
-    asyncio.create_task(command_handler.dose({"id": pump_id, "amount": amount, "duration": duration,
-                                              "direction": direction}))
+    task = asyncio.create_task(
+        shared.command_handler.dose({"id": pump_id, "amount": amount, "duration": duration, "direction": direction}))
+    print(">>>>>>>>>")
+    await asyncio.sleep(1)
+    return f"Initiated dosing task for Pump{pump_id}", 202
 
 
 @app.route('/run', methods=['GET'])
@@ -522,7 +312,8 @@ async def run_with_rpm(request):
     duration = request.args.get('duration', default=1, type=float)
 
     print(f"[Pump{pump_id}] Run {rpm}RPM for {duration}sec Dir={direction}")
-    asyncio.create_task(command_handler.run({"id": pump_id, "rpm": rpm, "duration": duration, "direction": direction}))
+    asyncio.create_task(
+        shared.command_handler.run({"id": pump_id, "rpm": rpm, "duration": duration, "direction": direction}))
 
 
 @app.route('/stop', methods=['GET'])
@@ -530,7 +321,7 @@ async def stop(request):
     pump_id = request.args.get('id', default=1, type=int)
 
     print(f"[Pump{pump_id}] Stop")
-    asyncio.create_task(command_handler.stop({"id": pump_id}))
+    asyncio.create_task(shared.command_handler.stop({"id": pump_id}))
 
 
 @app.route('/refill', methods=['GET'])
@@ -539,9 +330,9 @@ async def refill(request):
     _new_storage = request.args.get('storage', default=-1, type=int)
     print(f"[Pump{pump_id}] refill")
     if _new_storage < 0:
-        asyncio.create_task(command_handler.refill({"id": pump_id}))
+        asyncio.create_task(shared.command_handler.refill({"id": pump_id}))
     else:
-        asyncio.create_task(command_handler.refill({"id": pump_id, "storage": _new_storage}))
+        asyncio.create_task(shared.command_handler.refill({"id": pump_id, "storage": _new_storage}))
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -656,11 +447,11 @@ async def ota_events(request, sse):
         num_chunks = (firmware_size + chunk_size - 1) // chunk_size - 2  # Round up to ensure all data is covered
         print(f"The file will be downloaded in {num_chunks} chunks.")
 
-    while ota_lock:
+    while shared.ota_lock:
         print(f"Downloaded:{ota_progress}/{num_chunks}")
         progress = round(ota_progress / num_chunks * 100, 1)
         print(f"progress {progress}%")
-        event = {"progress": progress, "size": ota_progress * 4, "status": ota_lock}
+        event = {"progress": progress, "size": ota_progress * 4, "status": shared.ota_lock}
         await sse.send(event)  # unnamed event
         await asyncio.sleep(0.5)
 
@@ -668,8 +459,6 @@ async def ota_events(request, sse):
 @app.route('/ota-upgrade', methods=['GET', 'POST'])
 async def ota_upgrade(request):
     if request.method == 'GET':
-        global ota_lock
-
         if "ota-upgrade.html" in html_files:
             print("Send ota-upgrade.html from RAM")
             response = send_file("ota-upgrade.html", compressed=shared.web_compress,
@@ -692,7 +481,7 @@ async def ota_upgrade(request):
         print(f"boot_partition= <{boot_partition}>")
         print("theme:", shared.settings["theme"])
         response.set_cookie(f'otaPartition', boot_partition)
-        response.set_cookie(f'OtaStarted', ota_lock)
+        response.set_cookie(f'OtaStarted', shared.ota_lock)
         response.set_cookie(f'firmware', RELEASE_TAG)
         response.set_cookie("color", shared.settings["color"])
         response.set_cookie("theme", shared.settings["theme"])
@@ -710,11 +499,11 @@ async def ota_upgrade(request):
         print("Cancel rollback:", cancel_rollback)
 
         global ota_progress
-        if link and not ota_lock:
+        if link and not shared.ota_lock:
             try:
                 print("Start upgrading from link")
-                ota_lock = True
-                mqtt_worker.service = False  # Stop MQTT worker during OTA
+                shared.ota_lock = True
+                shared.mqtt_worker.service = False  # Stop MQTT worker during OTA
                 mcron.remove_all()
 
                 filename = link.split('/')[-1]
@@ -735,11 +524,11 @@ async def ota_upgrade(request):
                     json.dump(shared.storage, _write_file)
 
                 ota.update.from_file(filename, reboot=True)
-                ota_lock = False
+                shared.ota_lock = False
 
             except Exception as e:
                 print("Error: ", e)
-                ota_lock = False
+                shared.ota_lock = False
 
         if cancel_rollback:
             print("Cancel firmware rollback")
@@ -847,7 +636,7 @@ def setting_responce(request):
     response.set_cookie("color", shared.settings["color"])
     response.set_cookie("theme", shared.settings["theme"])
     response.set_cookie("telegram", shared.settings["telegram"])
-    response.set_cookie("whatsappNumber",shared.settings["whatsapp_number"])
+    response.set_cookie("whatsappNumber", shared.settings["whatsapp_number"])
     response.set_cookie("whatsappApikey", shared.settings["whatsapp_apikey"])
 
     response.set_cookie("whatsappEmptyContainerMsg", shared.settings["whatsapp_empty_container_msg"])
@@ -984,9 +773,12 @@ def update_schedule(data):
     def create_task_with_args(id, rpm, duration, direction, amount, weekdays):
         def task(callback_id, current_time, callback_memory):
             print(f"[{shared.get_time()}] Callback id:", callback_id)
-            asyncio.run(command_buffer.add_command(stepper_run, None, shared.mks_dict[f"mks" + id], rpm, duration, direction,
-                                                   rpm_table, shared.limits_settings[str(id)], pump_dose=amount, pump_id=int(id),
-                                                   weekdays=weekdays))
+            asyncio.run(
+                shared.command_buffer.add_command(stepper_run, None, shared.mks_dict[f"mks" + id], rpm, duration,
+                                                  direction,
+                                                  shared.rpm_table, shared.limits_settings[str(id)], pump_dose=amount,
+                                                  pump_id=int(id),
+                                                  weekdays=weekdays))
 
         return task
 
@@ -1008,7 +800,8 @@ def update_schedule(data):
                 weekdays = job["weekdays"]
 
             desired_flow = amount * (60 / duration)
-            desired_rpm_rate = np.interp(desired_flow, shared.chart_points[f"pump{id}"][1], shared.chart_points[f"pump{id}"][0])
+            desired_rpm_rate = np.interp(desired_flow, shared.chart_points[f"pump{id}"][1],
+                                         shared.chart_points[f"pump{id}"][0])
 
             dir_string = "Clockwise" if direction else "Counterclockwise"
 
@@ -1056,56 +849,8 @@ def update_schedule(data):
     shared.schedule = data.copy()
 
 
-async def sync_time():
-    ntptime.host = shared.ntphost
-    global time_synced
-    while not shared.wifi.isconnected():
-        await asyncio.sleep(1)
-
-    # Initial time sync is Mandatory to job scheduler
-    while not time_synced:
-        i = 0
-        try:
-            print("Local time before synchronization：%s" % str(time.localtime()))
-            ntptime.settime(shared.settings["timezone"])
-            print("Local time after synchronization：%s" % str(time.localtime()))
-            time_synced = True
-            break
-        except Exception as _e:
-            i += 1
-            if i == 10:
-                shared.wifi.active(False)
-            elif i > 40:
-                machine.reset()
-            print("Failed to sync time on start. ", _e)
-        await asyncio.sleep(10)
-
-    while True:
-        if shared.wifi.isconnected():
-            x = 0
-            while True:
-                try:
-                    print("Local time before synchronization：%s" % str(time.localtime()))
-                    ntptime.settime(shared.settings["timezone"])
-                    print("Local time after synchronization：%s" % str(time.localtime()))
-                    time_synced = True
-                    break
-                except Exception as _e:
-                    x += 1
-                    print(f'{x} time sync failed, Error: {_e}')
-                if x >= 3600:
-                    print("Time sync not working, reboot")
-                    sys.exit()
-
-                await asyncio.sleep(60)
-        else:
-            print("wifi disconnected")
-
-        await asyncio.sleep(1800)
-
-
 async def update_sched_onstart():
-    while not time_synced:
+    while not shared.time_synced:
         await asyncio.sleep(1)
     if addon:
         while not extension.loaded:
@@ -1121,123 +866,12 @@ async def maintain_memory():
         await asyncio.sleep(120)
 
 
-class CommandHandler:
-    def __init__(self):
-        print()
-
-    def check_dose_parameters(self, cmd):
-        if all(key in cmd for key in ["id", "amount", "duration", "direction"]):
-            # Check the range and validity of each parameter
-            return (1 <= cmd["id"] <= shared.PUMP_NUM and
-                    cmd["amount"] > 0 and
-                    1 <= cmd["duration"] <= 3600 and
-                    cmd["direction"] in [0, 1])
-        return False
-
-    def check_run_parameters(self, cmd):
-        if all(key in cmd for key in ["id", "rpm", "duration", "direction"]):
-            # Check the range and validity of each parameter
-            return (1 <= cmd["id"] <= shared.PUMP_NUM and
-                    0.5 <= cmd["rpm"] <= 1000 and
-                    1 <= cmd["duration"] <= 3600 and
-                    cmd["direction"] in [0, 1])
-        return False
-
-    def check_stop_parameters(self, cmd):
-        if "id" in cmd:
-            return 1 <= cmd["id"] <= shared.PUMP_NUM
-        return False
-
-    def check_refill_parameters(self, cmd):
-        if "id" in cmd:
-            if "storage" in cmd:
-                return (1 <= cmd["id"] <= shared.PUMP_NUM and
-                        0 <= int(cmd["storage"]) < 65535)
-            else:
-                return 1 <= cmd["id"] <= shared.PUMP_NUM
-        return False
-
-    async def dose(self, command):
-        print(f"Handling dosing command: {command}")
-        if not self.check_dose_parameters(command):
-            print("Dose cmd parameter error: ", command)
-            return
-        desired_flow = command["amount"] * (60 / command["duration"])
-        print(f"Desired flow: {round(desired_flow, 2)}")
-        print(f"Direction: {command['direction']}")
-        desired_rpm_rate = np.interp(desired_flow, shared.chart_points[f"pump{command['id']}"][1],
-                                     shared.chart_points[f"pump{command['id']}"][0])
-        print("Calculated RPM: ", desired_rpm_rate)
-        await command_buffer.add_command(stepper_run, None, shared.mks_dict[f"mks{command['id']}"], desired_rpm_rate,
-                                         command['duration'], command['direction'], rpm_table,
-                                         shared.limits_settings[str(command['id'])], pump_dose=command["amount"],
-                                         pump_id=int(command['id']))
-
-    async def run(self, command):
-        print(f"Handling run command: {command}")
-        if not self.check_run_parameters(command):
-            print("Run cmd parameter error: ", command)
-            return
-        print(f"Direction: {command['direction']}")
-        desired_rpm_rate = command['rpm']
-        print("Desired RPM: ", desired_rpm_rate)
-        await command_buffer.add_command(stepper_run, None, shared.mks_dict[f"mks{command['id']}"], desired_rpm_rate,
-                                         command['duration'], command['direction'], rpm_table,
-                                         shared.limits_settings[str(command['id'])], pump_dose=None,
-                                         pump_id=int(command['id']))
-
-    async def stop(self, command):
-        print(f"Handling stop command: {command}")
-        if not self.check_stop_parameters(command):
-            print("Stop cmd parameter error: ", command)
-            return
-        print(f"Stop pump{command['id']}")
-        await command_buffer.add_command(stepper_stop, None, shared.mks_dict[f"mks{command['id']}"])
-
-    async def refill(self, command):
-        print(f"Handling refill command: {command}")
-        if not self.check_refill_parameters(command):
-            print("Refill cmd parameter error: ", command)
-        print(f"Refilling pump{command['id']} storage")
-        if "storage" in command:
-            shared.storage[f"pump{command['id']}"] = int(command['storage'])
-        shared.storage[f"remaining{command['id']}"] = shared.storage[f"pump{command['id']}"]
-        _pump_id = command['id']
-        _topic = f"{doser_topic}/pump{_pump_id}"
-        _data = {"id": _pump_id, "name": shared.settings["names"][_pump_id - 1], "dose": 0,
-                 "remain": shared.storage[f"remaining{_pump_id}"], "storage": shared.storage[f"pump{_pump_id}"]}
-        mqtt_worker.add_message_to_publish(f"pump{command['id']}", json.dumps(_data))
-        mqtt_worker.publish_stats(
-            mqtt_stats(version=RELEASE_TAG, hostname=shared.settings["hostname"], names=shared.settings["names"],
-                       number=shared.PUMP_NUM, current=shared.settings["pumps_current"],
-                       inversion=shared.settings["inversion"],
-                       storage=shared.storage, max_pumps=shared.MAX_PUMPS))
-
-
-client_params = {'client_id': "ReefRhythm-" + shared.unique_id, 'server': shared.mqtt_settings["broker"], 'port': 1883,
-                 'user': shared.mqtt_settings["login"], 'password': shared.mqtt_settings["password"]}
-
-command_handler = CommandHandler()
-
-start_mqtt_stats = mqtt_stats(version=RELEASE_TAG, hostname=shared.settings["hostname"], names=shared.settings["names"],
-                              number=shared.PUMP_NUM,
-                                    current=shared.settings["pumps_current"],
-                                    inversion=shared.settings["inversion"],
-                                    storage=shared.storage, max_pumps=shared.MAX_PUMPS)
-for _ in range(1, shared.PUMP_NUM+1):
-    start_mqtt_stats[f"pump{_}"] = json.dumps({"dose": 0, "id": _, "remain": shared.storage[f"remaining{_}"],
-                                               "storage": shared.storage[f"pump{_}"],
-                                               "name": shared.settings["names"][_-1]})
-
-mqtt_worker = MQTTWorker(client_params, start_mqtt_stats, command_handler, shared.wifi)
-
-
 @restart_on_failure
 async def storage_tracker():
     _old_storage = shared.storage.copy()
     while True:
         if _old_storage != shared.storage:
-            mqtt_worker.publish_stats(
+            shared.mqtt_worker.publish_stats(
                 mqtt_stats(version=RELEASE_TAG, hostname=shared.settings["hostname"],
                            names=shared.settings["names"],
                            number=shared.PUMP_NUM,
@@ -1267,9 +901,9 @@ async def main():
                                           shared.settings["hostname"])),
         asyncio.create_task(maintain_memory()),
         asyncio.create_task(storage_tracker()),
-        asyncio.create_task(telegram_worker.process_messages()),
-        asyncio.create_task(whatsapp_worker.process_messages()),
-        asyncio.create_task(mqtt_worker.worker())
+        asyncio.create_task(shared.telegram_worker.process_messages()),
+        asyncio.create_task(shared.whatsapp_worker.process_messages()),
+        asyncio.create_task(shared.mqtt_worker.worker())
 
     ]
 
