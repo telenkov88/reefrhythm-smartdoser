@@ -33,7 +33,10 @@ ota.status.boot_ota = Mock(
     return_value="<Partition type=0, subtype=17, address=2621440, size=2555904, label=ota_1, encrypted=0>")
 
 network = MagicMock()
+network.WLAN = MagicMock()
+network.WLAN.ifconfig = Mock(return_value='127.0.0.1')
 wifi = network.WLAN(network.STA_IF)
+ap = network.WLAN()
 wifi.config.return_value = b'\xde\xad\xbe\xef\xca\xfe'
 ADC = Mock()
 Pin = Mock()

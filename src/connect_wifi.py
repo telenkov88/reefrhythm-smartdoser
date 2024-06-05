@@ -1,10 +1,11 @@
 try:
     import uasyncio as asyncio
     import network
-    import lib.ntptime
+    import lib.ntptime as ntptime
+    import machine
 except ImportError:
     import asyncio
-    from lib.mocks import *
+    from lib.mocks import ntptime, network, machine
     import lib.mocks
 from random import randint
 import shared
@@ -15,7 +16,6 @@ async def sync_time():
     ntptime.host = shared.settings["ntphost"]
     while not shared.wifi.isconnected():
         await asyncio.sleep(1)
-    # TODO check time sync
     # Initial time sync is Mandatory to job scheduler
     while not shared.time_synced:
         i = 0
@@ -47,9 +47,9 @@ async def sync_time():
                 except Exception as _e:
                     x += 1
                     print(f'{x} time sync failed, Error: {_e}')
-                if x >= 3600:
+                if x >= 60:
                     print("Time sync not working, reboot")
-                    sys.exit()
+                    machine.reset()
 
                 await asyncio.sleep(60)
         else:
@@ -91,37 +91,32 @@ async def reconnect_wifi(wifi, ssid, password, hostname):
 
 
 async def maintain_wifi(ssid, password, hostname):
-    ap = network.WLAN(network.AP_IF)
-    wifi = network.WLAN(network.STA_IF)
-
     if not ssid:
-        wifi.active(False)
+        shared.wifi.active(False)
         await asyncio.sleep(1)
         ap_ssid = 'ReefRhythm_' + str(randint(1000, 10000))
-        ap.active(True)
-        ap.config(essid=ap_ssid, password='')
+        shared.ap.active(True)
+        shared.ap.config(essid=ap_ssid, password='')
         print(f"Wifi AP ssid: {ap_ssid}")
     while not ssid:
         await asyncio.sleep(5)
-    ap.active(False)
-    asyncio.run(reconnect_wifi(wifi, ssid, password, hostname))
+    shared.ap.active(False)
+    asyncio.run(reconnect_wifi(shared.wifi, ssid, password, hostname))
 
     retries = 0
     while True:
-        if not wifi.isconnected():
+        if not shared.wifi.isconnected():
             print(f'ERROR: WIFI disconnected')
-            asyncio.run(reconnect_wifi(wifi, ssid, password, hostname))
+            asyncio.run(reconnect_wifi(shared.wifi, ssid, password, hostname))
 
             if retries == 30:
                 print(f"Wifi disconnected >{retries}min, reboot")
                 machine.reset()
-            wifi_connected = False
         else:
-            wifi_connected = True
             retries = 0
             print(">> WIFI - Connected")
-            ip = wifi.ifconfig()[0]
-            print(f"http://{hostname}.local")
+            ip = shared.wifi.ifconfig()[0]
+            print(f"http://{shared.settings['hostname']}.local")
             print(f"http://{ip}")
             print(f"http://{ip}/dose?direction=1&amount=2&duration=10")
             print(f"http://{ip}/run?direction=1&rpm=10&duration=10")
@@ -129,8 +124,12 @@ async def maintain_wifi(ssid, password, hostname):
             await asyncio.sleep(60)
 
 
+async def main():
+    tasks = [
+        asyncio.create_task(sync_time()),
+        asyncio.create_task(maintain_wifi(shared.ssid, shared.password, shared.settings["hostname"]))
+    ]
+    await asyncio.gather(*tasks, return_exceptions=True)
+
 if __name__ == "__main__":
-    ap = network.WLAN(network.AP_IF)
-    ap.active(False)
-    wifi = network.WLAN(network.STA_IF)
-    asyncio.run(maintain_wifi(shared.ssid, shared.password))
+    asyncio.run(main())

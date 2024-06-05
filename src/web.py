@@ -905,7 +905,6 @@ async def main():
         asyncio.create_task(shared.telegram_worker.process_messages()),
         asyncio.create_task(shared.whatsapp_worker.process_messages()),
         asyncio.create_task(shared.mqtt_worker.worker())
-
     ]
 
     # load async tasks from extension

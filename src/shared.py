@@ -22,6 +22,7 @@ try:
     uart = UART(1)
     uart.init(baudrate=38400, rx=rx_pin, tx=tx_pin, timeout=100)
     wifi = network.WLAN(network.STA_IF)
+    ap = network.WLAN(network.AP_IF)
     import ubinascii
 
     web_compress = True
@@ -170,6 +171,7 @@ try:
             password = wifi_settings["password"]
 except Exception as e:
     print("Failed to load config/wifi.json ", e)
+
 
 command_handler = CommandHandler()
 command_buffer = CommandBuffer()
