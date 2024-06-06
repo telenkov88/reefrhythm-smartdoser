@@ -71,7 +71,6 @@ class MQTTWorker:
             await asyncio.sleep(1)
         try:
             self.client.reconnect()
-            # TODO fix resubscribe
             self.client.resubscribe()
             await asyncio.sleep(self.keepalive)
             if not self.client.is_conn_issue() or self.last_message < time.time() + self.keepalive*2:
