@@ -54,7 +54,7 @@ class MQTTWorker:
         self.command_handler = command_handler
         self.net = network
 
-        self.mqtt_publish_queue = asyncQueue()
+        self.mqtt_publish_queue = asyncQueue(maxsize=100)
         self.setup_client()
         self.connected = True
         self.keepalive = shared.mqtt_keepalive + 1
@@ -71,13 +71,14 @@ class MQTTWorker:
             await asyncio.sleep(1)
         try:
             self.client.reconnect()
+            # TODO fix resubscribe
+            self.client.resubscribe()
             await asyncio.sleep(self.keepalive)
-            if not self.client.is_conn_issue():
+            if not self.client.is_conn_issue() or self.last_message < time.time() + self.keepalive*2:
                 print("MQTT reconnect success")
-                self.add_message_to_publish(self.topics['status'], "Connected", retain=True)
-                self.publish_stats()
-                self.client.resubscribe()
                 self.connected = True
+                await self.add_message_to_publish(self.topics['status'], "Connected", retain=True)
+                await self.publish_stats()
             else:
                 print("MQTT reconnect failed")
         except Exception as e:
@@ -93,7 +94,7 @@ class MQTTWorker:
 
         try:
             self.client.connect()
-            self.add_message_to_publish(self.topics['status'], "Connected", retain=True)
+            await self.add_message_to_publish(self.topics['status'], "Connected", retain=True)
         except Exception as e:
             print("MQTT Error during initial connect: ", e)
             try:
@@ -104,7 +105,7 @@ class MQTTWorker:
         for topic in self.topics['subscriptions']:
             self.client.subscribe(self.base_topic + topic)
         self.client.subscribe("$SYS/broker/uptime")  # Service subscription for keepalive
-        self.publish_stats()
+        await self.publish_stats()
 
         tasks = [
             asyncio.create_task(self.handle_incoming_messages()),
@@ -116,19 +117,21 @@ class MQTTWorker:
             while not self.service:
                 await asyncio.sleep(1)
             if self.client.is_conn_issue() or not self.connected or self.last_message < time.time():
+                self.connected = False
                 print("MQTT Connection issue detected, attempting to reconnect...")
                 if self.last_message < time.time():
                     print("MQTT timeout for service message: ", self.last_message, " , time: ", time.time())
                 else:
                     print("MQTT Issue: ", self.client.is_conn_issue(), " Connected: ", self.connected)
-
-                self.connected = False
                 await self.ensure_connected()
             await asyncio.sleep(self.keepalive)
 
     async def handle_incoming_messages(self):
-        while self.connected and self.service:
-            self.client.check_msg()
+        while self.service:
+            try:
+                self.client.check_msg()
+            except Exception as e:
+                print("MQTT error: ", e)
             await asyncio.sleep(1)
 
     async def publish(self):
@@ -141,23 +144,28 @@ class MQTTWorker:
                 print(f'Published to {message["topic"]}: {message["payload"]}')
                 self.mqtt_publish_queue.task_done()
 
-    def publish_stats(self, new_stats=None):
+    async def publish_stats(self, new_stats=None):
         if self.service:
             if new_stats is not None:
                 print("MQTT Update stats: ", new_stats)
                 self.stats = new_stats
-            self.add_message_to_publish("ip", "" + self.net.ifconfig()[0], retain=True)
+            await self.add_message_to_publish("ip", "" + self.net.ifconfig()[0], retain=True)
             for _topic in self.stats:
                 if "pump" in _topic:
-                    self.add_message_to_publish(_topic, self.stats[_topic], retain=False)
+                    await self.add_message_to_publish(_topic, self.stats[_topic], retain=False)
                 else:
-                    self.add_message_to_publish(_topic, self.stats[_topic], retain=True)
+                    await self.add_message_to_publish(_topic, self.stats[_topic], retain=True)
 
-    def add_message_to_publish(self, topic, data, retain=False):
+    async def add_message_to_publish(self, topic, data, retain=False):
         if self.service:
+            if self.mqtt_publish_queue.full():
+                # Remove the oldest message to make space for the new one
+                discarded_message = await self.mqtt_publish_queue.get()
+                print(f"Discarding oldest message due to queue overflow: {discarded_message}")
+
             message = {'topic': self.base_topic + topic, 'payload': data, 'retain': retain}
             print(f"MQTT add message {message}")
-            asyncio.create_task(self.mqtt_publish_queue.put(message))
+            await self.mqtt_publish_queue.put(message)
 
     def decode_body(self, msg):
         try:
@@ -181,6 +189,10 @@ class MQTTWorker:
                 self.process_command(_topic.split("/")[-1], msg)
 
     def process_command(self, topic, command):
+        if topic == "uptime":
+            print("MQTT update keepalive timer")
+            self.last_message = time.time() + self.keepalive * 2
+            return
         print(f"MQTT process command, {topic}, {command}")
         if topic == 'dose':
             asyncio.create_task(self.command_handler.dose(command))
@@ -190,8 +202,6 @@ class MQTTWorker:
             asyncio.create_task(self.command_handler.stop(command))
         elif topic == 'refill':
             asyncio.create_task(self.command_handler.refill(command))
-        elif topic == "uptime":
-            self.last_message = time.time() + self.keepalive * 2
         print("MQTT process command finish")
 
 
@@ -220,7 +230,7 @@ async def main():
     asyncio.create_task(mqtt_worker.worker())
     await asyncio.sleep(1)
     for i in range(100):
-        mqtt_worker.add_message_to_publish(f"test", f"Msg No{i}")
+        await mqtt_worker.add_message_to_publish(f"test", f"Msg No{i}")
         await asyncio.sleep(10)
     await asyncio.sleep(120)
 

@@ -117,20 +117,21 @@ uptime_counter = 0
 
 
 # Function to increment the uptime counter
-def increment_uptime_counter(step=10):
+async def increment_uptime_counter(step=10):
     global uptime_counter
     if uptime_counter > UINT32_MAX - step:
         uptime_counter = (uptime_counter + step) - (UINT32_MAX + 1)
     else:
         uptime_counter += step
     print(f"uptime {uptime_counter} seconds")
-    shared.mqtt_worker.add_message_to_publish("uptime", f"{uptime_counter} seconds")
-    shared.mqtt_worker.add_message_to_publish("free_mem ", json.dumps({"free_mem": gc.mem_free() // 1024}))
+    if shared.mqtt_worker.connected:
+        await shared.mqtt_worker.add_message_to_publish("uptime", f"{uptime_counter} seconds")
+        await shared.mqtt_worker.add_message_to_publish("free_mem ", json.dumps({"free_mem": gc.mem_free() // 1024}))
 
 
 # Set up a timer to call increment_uptime_counter every 10 seconds
 timer = Timer(0)
-timer.init(period=10 * 1000, mode=Timer.PERIODIC, callback=lambda t: increment_uptime_counter())
+timer.init(period=10 * 1000, mode=Timer.PERIODIC, callback=lambda t: asyncio.create_task(increment_uptime_counter()))
 
 
 @micropython.native
@@ -872,7 +873,7 @@ async def storage_tracker():
     _old_storage = shared.storage.copy()
     while True:
         if _old_storage != shared.storage:
-            shared.mqtt_worker.publish_stats(
+            await shared.mqtt_worker.publish_stats(
                 mqtt_stats(version=RELEASE_TAG, hostname=shared.settings["hostname"],
                            names=shared.settings["names"],
                            number=shared.PUMP_NUM,

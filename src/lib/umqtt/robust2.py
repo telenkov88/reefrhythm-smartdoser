@@ -135,7 +135,8 @@ class MQTTClient(simple2.MQTTClient):
         :return:
         """
         for topic, qos in self.subs:
-            self.subscribe(topic, qos, False)
+            print("MQTT Subscribe topic: ", topic)
+            self.subscribe(topic, qos, True)
 
     def things_to_do(self):
         """

@@ -47,7 +47,7 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
                 print("data", _data)
                 print({"topic": _topic, "data": _data})
                 try:
-                    shared.mqtt_worker.add_message_to_publish(f"pump{pump_id}", json.dumps(_data))
+                    await shared.mqtt_worker.add_message_to_publish(f"pump{pump_id}", json.dumps(_data))
                 except Exception as e:
                     print(e)
 
@@ -193,8 +193,8 @@ class CommandHandler:
         _topic = f"{shared.doser_topic}/pump{_pump_id}"
         _data = {"id": _pump_id, "name": shared.settings["names"][_pump_id - 1], "dose": 0,
                  "remain": shared.storage[f"remaining{_pump_id}"], "storage": shared.storage[f"pump{_pump_id}"]}
-        shared.mqtt_worker.add_message_to_publish(f"pump{command['id']}", json.dumps(_data))
-        shared.mqtt_worker.publish_stats(
+        await shared.mqtt_worker.add_message_to_publish(f"pump{command['id']}", json.dumps(_data))
+        await shared.mqtt_worker.publish_stats(
             mqtt_stats(version=shared.RELEASE_TAG, hostname=shared.settings["hostname"], names=shared.settings["names"],
                        number=shared.PUMP_NUM, current=shared.settings["pumps_current"],
                        inversion=shared.settings["inversion"],
@@ -217,7 +217,7 @@ class PumpController:
         print(f"Dosing with command: {command}")
         # Implement control logic
         # Placeholder for actual dosing command to hardware
-        shared.mqtt_worker.add_message_to_publish("/status/dose", {"status": "completed", "command": command})
+        asyncio.create_task(shared.mqtt_worker.add_message_to_publish("/status/dose", {"status": "completed", "command": command}))
         shared.whatsapp_worker.add_message("Dose completed successfully.")
         shared.telegram_worker.add_message("Dose completed successfully.")
 
