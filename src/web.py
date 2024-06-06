@@ -10,7 +10,8 @@ from machine import Timer
 from lib.decorator import restart_on_failure
 import requests
 import time
-from lib.pump_control import stepper_run, analog_control_worker
+from lib.pump_control import stepper_run
+from lib.analog_control import analog_control_worker
 from lib.stepper_doser_math import linear_interpolation, extrapolate_flow_rate
 from config.pin_config import *
 import array
@@ -117,7 +118,7 @@ uptime_counter = 0
 
 
 # Function to increment the uptime counter
-async def increment_uptime_counter(step=10):
+def increment_uptime_counter(step=10):
     global uptime_counter
     if uptime_counter > UINT32_MAX - step:
         uptime_counter = (uptime_counter + step) - (UINT32_MAX + 1)
@@ -125,13 +126,14 @@ async def increment_uptime_counter(step=10):
         uptime_counter += step
     print(f"uptime {uptime_counter} seconds")
     if shared.mqtt_worker.connected:
-        await shared.mqtt_worker.add_message_to_publish("uptime", f"{uptime_counter} seconds")
-        await shared.mqtt_worker.add_message_to_publish("free_mem ", json.dumps({"free_mem": gc.mem_free() // 1024}))
+        asyncio.run(shared.mqtt_worker.add_message_to_publish("uptime", f"{uptime_counter} seconds"))
+        asyncio.run(shared.mqtt_worker.add_message_to_publish("free_mem ",
+                                                              json.dumps({"free_mem": gc.mem_free() // 1024})))
 
 
 # Set up a timer to call increment_uptime_counter every 10 seconds
 timer = Timer(0)
-timer.init(period=10 * 1000, mode=Timer.PERIODIC, callback=lambda t: asyncio.create_task(increment_uptime_counter()))
+timer.init(period=10 * 1000, mode=Timer.PERIODIC, callback=lambda t: increment_uptime_counter())
 
 
 @micropython.native

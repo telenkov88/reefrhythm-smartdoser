@@ -8,10 +8,16 @@ try:
     import ubinascii
     from machine import unique_id
     from release_tag import *
+    from utime import ticks_ms
+
+
 except ImportError:
     from lib.mocks import MQTTClient, unique_id, net
     from asyncio import Queue as asyncQueue
     import binascii as ubinascii
+
+    def ticks_ms():
+        return round(time.time() * 1000)
 
     RELEASE_TAG = "debug version"
 
@@ -87,6 +93,14 @@ class MQTTWorker:
             except Exception as e:
                 print("MQTT Disconnect Error: ", e)
 
+    async def ping_server(self):
+        if not self.service:
+            return
+        while True:
+            if self.connected and self.service:
+                self.client.ping()
+            await asyncio.sleep(10)
+
     async def worker(self):
         if not self.service:
             return
@@ -108,7 +122,8 @@ class MQTTWorker:
 
         tasks = [
             asyncio.create_task(self.handle_incoming_messages()),
-            asyncio.create_task(self.publish())
+            asyncio.create_task(self.publish()),
+            asyncio.create_task(self.ping_server())
         ]
         await asyncio.sleep(self.keepalive)  # Await first service message
 
@@ -123,6 +138,8 @@ class MQTTWorker:
                 else:
                     print("MQTT Issue: ", self.client.is_conn_issue(), " Connected: ", self.connected)
                 await self.ensure_connected()
+            else:
+                print("MQTT Connected")
             await asyncio.sleep(self.keepalive)
 
     async def handle_incoming_messages(self):
