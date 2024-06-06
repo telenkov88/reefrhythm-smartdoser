@@ -36,7 +36,7 @@ except ImportError:
 
 MAX_PUMPS = 9
 EXTRAPOLATE_ANGLE = 4
-unique_id = ubinascii.hexlify(unique_id()).decode('ascii')
+mqtt_id = ubinascii.hexlify(unique_id()).decode('ascii')
 adc_sampler_started = False
 
 
@@ -177,9 +177,9 @@ command_handler = CommandHandler()
 command_buffer = CommandBuffer()
 rpm_table = make_rpm_table()
 
-
-client_params = {'client_id': "ReefRhythm-" + unique_id, 'server': mqtt_settings["broker"], 'port': 1883,
-                 'user': mqtt_settings["login"], 'password': mqtt_settings["password"]}
+mqtt_keepalive = 15  # Keepalive timeout
+client_params = {'client_id': "ReefRhythm-" + mqtt_id, 'server': mqtt_settings["broker"], 'port': 1883,
+                 'user': mqtt_settings["login"], 'password': mqtt_settings["password"], 'keepalive': mqtt_keepalive}
 
 
 start_mqtt_stats = mqtt_stats(version=RELEASE_TAG, hostname=settings["hostname"], names=settings["names"],

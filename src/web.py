@@ -40,7 +40,7 @@ try:
     from release_tag import *
     from lib.umqtt.robust2 import MQTTClient
 
-    mqtt_client = MQTTClient(f"ReefRhythm-{unique_id}", shared.mqtt_settings["broker"], keepalive=40, socket_timeout=2)
+    mqtt_client = MQTTClient(f"ReefRhythm-{shared.mqtt_id}", shared.mqtt_settings["broker"], keepalive=40, socket_timeout=2)
 
     USE_RAM = False
 
@@ -627,7 +627,7 @@ def setting_responce(request):
     response.set_cookie('Mac', mac_address)
     response.set_cookie('timezone', shared.settings["timezone"])
     response.set_cookie('timeformat', shared.settings["timeformat"])
-    response.set_cookie("mqttTopic", f"/ReefRhythm/{unique_id}/")
+    response.set_cookie("mqttTopic", f"/ReefRhythm/{shared.mqtt_id}/")
     response.set_cookie("mqttBroker", shared.mqtt_settings["broker"])
     response.set_cookie("mqttLogin", shared.mqtt_settings["login"])
     response.set_cookie("analogPeriod", shared.settings["analog_period"])

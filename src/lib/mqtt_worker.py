@@ -1,4 +1,6 @@
 import json
+import time
+
 try:
     import gc
     from lib.umqtt.robust2 import MQTTClient
@@ -14,13 +16,13 @@ except ImportError:
     RELEASE_TAG = "debug version"
 
 import asyncio
-
-unique_id = ubinascii.hexlify(unique_id()).decode('ascii')
+import shared
 
 topics = {
     'status': 'status',
     'subscriptions': ['dose', 'run', 'stop', 'refill'],
 }
+
 
 def mqtt_stats(**kwargs):
     return {
@@ -55,63 +57,74 @@ class MQTTWorker:
         self.mqtt_publish_queue = asyncQueue()
         self.setup_client()
         self.connected = True
+        self.keepalive = shared.mqtt_keepalive + 1
+        self.last_message = time.time() + self.keepalive * 2
         print(f"Service initialized at {self.base_topic}")
 
     def setup_client(self):
         self.client.set_callback(self.on_message)
         self.client.set_last_will(self.base_topic + self.topics['status'], 'Disconnected', retain=True)
 
+    async def ensure_connected(self):
+        while not self.net.isconnected():
+            print("Waiting for network connection...")
+            await asyncio.sleep(1)
+        try:
+            self.client.reconnect()
+            await asyncio.sleep(self.keepalive)
+            if not self.client.is_conn_issue():
+                print("MQTT reconnect success")
+                self.add_message_to_publish(self.topics['status'], "Connected", retain=True)
+                self.publish_stats()
+                self.client.resubscribe()
+                self.connected = True
+            else:
+                print("MQTT reconnect failed")
+        except Exception as e:
+            print("MQTT Reconnection Error: ", e)
+            try:
+                self.client.disconnect()
+            except Exception as e:
+                print("MQTT Disconnect Error: ", e)
+
     async def worker(self):
         if not self.service:
             return
 
-        while not self.net.isconnected():
-            await asyncio.sleep(1)
         try:
             self.client.connect()
+            self.add_message_to_publish(self.topics['status'], "Connected", retain=True)
         except Exception as e:
-            print("MQTT error, ", e)
-            self.connected = False
+            print("MQTT Error during initial connect: ", e)
+            try:
+                self.client.disconnect()
+            except Exception as e:
+                print("MQTT Disconnect Error: ", e)
+
         for topic in self.topics['subscriptions']:
             self.client.subscribe(self.base_topic + topic)
-
-        self.client.subscribe("$SYS/broker/uptime")  # Service subscription to keep connection alive
+        self.client.subscribe("$SYS/broker/uptime")  # Service subscription for keepalive
         self.publish_stats()
-        self.add_message_to_publish(self.topics['status'], "Connected", retain=True)
 
         tasks = [
             asyncio.create_task(self.handle_incoming_messages()),
             asyncio.create_task(self.publish())
         ]
-        await asyncio.sleep(15)  # Await first service message
+        await asyncio.sleep(self.keepalive)  # Await first service message
+
         while True:
-            issue = self.client.is_conn_issue()
-            if issue or not self.connected:
-                log = self.client.log()
-                print(f"log: {log}, issue: {issue}")
+            while not self.service:
+                await asyncio.sleep(1)
+            if self.client.is_conn_issue() or not self.connected or self.last_message < time.time():
+                print("MQTT Connection issue detected, attempting to reconnect...")
+                if self.last_message < time.time():
+                    print("MQTT timeout for service message: ", self.last_message, " , time: ", time.time())
+                else:
+                    print("MQTT Issue: ", self.client.is_conn_issue(), " Connected: ", self.connected)
 
-                print(f"MQTT Connection issue detected, MQTT attempting to reconnect...")
-                if not self.net.isconnected():
-                    print("MQTT wait for network connection")
-                while not self.net.isconnected():
-                    await asyncio.sleep(1)
-                try:
-                    self.client.reconnect()
-                    await asyncio.sleep(5)
-                    if self.client.is_conn_issue():
-                        print("MQTT reconnect failed")
-                        self.client.log()
-                    else:
-                        print("MQTT reconnect success")
-                        self.connected = True
-                        self.add_message_to_publish(self.topics['status'], "Connected", retain=True)
-                        self.client.resubscribe()
-                        self.publish_stats()
-
-                except Exception as e:
-                    print("MQTT Error: ", e)
-                    self.connected = False
-            await asyncio.sleep(20)
+                self.connected = False
+                await self.ensure_connected()
+            await asyncio.sleep(self.keepalive)
 
     async def handle_incoming_messages(self):
         while self.connected and self.service:
@@ -119,7 +132,9 @@ class MQTTWorker:
             await asyncio.sleep(1)
 
     async def publish(self):
-        while self.connected and self.service:
+        while self.service:
+            while not self.connected:
+                await asyncio.sleep(1)
             message = await self.mqtt_publish_queue.get()
             if message:
                 self.client.publish(message['topic'], message['payload'], retain=message['retain'])
@@ -156,11 +171,14 @@ class MQTTWorker:
 
     def on_message(self, topic, msg, retain, dup):
         _topic = topic.decode()
-        print(f'Received message on topic: {_topic} with message: {msg.decode()}')
-        if _topic.split("/")[-1] in self.topics['subscriptions']:
-            message = self.decode_body(msg)
+        print(f'Received message on topic: {_topic}')
+        if _topic.split("/")[-1] in self.topics['subscriptions'] or _topic == "$SYS/broker/uptime":
+            if _topic == "$SYS/broker/uptime":
+                message = msg.decode()
+            else:
+                message = self.decode_body(msg)
             if message:
-                self.process_command(_topic.split("/")[-1], message)
+                self.process_command(_topic.split("/")[-1], msg)
 
     def process_command(self, topic, command):
         print(f"MQTT process command, {topic}, {command}")
@@ -172,6 +190,8 @@ class MQTTWorker:
             asyncio.create_task(self.command_handler.stop(command))
         elif topic == 'refill':
             asyncio.create_task(self.command_handler.refill(command))
+        elif topic == "uptime":
+            self.last_message = time.time() + self.keepalive * 2
         print("MQTT process command finish")
 
 
@@ -190,17 +210,18 @@ async def main():
         password = "mqtt"
         broker = "localhost"
 
-    client_params = {'client_id': "ReefRhythm-" + unique_id,
+    client_params = {'client_id': "ReefRhythm-" + shared.mqtt_id,
                      'server': broker, 'port': 1883, 'user': user, 'password': password}
 
     stats = {"version": "debug_version", "hostname": "localhost"}
     from lib.pump_control import CommandHandler
     command_handler = CommandHandler()
-    mqtt_worker = MQTTWorker(client_params, stats, command_handler, net)
+    mqtt_worker = MQTTWorker(client_params, stats, command_handler, shared.wifi)
     asyncio.create_task(mqtt_worker.worker())
     await asyncio.sleep(1)
-    for i in range(10):
-        mqtt_worker.add_message_to_publish("test", f"Msg No{i}")
+    for i in range(100):
+        mqtt_worker.add_message_to_publish(f"test", f"Msg No{i}")
+        await asyncio.sleep(10)
     await asyncio.sleep(120)
 
 

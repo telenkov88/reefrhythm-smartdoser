@@ -79,7 +79,7 @@ jobs:
       # Compile the project for ESP32-S3 with specific configuration
       - name: Compile for ESP32-S3 8MB SPIRAM/16MB Flash
         run: |
-          sed -i '/config LWIP_MAX_SOCKETS/,/help/{s/range 1 16/range 1 20/; s/default 10/default 20/}' esp-idf/components/lwip/Kconfig
+          sed -i '/config LWIP_MAX_SOCKETS/,/help/{s/range 1 16/range 1 16/; s/default 10/default 16/}' esp-idf/components/lwip/Kconfig
           ./scripts/esp32/generic-s3-spiram-16mb-ota.sh
 
       # Conditionally update the latest_stable tag if on a specified branch
