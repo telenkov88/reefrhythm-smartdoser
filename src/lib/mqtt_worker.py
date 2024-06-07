@@ -83,11 +83,11 @@ class MQTTWorker:
                 raise ValueError("Fail to reconnect")
             self.client.resubscribe()
 
-
             print(f"MQTT Await connection for up to {self.keepalive} seconds...")
             timeout = self.keepalive
             _last_messages = self.last_message
             while timeout > 0:
+                self.client.ping()
                 if self.last_message != _last_messages:
                     print("MQTT got connection")
                     self.connected = True
@@ -95,8 +95,8 @@ class MQTTWorker:
                     await self.publish_stats()
                     return True
                 print("MQTT wait for connection")
-                await asyncio.sleep(2)
-                timeout -= 1
+                await asyncio.sleep(5)
+                timeout -= 5
 
             print("MQTT reconnect failed after timeout")
             self.connected = False
@@ -109,7 +109,7 @@ class MQTTWorker:
                     self.client.disconnect()  # Ensure this is non-blocking or handled asynchronously
                 except Exception as e:
                     print("MQTT Disconnect Error: ", e)
-                await asyncio.sleep(20)
+                await asyncio.sleep(self.client.keepalive)
             return False
 
     async def ping_server(self):
