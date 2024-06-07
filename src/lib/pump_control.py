@@ -113,30 +113,30 @@ class CommandHandler:
     def check_dose_parameters(self, cmd):
         if all(key in cmd for key in ["id", "amount", "duration", "direction"]):
             # Check the range and validity of each parameter
-            return (1 <= cmd["id"] <= shared.PUMP_NUM and
-                    cmd["amount"] > 0 and
-                    1 <= cmd["duration"] <= 3600 and
-                    cmd["direction"] in [0, 1])
+            return (1 <= int(cmd["id"]) <= shared.PUMP_NUM and
+                    int(cmd["amount"]) > 0 and
+                    1 <= int(cmd["duration"]) <= 3600 and
+                    int(cmd["direction"]) in [0, 1])
         return False
 
     def check_run_parameters(self, cmd):
         if all(key in cmd for key in ["id", "rpm", "duration", "direction"]):
             # Check the range and validity of each parameter
-            return (1 <= cmd["id"] <= shared.PUMP_NUM and
-                    0.5 <= cmd["rpm"] <= 1000 and
-                    1 <= cmd["duration"] <= 3600 and
-                    cmd["direction"] in [0, 1])
+            return (1 <= int(cmd["id"]) <= shared.PUMP_NUM and
+                    0.5 <= int(cmd["rpm"]) <= 1000 and
+                    1 <= int(cmd["duration"]) <= 3600 and
+                    int(cmd["direction"]) in [0, 1])
         return False
 
     def check_stop_parameters(self, cmd):
         if "id" in cmd:
-            return 1 <= cmd["id"] <= shared.PUMP_NUM
+            return 1 <= int(cmd["id"]) <= shared.PUMP_NUM
         return False
 
     def check_refill_parameters(self, cmd):
         if "id" in cmd:
             if "storage" in cmd:
-                return (1 <= cmd["id"] <= shared.PUMP_NUM and
+                return (1 <= int(cmd["id"]) <= shared.PUMP_NUM and
                         0 <= int(cmd["storage"]) < 65535)
             else:
                 return 1 <= cmd["id"] <= shared.PUMP_NUM

@@ -62,9 +62,9 @@ class MQTTWorker:
 
         self.mqtt_publish_queue = asyncQueue(maxsize=100)
         self.setup_client()
-        self.connected = True
+        self.connected = False
         self.keepalive = shared.mqtt_keepalive + 1
-        self.last_message = time.time() + self.keepalive * 2
+        self.last_message = 0
         print(f"Service initialized at {self.base_topic}")
 
     def setup_client(self):
@@ -75,23 +75,42 @@ class MQTTWorker:
         while not self.net.isconnected():
             print("Waiting for network connection...")
             await asyncio.sleep(1)
+
         try:
             self.client.reconnect()
+            await asyncio.sleep(6)  # Wait if socket not ready error
+            if self.client.conn_issue:
+                raise ValueError("Fail to reconnect")
             self.client.resubscribe()
-            await asyncio.sleep(self.keepalive)
-            if not self.client.is_conn_issue() or self.last_message < time.time() + self.keepalive*2:
-                print("MQTT reconnect success")
-                self.connected = True
-                await self.add_message_to_publish(self.topics['status'], "Connected", retain=True)
-                await self.publish_stats()
-            else:
-                print("MQTT reconnect failed")
+
+
+            print(f"MQTT Await connection for up to {self.keepalive} seconds...")
+            timeout = self.keepalive
+            _last_messages = self.last_message
+            while timeout > 0:
+                if self.last_message != _last_messages:
+                    print("MQTT got connection")
+                    self.connected = True
+                    await self.add_message_to_publish(self.topics['status'], "Connected", retain=True)
+                    await self.publish_stats()
+                    return True
+                print("MQTT wait for connection")
+                await asyncio.sleep(2)
+                timeout -= 1
+
+            print("MQTT reconnect failed after timeout")
+            self.connected = False
         except Exception as e:
             print("MQTT Reconnection Error: ", e)
-            try:
-                self.client.disconnect()
-            except Exception as e:
-                print("MQTT Disconnect Error: ", e)
+            self.connected = False
+        finally:
+            if not self.connected:
+                try:
+                    self.client.disconnect()  # Ensure this is non-blocking or handled asynchronously
+                except Exception as e:
+                    print("MQTT Disconnect Error: ", e)
+                await asyncio.sleep(20)
+            return False
 
     async def ping_server(self):
         if not self.service:
@@ -104,12 +123,17 @@ class MQTTWorker:
     async def worker(self):
         if not self.service:
             return
-
+        while not shared.time_synced:
+            await asyncio.sleep(1)
         try:
             self.client.connect()
+            await asyncio.sleep(5)
+            if self.client.conn_issue():
+                raise
             await self.add_message_to_publish(self.topics['status'], "Connected", retain=True)
-        except Exception as e:
-            print("MQTT Error during initial connect: ", e)
+        except Exception:
+            print("MQTT Error during initial connect")
+            self.connected = False
             try:
                 self.client.disconnect()
             except Exception as e:
@@ -125,22 +149,22 @@ class MQTTWorker:
             asyncio.create_task(self.publish()),
             asyncio.create_task(self.ping_server())
         ]
-        await asyncio.sleep(self.keepalive)  # Await first service message
 
         while True:
             while not self.service:
                 await asyncio.sleep(1)
-            if self.client.is_conn_issue() or not self.connected or self.last_message < time.time():
+            if self.client.is_conn_issue() or not self.connected or \
+                    time.time() > self.last_message + (self.keepalive + 1):
                 self.connected = False
                 print("MQTT Connection issue detected, attempting to reconnect...")
-                if self.last_message < time.time():
+                if time.time() > self.last_message + (self.keepalive + 1):
                     print("MQTT timeout for service message: ", self.last_message, " , time: ", time.time())
                 else:
                     print("MQTT Issue: ", self.client.is_conn_issue(), " Connected: ", self.connected)
                 await self.ensure_connected()
             else:
                 print("MQTT Connected")
-            await asyncio.sleep(self.keepalive)
+                await asyncio.sleep(10)
 
     async def handle_incoming_messages(self):
         while self.service:
@@ -207,17 +231,25 @@ class MQTTWorker:
     def process_command(self, topic, command):
         if topic == "uptime":
             print("MQTT update keepalive timer")
-            self.last_message = time.time() + self.keepalive * 2
+            self.client.conn_issue = None
+            self.last_message = time.time()
+            self.connected = True
             return
         print(f"MQTT process command, {topic}, {command}")
+        try:
+            cmd = json.loads(command.decode())
+        except Exception as e:
+            print("MQTT process command error ", e)
+            return
+
         if topic == 'dose':
-            asyncio.create_task(self.command_handler.dose(command))
+            asyncio.create_task(self.command_handler.dose(cmd))
         elif topic == 'run':
-            asyncio.create_task(self.command_handler.run(command))
+            asyncio.create_task(self.command_handler.run(cmd))
         elif topic == 'stop':
-            asyncio.create_task(self.command_handler.stop(command))
+            asyncio.create_task(self.command_handler.stop(cmd))
         elif topic == 'refill':
-            asyncio.create_task(self.command_handler.refill(command))
+            asyncio.create_task(self.command_handler.refill(cmd))
         print("MQTT process command finish")
 
 

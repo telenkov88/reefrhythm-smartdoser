@@ -122,9 +122,18 @@ class MQTTClient:
         :type length: int
         :return:
         """
+        timeout = self.socket_timeout if self.socket_timeout is not None else 5
+        poller = uselect.poll()
+        poller.register(self.sock, uselect.POLLOUT)  # Register the socket to check for write availability
+
+        # Wait for the socket to be ready for writing or timeout
+        events = poller.poll(timeout * 1000)  # Timeout needs to be in milliseconds
+        if not events:
+            raise OSError
+
         # In non-blocking socket mode, the entire block of data may not be sent.
         try:
-            self._sock_timeout(self.poller_w, self.socket_timeout)
+            self._sock_timeout(self.poller_w, timeout)
             out = self.sock.write(bytes_wr, length)
         except AttributeError:
             raise MQTTException(8)
