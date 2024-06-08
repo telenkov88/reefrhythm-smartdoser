@@ -177,7 +177,7 @@ command_handler = CommandHandler()
 command_buffer = CommandBuffer()
 rpm_table = make_rpm_table()
 
-mqtt_keepalive = 30  # Keepalive timeout
+mqtt_keepalive = 60  # Keepalive timeout
 client_params = {'client_id': "ReefRhythm-" + mqtt_id, 'server': mqtt_settings["broker"], 'port': 1883,
                  'user': mqtt_settings["login"], 'password': mqtt_settings["password"], 'keepalive': mqtt_keepalive,
                  "socket_timeout": 2}

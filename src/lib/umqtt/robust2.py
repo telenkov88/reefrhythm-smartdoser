@@ -123,6 +123,7 @@ class MQTTClient(simple2.MQTTClient):
 
         Connection problems are captured and handled by `is_conn_issue()`
         """
+        self.conn_issue = None
         out = self.connect(False)
         if self.conn_issue:
             super().disconnect()

@@ -78,28 +78,14 @@ class MQTTWorker:
 
         try:
             self.client.reconnect()
-            await asyncio.sleep(6)  # Wait if socket not ready error
-            if self.client.conn_issue:
-                raise ValueError("Fail to reconnect")
-            self.client.resubscribe()
+            for _ in range(self.client.socket_timeout+2):
+                if self.client.conn_issue:
+                    self.connected = False
+                    print("MQTT Fail to reconnect")
+                    break
+                await asyncio.sleep(1)
+            self.connected = True
 
-            print(f"MQTT Await connection for up to {self.keepalive} seconds...")
-            timeout = self.keepalive
-            _last_messages = self.last_message
-            while timeout > 0:
-                self.client.ping()
-                if self.last_message != _last_messages:
-                    print("MQTT got connection")
-                    self.connected = True
-                    await self.add_message_to_publish(self.topics['status'], "Connected", retain=True)
-                    await self.publish_stats()
-                    return True
-                print("MQTT wait for connection")
-                await asyncio.sleep(5)
-                timeout -= 5
-
-            print("MQTT reconnect failed after timeout")
-            self.connected = False
         except Exception as e:
             print("MQTT Reconnection Error: ", e)
             self.connected = False
@@ -118,7 +104,7 @@ class MQTTWorker:
         while True:
             if self.connected and self.service:
                 self.client.ping()
-            await asyncio.sleep(10)
+            await asyncio.sleep(self.client.keepalive//2)
 
     async def worker(self):
         if not self.service:
@@ -127,7 +113,7 @@ class MQTTWorker:
             await asyncio.sleep(1)
         try:
             self.client.connect()
-            await asyncio.sleep(5)
+            await asyncio.sleep(self.client.socket_timeout+1)
             if self.client.conn_issue():
                 raise
             await self.add_message_to_publish(self.topics['status'], "Connected", retain=True)
@@ -142,6 +128,7 @@ class MQTTWorker:
         for topic in self.topics['subscriptions']:
             self.client.subscribe(self.base_topic + topic)
         self.client.subscribe("$SYS/broker/uptime")  # Service subscription for keepalive
+
         await self.publish_stats()
 
         tasks = [
@@ -157,14 +144,19 @@ class MQTTWorker:
                     time.time() > self.last_message + (self.keepalive + 1):
                 self.connected = False
                 print("MQTT Connection issue detected, attempting to reconnect...")
+                self.client.log()
                 if time.time() > self.last_message + (self.keepalive + 1):
                     print("MQTT timeout for service message: ", self.last_message, " , time: ", time.time())
                 else:
                     print("MQTT Issue: ", self.client.is_conn_issue(), " Connected: ", self.connected)
                 await self.ensure_connected()
+                if self.connected:
+                    await self.add_message_to_publish(self.topics['status'], "Connected", retain=True)
+                    self.client.resubscribe()
+                    self.client.subscribe("$SYS/broker/uptime")
             else:
                 print("MQTT Connected")
-                await asyncio.sleep(10)
+            await asyncio.sleep(self.client.keepalive//3)
 
     async def handle_incoming_messages(self):
         while self.service:
