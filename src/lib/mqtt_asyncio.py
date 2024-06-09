@@ -5,6 +5,7 @@ publish: Sends messages to a topic, with support for QoS 1 acknowledgment handli
 subscribe: Subscribes to a topic and handles acknowledgment of the subscription.
 loop_forever: A simple loop to keep the client running. This can be expanded to handle incoming messages and more complex event-driven logic.
 """
+import sys
 import time
 import asyncio
 
@@ -40,12 +41,15 @@ class MQTTClient:
         self.password = password
         self.keepalive = keepalive
         self.last_ping_time = 0  # Timestamp of the last PINGREQ
+        self.reconnect_timeout = 10
 
         self.ssl = ssl
         self.ssl_params = ssl_params if ssl_params else {}
         self.reader = None
         self.writer = None
         self.connected = False
+        self.reconnection_required = False
+        self.subscribed = False
         self.newpid = pid_gen()
         self.subscriptions = {}  # Dictionary to keep track of topic subscriptions
 
@@ -54,6 +58,26 @@ class MQTTClient:
         self.last_will_message = msg
         self.last_will_qos = qos
         self.last_will_retain = retain
+
+    async def reset_connection(self):
+        self.writer.close()
+        await self.writer.wait_closed()
+        print("Connection reset initiated.")
+        self.reconnection_required = True
+        self.subscribed = False
+
+    async def safe_write(self, data):
+        if not self.writer:
+            raise MQTTException("No connection available for writing.")
+        try:
+            self.writer.write(data)
+            await asyncio.wait_for(self.writer.drain(), timeout=10)  # Ensure data is sent within timeout
+        except (asyncio.TimeoutError, ConnectionResetError, BrokenPipeError) as e:
+            print(f"Write failed: {e}. Attempting to handle the situation.")
+            await self.reset_connection()  # Reset or clear connection resources
+        except Exception as e:
+            print(f"Unexpected error during write operation: {e}")
+            raise
 
     async def connect(self, clean_session=True):
         mqtt = asyncio.open_connection(self.server, self.port)
@@ -69,12 +93,18 @@ class MQTTClient:
             self.subscriptions = {}  # Clear previous subscriptions if clean session
         else:
             await self.resubscribe_all()  # Resubscribe to all topics if not a clean session
+        if self.last_will_topic:
+            await self.publish(self.last_will_topic, b"Connected", retain=self.last_will_retain)
 
     async def resubscribe_all(self):
         """Resubscribes to all topics after a reconnection."""
+        if not self.connected:
+            print("Cannot resubscribe: Client is not connected.")
+            return
         for topic, (qos, cb) in self.subscriptions.items():
             print(f"Resubscribing to {topic} with QoS {qos}")
             await self.subscribe(topic, qos, cb)
+        self.subscribed = True
 
     async def _send_connect(self, clean_session):
         packet = bytearray(b"\x10")  # Connect command
@@ -110,8 +140,7 @@ class MQTTClient:
             if self.password:
                 packet += len(self.password).to_bytes(2, 'big') + self.password.encode('utf-8')
 
-        self.writer.write(packet)
-        await self.writer.drain()
+        await self.safe_write(packet)
 
     async def _receive_connack(self):
         resp = await self.reader.readexactly(4)
@@ -162,8 +191,7 @@ class MQTTClient:
             pid = next(self.newpid)
             packet += pid.to_bytes(2, 'big')
         packet += msg
-        self.writer.write(packet)
-        await self.writer.drain()
+        await self.safe_write(packet)
         if qos == 1:
             await self._wait_for_puback(pid)
 
@@ -191,13 +219,13 @@ class MQTTClient:
 
     async def subscribe(self, topic, qos=0, cb=None):
         """Subscribes to a topic and registers a callback."""
+        print(f"Subscribe to '{topic}'")
         if not self.connected:
             print("Client is not connected.")
             return
         pid = next(self.newpid)
         packet = self._prepare_subscribe_packet(topic, qos, pid)
-        self.writer.write(packet)
-        await self.writer.drain()
+        await self.safe_write(packet)
         await self._wait_for_suback(pid)
 
         # Assign the callback if provided and valid
@@ -222,8 +250,7 @@ class MQTTClient:
         """Unsubscribes from a topic."""
         if topic in self.subscriptions:
             packet = self._prepare_unsubscribe_packet(topic)
-            self.writer.write(packet)
-            await self.writer.drain()
+            await self.safe_write(packet)
             await self._wait_for_unsuback(next(self.newpid))
             del self.subscriptions[topic]  # Remove from subscriptions
         else:
@@ -262,27 +289,43 @@ class MQTTClient:
             break
 
     async def disconnect(self):
-        """Gracefully close the MQTT connection."""
+        """Attempts to gracefully close the MQTT connection and falls back to forcing the socket closed."""
         if self.writer:
             try:
+                # Attempt to send the DISCONNECT packet
                 self.writer.write(bytearray([0xE0, 0x00]))  # MQTT DISCONNECT packet
-                await self.writer.drain()
+                await asyncio.wait_for(self.writer.drain(), timeout=5)  # Short timeout for last attempt to send
             except Exception as e:
-                print(f"Error during disconnect: {e}")
+                print(f"Error during graceful disconnect: {e}")
             finally:
-                # Always attempt to close the writer regardless of the previous error.
+                # Force close the writer to ensure the connection is terminated
                 try:
                     self.writer.close()
                     await self.writer.wait_closed()
                 except Exception as e:
-                    print("socker close error: ", e)
-            self.connected = False
-            print("Disconnected.")
+                    print(f"Failed to close connection: {e}")
+        self.connected = False
+        self.subscribed = False
+        print("Disconnected.")
 
     async def reconnect(self):
-        print("Reconnecting...")
-        await self.disconnect()
-        await self.connect(clean_session=False)
+        backoff_time = 1
+        max_backoff_time = 300  # Maximum backoff should be reasonably limited
+        while not self.connected and backoff_time <= max_backoff_time:
+            print(f"Reconnecting in {backoff_time} seconds...")
+            await asyncio.sleep(backoff_time)
+            backoff_time *= 2
+            await self.disconnect()  # Ensure it's fully disconnected
+            try:
+                await self.connect(clean_session=False)
+            except Exception as e:
+                print(f"Reconnect failed: {e}")
+            else:
+                if self.connected:
+                    print("Reconnected successfully.")
+                    break
+        if not self.connected:
+            print("Failed to reconnect after several attempts.")
 
     async def ping(self):
         if self.connected:
@@ -290,24 +333,23 @@ class MQTTClient:
             if current_time - self.last_ping_time >= self.keepalive:
                 if self.DEBUG:
                     print("Sending PINGREQ")
-                self.writer.write(b'\xc0\x00')  # MQTT PINGREQ packet
-                await self.writer.drain()
+                await self.safe_write(b'\xc0\x00')  # MQTT PINGREQ packet
                 self.last_ping_time = current_time
 
     async def maintain_connection(self):
-        """Regularly check the connection health and try to reconnect if necessary."""
         while True:
-            if self.connected:
-                await self.ping()
-                # Check if the last ping response was received in time
-                current_time = time.time()
-                if current_time - self.last_ping_time > self.keepalive:
-                    print("No PINGRESP received within keepalive interval, reconnecting...")
-                    await self.reconnect()
-            else:
-                print("Connection is down, trying to reconnect...")
+            await asyncio.sleep(self.keepalive // 2)  # Check connection health at regular intervals
+
+            if not self.connected or self.reconnection_required:
+                print("Attempting to reconnect...")
                 await self.reconnect()
-            await asyncio.sleep(self.keepalive // 2)  # Sleep for half the keepalive interval
+                self.reconnection_required = False  # Reset flag after attempting to reconnect
+
+                if self.connected:
+                    if not self.subscribed:
+                        await self.resubscribe_all()  # Resubscribe to all topics
+            else:
+                await self.ping()  # Send periodic pings if connected
 
     def on_message(self, topic, message):
         print(f"Received message on {topic}: {message}")
@@ -316,7 +358,13 @@ class MQTTClient:
         while True:
             if self.connected:
                 try:
-                    await self._handle_message()
+                    first_byte = await self.reader.readexactly(1)
+                    message_type = first_byte[0] >> 4
+                    flags = first_byte[0]
+                    qos = (flags >> 1) & 0x03
+                    remaining_length = await self._recv_len()
+                    if message_type == 3:  # PUBLISH
+                        await self._handle_publish(remaining_length, qos)
                 except MQTTException as e:
                     print("MQTT Error:", e)
                     break
@@ -352,29 +400,34 @@ class MQTTClient:
             self.connected = False
 
     # TODO Fix QoS 1-2 Read
-    async def _handle_publish(self, remaining_length):
-        """Handle an incoming publish message."""
+    async def _handle_publish(self, remaining_length, qos):
+        """Handle an incoming publish message with QoS parameter."""
         try:
-            # Read the topic length and the topic
             topic_length_bytes = await self.reader.readexactly(2)
             topic_length = int.from_bytes(topic_length_bytes, 'big')
-            topic_bytes = await self.reader.readexactly(topic_length)
-            topic = topic_bytes.decode('utf-8')  # Decode the topic
+            topic = await self.reader.readexactly(topic_length)
+            topic = topic.decode('utf-8')
 
-            # Calculate the message payload length and read the message
+            packet_id_bytes = b''
+            if qos > 0:
+                print("QoS: ", qos)
+                packet_id_bytes = await self.reader.readexactly(2)  # Read packet ID for QoS 1 or 2
+
             message_length = remaining_length - 2 - topic_length
-            message_bytes = await self.reader.readexactly(message_length)
-            message = message_bytes.decode('utf-8')  # Decode the message
+            if qos > 0:
+                message_length -= 2  # Adjust for packet ID
 
-            # Lookup the callback in the subscriptions and execute if available
+            message = await self.reader.readexactly(message_length)
+            message = message.decode('utf-8')
+
+            if qos == 1:
+                ack_packet = bytearray([0x40, 0x02]) + packet_id_bytes
+                await self.safe_write(ack_packet)
+
+            # Callback execution
             if topic in self.subscriptions:
                 _, callback = self.subscriptions[topic]
-                if callable(callback):
-                    callback(topic, message)
-                else:
-                    print(f"Registered callback for topic {topic} is not callable.")
-            else:
-                print(f"No callback registered for topic {topic}. Message received: {message}")
+                callback(topic, message)
 
         except asyncio.IncompleteReadError as e:
             print(f"Error while handling publish: {e}")
@@ -400,10 +453,8 @@ async def main():
     client = MQTTClient("clientid", "192.168.254.157", user="mosquitto", password="mosquitto", keepalive=16)
     client.set_last_will("hello/status", "Disconnected")
     await client.connect()
-    if client.connected:
-        await client.publish("hello/status", b"Connected", retain=True)
-    await client.subscribe("/test", qos=1, cb=custom_message_handler)
-    await client.publish("hello/world", b"Hello MQTT", qos=1)
+    await client.subscribe("/test", qos=0, cb=custom_message_handler)
+    await client.publish("hello/world", b"Hello MQTT", qos=0)
     asyncio.create_task(client.handle_messages())
     asyncio.create_task(client.maintain_connection())
     await asyncio.sleep(36000)  # Keep running for 10 hour
