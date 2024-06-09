@@ -8,6 +8,7 @@ loop_forever: A simple loop to keep the client running. This can be expanded to 
 import sys
 import time
 import asyncio
+from errno import ECONNRESET
 
 try:
     import ubinascii as binascii
@@ -71,12 +72,13 @@ class MQTTClient:
             raise MQTTException("No connection available for writing.")
         try:
             self.writer.write(data)
-            await asyncio.wait_for(self.writer.drain(), timeout=10)  # Ensure data is sent within timeout
-        except (asyncio.TimeoutError, ConnectionResetError, BrokenPipeError) as e:
-            print(f"Write failed: {e}. Attempting to handle the situation.")
-            await self.reset_connection()  # Reset or clear connection resources
+            await asyncio.wait_for(self.writer.drain(), timeout=10)
+        except asyncio.TimeoutError as e:
+            print(f"Write timeout occurred: {e}")
+            self.reconnection_required = True
         except Exception as e:
-            print(f"Unexpected error during write operation: {e}")
+            print(f"Failed to write data: {e}")
+            self.connected = False
             raise
 
     async def connect(self, clean_session=True):
@@ -309,7 +311,7 @@ class MQTTClient:
         print("Disconnected.")
 
     async def reconnect(self):
-        backoff_time = 1
+        backoff_time = 8
         max_backoff_time = 300  # Maximum backoff should be reasonably limited
         while not self.connected and backoff_time <= max_backoff_time:
             print(f"Reconnecting in {backoff_time} seconds...")
@@ -320,6 +322,8 @@ class MQTTClient:
                 await self.connect(clean_session=False)
             except Exception as e:
                 print(f"Reconnect failed: {e}")
+                await asyncio.sleep(10)
+                backoff_time += 10
             else:
                 if self.connected:
                     print("Reconnected successfully.")
@@ -328,13 +332,14 @@ class MQTTClient:
             print("Failed to reconnect after several attempts.")
 
     async def ping(self):
-        if self.connected:
-            current_time = time.time()
-            if current_time - self.last_ping_time >= self.keepalive:
-                if self.DEBUG:
-                    print("Sending PINGREQ")
-                await self.safe_write(b'\xc0\x00')  # MQTT PINGREQ packet
-                self.last_ping_time = current_time
+        if not self.connected and not self.reconnection_required:
+            print("Not connected, skipping ping.")
+            return
+        try:
+            await self.safe_write(b'\xc0\x00')  # Sending PINGREQ
+        except Exception as e:
+            print(f"Failed to send ping: {e}")
+            self.reconnection_required = True
 
     async def maintain_connection(self):
         while True:
@@ -354,28 +359,41 @@ class MQTTClient:
     def on_message(self, topic, message):
         print(f"Received message on {topic}: {message}")
 
+    async def read_exactly(self, num_bytes):
+        try:
+            return await asyncio.wait_for(self.reader.readexactly(num_bytes), timeout=10)
+        except asyncio.TimeoutError:
+            raise MQTTException("Timeout occurred while trying to read from the broker.")
+        except asyncio.IncompleteReadError:
+            raise MQTTException("Incomplete read from broker.")
+
     async def handle_messages(self):
         while True:
             if self.connected:
                 try:
-                    first_byte = await self.reader.readexactly(1)
+                    #print("Waiting for message...")
+                    first_byte = await self.reader.read(1)
+                    if not first_byte:
+                        print("Connection appears to be closed by the broker.")
+                        self.connected = False
+                        self.reconnection_required = True
+                        continue  # Continue waiting without erroring out
+
                     message_type = first_byte[0] >> 4
                     flags = first_byte[0]
                     qos = (flags >> 1) & 0x03
-                    remaining_length = await self._recv_len()
+
+                    remaining_length = await self._recv_len()  # Make sure this also gracefully handles waiting
                     if message_type == 3:  # PUBLISH
                         await self._handle_publish(remaining_length, qos)
+
                 except MQTTException as e:
                     print("MQTT Error:", e)
                     break
-                except asyncio.CancelledError:
-                    print("Message handling cancelled.")
-                    break
                 except Exception as e:
                     print("Unexpected error:", e)
-                    self.connected = False
-            else:
-                await asyncio.sleep(1)
+                    self.connected = False  # Could signal a need to reconnect depending on the error
+            await asyncio.sleep(1)
 
     async def _handle_message(self):
         try:
@@ -399,7 +417,6 @@ class MQTTClient:
             print("Connection lost")
             self.connected = False
 
-    # TODO Fix QoS 1-2 Read
     async def _handle_publish(self, remaining_length, qos):
         """Handle an incoming publish message with QoS parameter."""
         try:
