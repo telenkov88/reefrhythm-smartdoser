@@ -104,7 +104,7 @@ except Exception as e:
     print("Failed to load MQTT settings ", e)
 check_defaults_mqtt(mqtt_settings)
 
-doser_topic = f"/ReefRhythm/{unique_id}"
+doser_topic = f"/ReefRhythm/{mqtt_id}"
 
 
 limits_settings = {}
