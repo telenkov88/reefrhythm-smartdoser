@@ -72,25 +72,24 @@ mcron.insert = Mock()
 mcron.init_timer = Mock()
 
 
-# Dummy decorator to simulate @micropython.native
-# Creating a more structured mock for micropython module
-class Micropython:
-    @staticmethod
-    def native(func):
-        # Decorator that simply returns the function unchanged
-        return func
+def ticks_us():
+    """Return the current time in microseconds."""
+    return int(time.time() * 1_000_000)
 
 
-# Assign the mock class to a variable with the module's name
-micropython = Micropython()
+def ticks_diff(a, b):
+    """Calculate the difference in microseconds between two timestamps."""
+    return a - b
 
 
 class MQTTClient:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
+        self.callback = None
         print(f"MQTT Client initialized with parameters: {kwargs}")
 
-    def log(self):
+    @staticmethod
+    def log():
         exc = f"MQTT Exception ({random.randint(0, 10)})"
         print(exc)
         return exc
@@ -99,33 +98,95 @@ class MQTTClient:
         self.callback = callback
         print("Callback has been set.")
 
-    def set_last_will(self, topic, message, retain):
+    @staticmethod
+    def set_last_will(topic, message, retain):
         print(f"Set last will: topic='{topic}', message='{message}', retain={retain}")
 
-    def connect(self):
+    @staticmethod
+    def connect():
         print("Connected to MQTT broker.")
 
-    def reconnect(self):
+    @staticmethod
+    def reconnect():
         print("Reconnect to MQTT broker.")
         return True
 
-    def subscribe(self, topic):
+    @staticmethod
+    def subscribe(topic):
         print(f"Subscribed to topic: {topic}")
 
-    def resubscribe(self):
+    @staticmethod
+    def resubscribe():
         print(f"Resubscribe to topics")
 
-    def publish(self, topic, payload, retain):
+    @staticmethod
+    def publish(topic, payload, retain):
         print(f"Mock publish to {topic}: {payload}. Retain {retain}")
 
     def check_msg(self):
         # Simulate incoming messages if needed
         pass
 
-    def disconnect(self):
+    @staticmethod
+    def disconnect():
         print("Disconnected from MQTT broker.")
 
-    def is_conn_issue(self):
+    @staticmethod
+    def is_conn_issue():
         if random.randint(1, 10) < 3:
             return True
         return False
+
+
+# Dummy decorators to simulate @micropython code emitters
+class Micropython:
+    @staticmethod
+    def native(func):
+        return func
+
+    @staticmethod
+    def viper(func):
+        return func
+
+
+# @micropython.viper specific data types
+class MockPtr8:
+    def __init__(self, data):
+        self.data = data
+
+    def __getitem__(self, index):
+        return self.data[index]
+
+    def __setitem__(self, index, value):
+        self.data[index] = value
+
+
+class MockPtr16:
+    def __init__(self, data):
+        self.data = data
+
+    def __getitem__(self, index):
+        return self.data[index]
+
+    def __setitem__(self, index, value):
+        self.data[index] = value
+
+
+
+class MockPtr32:
+    def __init__(self, data):
+        self.data = data
+
+    def __getitem__(self, index):
+        return self.data[index]
+
+    def __setitem__(self, index, value):
+        self.data[index] = value
+
+
+ptr8 = MockPtr8
+ptr16 = MockPtr16
+ptr32 = MockPtr32
+
+# Assign the mock class to a variable with the module's name
+micropython = Micropython()
