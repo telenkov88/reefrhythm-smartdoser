@@ -54,6 +54,9 @@ class MQTTClient:
         self.newpid = pid_gen()
         self.subscriptions = {}  # Dictionary to keep track of topic subscriptions
 
+        # Automatically start maintaining connection
+        asyncio.create_task(self.maintain_connection())
+
     def set_last_will(self, topic, msg, qos=0, retain=False):
         self.last_will_topic = topic
         self.last_will_message = msg
@@ -349,12 +352,10 @@ class MQTTClient:
                 print("Attempting to reconnect...")
                 await self.reconnect()
                 self.reconnection_required = False  # Reset flag after attempting to reconnect
-
-                if self.connected:
-                    if not self.subscribed:
-                        await self.resubscribe_all()  # Resubscribe to all topics
             else:
                 await self.ping()  # Send periodic pings if connected
+            if self.connected and not self.subscribed:
+                await self.resubscribe_all()  # Resubscribe to all topics
 
     def on_message(self, topic, message):
         print(f"Received message on {topic}: {message}")
@@ -473,7 +474,6 @@ async def main():
     await client.subscribe("/test", qos=0, cb=custom_message_handler)
     await client.publish("hello/world", b"Hello MQTT", qos=0)
     asyncio.create_task(client.handle_messages())
-    asyncio.create_task(client.maintain_connection())
     await asyncio.sleep(36000)  # Keep running for 10 hour
     await client.disconnect()
 
