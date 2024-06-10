@@ -1,10 +1,12 @@
 import array
 import random
+import sys
+
 try:
     import micropython
     from ulab import numpy as np
 except ImportError:
-    from lib.mocks import micropython, ptr8, ptr16, ptr32
+    from lib.mocks import micropython, ptr8, ptr16, ptr32, uint
     import numpy as np
 
 from lib.decorator import timed_function
@@ -54,7 +56,6 @@ def sum_int16_array_viper(arr: ptr16, length: int, cycles: int) -> int:
 @micropython.viper
 def sum_int16_array_viper_direct_pointer(arr: ptr16, l: uint, cycles: uint) -> int:
     initial_ptr = uint(arr)  # Store the initial pointer
-    total = int(0)
     c = uint(0)
     r: int = 0  # Reset r for each cycle
     while c < cycles:
@@ -65,6 +66,7 @@ def sum_int16_array_viper_direct_pointer(arr: ptr16, l: uint, cycles: uint) -> i
             r += p[0]  # Dereference the current pointer location
             p = ptr16(uint(p) + 2)  # Increment pointer by the size of int16 (2 bytes)
         c += 1
+    print("viper sum", r)
     return r
 
 
@@ -117,18 +119,23 @@ s2 = sum_int16_array_native(buffer, BUFFER_SIZE, TEST_CYCLES)
 print("\r\nViper emitter")
 s3 = sum_int16_array_viper(buffer, BUFFER_SIZE, TEST_CYCLES)
 
-print("\r\nViper emitter with direct pointer")
-s4 = sum_int16_array_viper_direct_pointer(buffer, BUFFER_SIZE, TEST_CYCLES)
 print("\r\nNumpy emitter")
-s5 = sum_int16_array_numpy(np_int_array, TEST_CYCLES)
-
+s4 = sum_int16_array_numpy(np_int_array, TEST_CYCLES)
 tolerance = 2  # Allow a difference of 1 unit in the sum
 
-if not (abs(s1 - s2) == 0 and abs(s2 - s3) == 0 and abs(s3 - s4) == 0 and abs(s1 - s5) <= tolerance):
-    values = f"{s1}, {s2}, {s3}, {s4}, {s5}"
+if sys.implementation.name == "micropython":
+    print("\r\nViper emitter with direct pointer")
+    s_direct = sum_int16_array_viper_direct_pointer(buffer, BUFFER_SIZE, TEST_CYCLES)
+    if not (abs(s1 - s_direct) == 0):
+        values = f"{s1}, {s4}"
+        raise ValueError(f"Array summation not equal: {values}")
+
+if not (abs(s1 - s2) == 0 and abs(s2 - s3) == 0 and abs(s3 - s3) == 0 and abs(s1 - s4) <= tolerance):
+    values = f"{s1}, {s2}, {s3}, {s4}, {s4}"
     raise ValueError(f"Array summation not equal: {values}")
 else:
     print("Array sum: ", s1)
+
 
 print('\r\n', "="*50)
 print("| Test float array summ and avg calc performance |")
@@ -153,6 +160,15 @@ a2 = avg_float_array_native(buffer, BUFFER_SIZE, TEST_CYCLES)
 # Viper doesn't support float, but we can use store float values as int and then calculate floats in native
 @timed_function
 def avg_viper_for_float(arr: array, length: int, cycles: int) -> float:
+    _sum = sum_int16_array_viper(arr, BUFFER_SIZE, cycles)
+    _avg: float = 0.0
+    for _count in range(cycles):
+        _avg: float = 0.0
+        _avg = _sum / length if length > 0 else 0.0
+    return _avg/10000
+
+@timed_function
+def avg_viper_for_float_direct_pointer(arr: array, length: int, cycles: int) -> float:
     _sum = sum_int16_array_viper_direct_pointer(arr, BUFFER_SIZE, cycles)
     _avg: float = 0.0
     for _count in range(cycles):
@@ -182,3 +198,10 @@ if not (abs(a1 - a2) < tolerance and abs(a2 - a3) < tolerance and abs(a3 - a4) <
     raise ValueError(f"Array average value not equal: ", values)
 else:
     print("Array avg: ", a4)
+
+if sys.implementation.name == "micropython":
+    print("\r\nViper optimized float emitter with direct pointer")
+    a_direct = avg_viper_for_float_direct_pointer(buffer_float_to_int, BUFFER_SIZE, TEST_CYCLES)
+    if not (abs(a1 - a_direct) < tolerance):
+        values = f"{round(a1, 3)}, {round(a_direct, 3)}"
+        raise ValueError(f"Array summation not equal: {values}")

@@ -187,6 +187,7 @@ class MockPtr32:
 ptr8 = MockPtr8
 ptr16 = MockPtr16
 ptr32 = MockPtr32
+uint = int
 
 # Assign the mock class to a variable with the module's name
 micropython = Micropython()
