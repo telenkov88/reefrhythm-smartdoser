@@ -52,10 +52,18 @@ class MQTTWorker:
         self.net = network
 
         self.mqtt_publish_queue = asyncQueue(maxsize=100)
+        self.mqtt_client_tasks = []
 
     async def start(self):
         await self.setup_client()
         print(f"Service initialized at {self.base_topic}")
+
+    async def stop(self):
+        print(f"Stop MQTT worker")
+        self.service = False
+        await self.client.disconnect()
+        for task in self.mqtt_client_tasks:
+            task.cancel()
 
     async def setup_client(self):
         if not self.service:
@@ -70,9 +78,11 @@ class MQTTWorker:
         await self.client.subscribe(self.base_topic + 'refill', qos=0, cb=self.command_handler.refill)
 
         await self.publish_stats()
-        asyncio.create_task(self.client.maintain_connection())
-        asyncio.create_task(self.client.handle_messages())
-        asyncio.create_task(self.publish())
+        self.mqtt_client_tasks = [asyncio.create_task(self.client.maintain_connection()),
+                                  asyncio.create_task(self.client.handle_messages()),
+                                  asyncio.create_task(self.publish())
+                                  ]
+
 
     async def publish(self):
         while self.service:

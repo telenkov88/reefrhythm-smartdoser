@@ -15,7 +15,13 @@ from lib.analog_control import analog_control_worker
 from lib.stepper_doser_math import linear_interpolation, extrapolate_flow_rate
 from config.pin_config import *
 import array
+import ssl
 
+# Initialize SSL context once per application or service
+ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+if hasattr(ssl_context, "check_hostname"):
+    ssl_context.check_hostname = False  # Disable hostname checking
+ssl_context.verify_mode = ssl.CERT_NONE  # Disable certificate verification
 
 try:
     # Import 3-part Add-ons
@@ -125,9 +131,10 @@ def increment_uptime_counter(step=10):
     else:
         uptime_counter += step
     print(f"uptime {uptime_counter} seconds")
-    asyncio.run(shared.mqtt_worker.add_message_to_publish("uptime", f"{uptime_counter} seconds"))
-    asyncio.run(shared.mqtt_worker.add_message_to_publish("free_mem ",
-                                                          json.dumps({"free_mem": gc.mem_free() // 1024})))
+    if not shared.ota_lock:
+        asyncio.run(shared.mqtt_worker.add_message_to_publish("uptime", f"{uptime_counter} seconds"))
+        asyncio.run(shared.mqtt_worker.add_message_to_publish("free_mem ",
+                                                              json.dumps({"free_mem": gc.mem_free() // 1024})))
 
 
 # Set up a timer to call increment_uptime_counter every 10 seconds
@@ -156,29 +163,90 @@ async def adc_sampling():
         shared.adc_sampler_started = True
 
 
-async def download_file_async(url, filename, progress=False):
-    print("Start downloading ", url)
+async def download_file_async(url, filename, progress=False, retries=3, timeout=60):
+    print("Start downloading", url)
+    global ssl_context
+    # Basic URL parsing
+    scheme, _, rest = url.partition('://')
+    host, _, path = rest.partition('/')
+    path = '/' + path
+
+    port = 443 if scheme == 'https' else 80
+
+    for attempt in range(retries):
+        try:
+            if port == 443:
+                reader, writer = await asyncio.open_connection(host, port, ssl=ssl_context)
+            else:
+                reader, writer = await asyncio.open_connection(host, port)
+            request_header = f"GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n"
+            writer.write(request_header.encode('utf-8'))
+            await writer.drain()
+
+            headers = await read_headers(reader)
+            status_line = headers[0] if headers else ''
+            print(f"Attempt {attempt + 1}: Status - {status_line}")
+
+            if "302 Found" in status_line or "301 Moved Permanently" in status_line:
+                new_url = extract_location(headers)
+                if new_url:
+                    print("Redirecting to", new_url)
+                    return await download_file_async(new_url, filename, progress, retries, timeout)
+
+            return await read_body(reader, filename, progress, timeout)
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed: {e}")
+            await asyncio.sleep(2)  # wait a bit before retrying
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    print("All attempts failed.")
+    return False
+
+async def read_headers(reader):
+    headers = []
+    while True:
+        line = await reader.readline()
+        if line == b'\r\n' or line == b'':
+            break
+        headers.append(line.decode().strip())
+    return headers
+
+def extract_location(headers):
+    for header in headers:
+        if header.lower().startswith('location:'):
+            return header.split(':', 1)[1].strip()
+    return None
+
+async def read_body(reader, filename, progress, timeout):
     global ota_progress
-    response = requests.get(url, stream=True)
-
-    # Check if the response indeed has a 'iter_content' method or equivalent
-    if not hasattr(response.raw, 'read'):
-        raise AttributeError("Response object doesn't support chunked reading.")
-
-    chunk_size = 4096
-    i = 0
-    with open(filename, 'wb') as file:
-        while True:
-            chunk = response.raw.read(chunk_size)
-            if not chunk:
-                break
-            file.write(chunk)
-            await asyncio.sleep(0.1)  # Yield execution to other tasks
-            if progress:
-                ota_progress = i
-            i += 1
-    response.close()
-
+    total_bytes_written = 0  # Total bytes written to file
+    CHUNKS = 1
+    try:
+        with open(filename, 'wb') as file:
+            while True:
+                try:
+                    data = await asyncio.wait_for(reader.read(4096*CHUNKS), timeout)
+                    if not data:  # No more data to read
+                        break
+                    file.write(data)
+                    total_bytes_written += len(data)  # Update total bytes written
+                    if progress:
+                        print(f"Download progress: {total_bytes_written} bytes written")
+                        ota_progress += CHUNKS
+                        await asyncio.sleep(0.1)
+                except asyncio.TimeoutError:
+                    print("Read timed out, but continuing...")
+                    continue  # Skip this iteration and try reading again
+                except Exception as e:
+                    print(f"Error during file download: {e}")
+                    break  # Break out of the loop on other errors
+        print("Download finished")
+        return True
+    except Exception as e:
+        print(f"Failed to write file: {e}")
+        return False
 
 @app.before_request
 async def start_timer(request):
@@ -443,20 +511,22 @@ async def dose_sse(request, sse):
 @with_sse
 async def ota_events(request, sse):
     print("Got connection")
-    print("file size", firmware_size)
     if firmware_size:
+        print("file size", firmware_size)
         # Calculate the number of chunks assuming a 4096-byte chunk size
         chunk_size = 4096
         num_chunks = (firmware_size + chunk_size - 1) // chunk_size - 2  # Round up to ensure all data is covered
         print(f"The file will be downloaded in {num_chunks} chunks.")
 
-    while shared.ota_lock:
-        print(f"Downloaded:{ota_progress}/{num_chunks}")
-        progress = round(ota_progress / num_chunks * 100, 1)
-        print(f"progress {progress}%")
-        event = {"progress": progress, "size": ota_progress * 4, "status": shared.ota_lock}
-        await sse.send(event)  # unnamed event
-        await asyncio.sleep(0.5)
+        while shared.ota_lock:
+            #print(f"Downloaded:{ota_progress}/{num_chunks}")
+            progress = round(ota_progress / num_chunks * 100, 1)
+            #print(f"progress {progress}%")
+            event = {"progress": progress, "size": ota_progress * 4, "status": shared.ota_lock}
+            await sse.send(event)  # unnamed event
+            await asyncio.sleep(0.5)
+    else:
+        await asyncio.sleep(2)
 
 
 @app.route('/ota-upgrade', methods=['GET', 'POST'])
@@ -506,19 +576,20 @@ async def ota_upgrade(request):
             try:
                 print("Start upgrading from link")
                 shared.ota_lock = True
-                shared.mqtt_worker.service = False  # Stop MQTT worker during OTA
+                await shared.mqtt_worker.stop()
                 mcron.remove_all()
-
+                await asyncio.sleep(1)
                 filename = link.split('/')[-1]
                 firmware_info = link.replace(".bin", '.json')
                 print(f"Download firmware info  {firmware_info}")
-                await download_file_async(firmware_info, "micropython.json")
+                await download_file_async(firmware_info, "micropython.json", timeout=60)
+
                 with open("micropython.json", "r") as read_file:
                     firmware_info = json.load(read_file)
                 global firmware_size
                 firmware_size = firmware_info["length"]
 
-                await download_file_async(link, filename, progress=True)
+                await download_file_async(link, filename, progress=True, timeout=1200)
                 print("Download complete")
 
                 with open('config/storage.json', 'w') as _write_file:
@@ -527,10 +598,9 @@ async def ota_upgrade(request):
                     json.dump(shared.storage, _write_file)
 
                 ota.update.from_file(filename, reboot=True)
-                shared.ota_lock = False
 
             except Exception as e:
-                print("Error: ", e)
+                print("Error OTA upgrade: ", e)
                 shared.ota_lock = False
 
         if cancel_rollback:
