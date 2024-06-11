@@ -117,8 +117,8 @@ class CommandHandler:
         if all(key in cmd for key in ["id", "amount", "duration", "direction"]):
             # Check the range and validity of each parameter
             return (1 <= int(cmd["id"]) <= shared.PUMP_NUM and
-                    int(cmd["amount"]) > 0 and
-                    1 <= int(cmd["duration"]) <= 3600 and
+                    float(cmd["amount"]) > 0 and
+                    1 <= float(cmd["duration"]) <= 3600 and
                     int(cmd["direction"]) in [0, 1])
         return False
 
@@ -127,8 +127,8 @@ class CommandHandler:
         if all(key in cmd for key in ["id", "rpm", "duration", "direction"]):
             # Check the range and validity of each parameter
             return (1 <= int(cmd["id"]) <= shared.PUMP_NUM and
-                    0.5 <= int(cmd["rpm"]) <= 1000 and
-                    1 <= int(cmd["duration"]) <= 3600 and
+                    0.5 <= float(cmd["rpm"]) <= 1000 and
+                    1 <= float(cmd["duration"]) <= 3600 and
                     int(cmd["direction"]) in [0, 1])
         return False
 

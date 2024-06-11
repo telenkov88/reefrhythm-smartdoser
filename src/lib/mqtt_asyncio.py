@@ -7,7 +7,7 @@ subscribe: Subscribes to a topic and handles acknowledgment of the subscription.
 import json
 import time
 import asyncio
-
+from lib.decorator import restart_on_failure
 try:
     import ubinascii as binascii
 except ImportError:
@@ -67,17 +67,19 @@ class MQTTClient:
         self.subscribed = False
 
     async def safe_write(self, data):
+        # TODO socker leaks for reconnect here:
         if not self.writer:
             raise MQTTException("No connection available for writing.")
         try:
             self.writer.write(data)
             await asyncio.wait_for(self.writer.drain(), timeout=self.socket_timeout)
         except asyncio.TimeoutError as e:
-            print(f"Write timeout occurred: {e}")
+            print(f"Error: Write timeout occurred: {e}")
             self.reconnection_required = True
+            await self.disconnect()
         except Exception as e:
-            print(f"Failed to write data: {e}")
-            self.connected = False
+            print(f"Error: Failed to write data: {e}")
+            self.reconnection_required = True
             raise
 
     async def connect(self, clean_session=True):
@@ -181,35 +183,41 @@ class MQTTClient:
         return value
 
     async def publish(self, topic, msg, retain=False, qos=0, dup=False):
-        if not self.connected:
-            return
-        packet = bytearray(b"\x30")
-        packet[0] |= qos << 1 | retain | dup << 3
-        remaining_length = 2 + len(topic) + len(msg)
-        if qos > 0:
-            remaining_length += 2  # Packet Identifier
-        packet += self._encode_length(remaining_length)
-        packet += len(topic).to_bytes(2, 'big') + topic.encode("utf-8")
-        pid = None
-        if qos > 0:
-            pid = next(self.newpid)
-            packet += pid.to_bytes(2, 'big')
-        packet += msg
-        await self.safe_write(packet)
-        if qos == 1:
-            await self._wait_for_puback(pid)
+        try:
+            packet = bytearray(b"\x30")
+            packet[0] |= qos << 1 | retain | dup << 3
+            remaining_length = 2 + len(topic) + len(msg)
+            if qos > 0:
+                remaining_length += 2  # Packet Identifier
+            packet += self._encode_length(remaining_length)
+            packet += len(topic).to_bytes(2, 'big') + topic.encode("utf-8")
+            pid = None
+            if qos > 0:
+                pid = next(self.newpid)
+                packet += pid.to_bytes(2, 'big')
+            packet += msg
+            await self.safe_write(packet)
+            if qos == 1:
+                await self._wait_for_puback(pid)
+        except Exception as e:
+            print("MQTT publish exception ", e)
+            self.reconnection_required = True
 
     async def _wait_for_puback(self, pid):
         while True:
-            header = await self.reader.readexactly(1)
-            if header[0] >> 4 != 4:  # PUBACK
-                continue
-            size = await self._recv_len()
-            if size != 2:
-                continue
-            received_pid = int.from_bytes(await self.reader.readexactly(2), 'big')
-            if received_pid == pid:
-                break
+            try:
+                header = await self.reader.readexactly(1)
+                if header[0] >> 4 != 4:  # PUBACK
+                    continue
+                size = await self._recv_len()
+                if size != 2:
+                    continue
+                received_pid = int.from_bytes(await self.reader.readexactly(2), 'big')
+                if received_pid == pid:
+                    break
+            except Exception as e:
+                print("Error in _wait_for_puback ", e)
+                self.reconnection_required = True
 
     def _prepare_subscribe_packet(self, topic, qos, pid):
         """Prepare the SUBSCRIBE packet."""
@@ -345,6 +353,7 @@ class MQTTClient:
             print(f"Failed to send ping: {e}")
             self.reconnection_required = True
 
+    @restart_on_failure
     async def maintain_connection(self):
         print("MQTT maintain connection worker start")
         while True:
@@ -369,6 +378,7 @@ class MQTTClient:
         except asyncio.IncompleteReadError:
             raise MQTTException("Incomplete read from broker.")
 
+    @restart_on_failure
     async def handle_messages(self):
         while True:
             if self.connected:

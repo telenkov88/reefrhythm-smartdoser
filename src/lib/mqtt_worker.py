@@ -1,6 +1,7 @@
 import json
 import time
 from lib.mqtt_asyncio import MQTTClient
+from lib.decorator import restart_on_failure
 try:
     import gc
     from lib.async_queue import Queue as asyncQueue
@@ -83,16 +84,18 @@ class MQTTWorker:
                                   asyncio.create_task(self.publish())
                                   ]
 
-
+    @restart_on_failure
     async def publish(self):
         while self.service:
-            while not self.client.connected:
+            while not self.client.connected or self.client.reconnection_required:
                 await asyncio.sleep(1)
             message = await self.mqtt_publish_queue.get()
             if message:
                 await self.client.publish(message['topic'], message['payload'].encode('utf-8'), retain=message['retain'])
                 print(f'Published to {message["topic"]}: {message["payload"]}')
                 self.mqtt_publish_queue.task_done()
+        print("Stop MQTT publish task")
+        await asyncio.sleep(10)
 
     async def publish_stats(self, new_stats=None):
         if self.service:
@@ -112,6 +115,7 @@ class MQTTWorker:
                 # Remove the oldest message to make space for the new one
                 discarded_message = await self.mqtt_publish_queue.get()
                 print(f"Discarding oldest message due to queue overflow: {discarded_message}")
+                print(f"MQTT Connected: {self.client.connected}, Reconnect need: {self.client.reconnection_required}")
 
             message = {'topic': self.base_topic + topic, 'payload': data, 'retain': retain}
             print(f"MQTT add message {message}")
