@@ -36,6 +36,16 @@ def check_defaults_settings(settings):
         settings["whatsapp_number"] = ""
     if "whatsapp_apikey" not in settings:
         settings["whatsapp_apikey"] = ""
+    if "whatsapp_empty_container_msg" not in settings:
+        settings["whatsapp_empty_container_msg"] = 0
+    if "telegram_empty_container_msg" not in settings:
+        settings["telegram_empty_container_msg"] = 0
+    if "whatsapp_dose_msg" not in settings:
+        settings["whatsapp_dose_msg"] = 0
+    if "telegram_dose_msg" not in settings:
+        settings["telegram_dose_msg"] = 0
+    if "empty_container_lvl" not in settings:
+        settings["empty_container_lvl"] = 0
     if "telegram" not in settings:
         settings["telegram"] = ""
 

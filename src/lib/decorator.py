@@ -28,6 +28,6 @@ def restart_on_failure(func):
                 await func(*args, **kwargs)
             except Exception as e:
                 print(f"Error occurred: {e} in {func}")
-            print("Restarting task after 10sec delay...")
+            print(f"Restarting task {func.__name__} after 10sec delay...")
             await asyncio.sleep(10)
     return wrapper

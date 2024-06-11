@@ -152,7 +152,8 @@ class NotificationWorker:
             message += quote_plus(msg)
         return message
 
-    @restart_on_failure
+    # TODO Handle service shutdown
+    #@restart_on_failure
     async def process_messages(self):
         while self.active:
             print(f"[{self.service.service_name}] Start")
