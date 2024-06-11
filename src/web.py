@@ -241,7 +241,7 @@ async def read_body(reader, filename, timeout):
                     if shared.ota_lock:
                         ota_progress += chunks
                         # TODO check web UI on max perf
-                        # await asyncio.sleep(0.1)
+                    await asyncio.sleep(0.05)
                 except asyncio.TimeoutError:
                     print("Read timed out, but continuing...")
                     continue  # Skip this iteration and try reading again
@@ -531,7 +531,7 @@ async def ota_events(request, sse):
             #print(f"progress {progress}%")
             event = {"progress": progress, "size": ota_progress, "status": shared.ota_lock}
             await sse.send(event)  # unnamed event
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(1)
     else:
         await asyncio.sleep(2)
 
