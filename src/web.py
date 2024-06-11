@@ -162,7 +162,7 @@ async def adc_sampling():
         shared.adc_sampler_started = True
 
 
-async def download_file_async(url, filename, progress=False, retries=3, timeout=60):
+async def download_file_async(url, filename, retries=3, timeout=60):
     print("Start downloading", url)
     global ssl_context
     # Basic URL parsing
@@ -190,9 +190,9 @@ async def download_file_async(url, filename, progress=False, retries=3, timeout=
                 new_url = extract_location(headers)
                 if new_url:
                     print("Redirecting to", new_url)
-                    return await download_file_async(new_url, filename, progress, retries, timeout)
+                    return await download_file_async(new_url, filename, retries, timeout)
 
-            return await read_body(reader, filename, progress, timeout)
+            return await read_body(reader, filename, timeout)
         except Exception as e:
             print(f"Attempt {attempt + 1} failed: {e}")
             await asyncio.sleep(2)  # wait a bit before retrying
@@ -203,6 +203,7 @@ async def download_file_async(url, filename, progress=False, retries=3, timeout=
     print("All attempts failed.")
     return False
 
+
 async def read_headers(reader):
     headers = []
     while True:
@@ -212,29 +213,35 @@ async def read_headers(reader):
         headers.append(line.decode().strip())
     return headers
 
+
 def extract_location(headers):
     for header in headers:
         if header.lower().startswith('location:'):
             return header.split(':', 1)[1].strip()
     return None
 
-async def read_body(reader, filename, progress, timeout):
+
+async def read_body(reader, filename, timeout):
     global ota_progress
     total_bytes_written = 0  # Total bytes written to file
-    CHUNKS = 1
+    chunks = 8
+    chunk_size = 4096 * chunks
     try:
-        with open(filename, 'wb') as file:
+        with open(filename, 'wb') as _file:
+            if shared.ota_lock:
+                ota_progress = 0
             while True:
                 try:
-                    data = await asyncio.wait_for(reader.read(4096*CHUNKS), timeout)
+                    data = await asyncio.wait_for(reader.read(chunk_size), timeout)
                     if not data:  # No more data to read
                         break
-                    file.write(data)
+                    _file.write(data)
                     total_bytes_written += len(data)  # Update total bytes written
-                    if progress:
-                        print(f"Download progress: {total_bytes_written} bytes written")
-                        ota_progress += CHUNKS
-                        await asyncio.sleep(0.1)
+                    print(f"Download progress: {total_bytes_written} bytes written")
+                    if shared.ota_lock:
+                        ota_progress += chunks
+                        # TODO check web UI on max perf
+                        # await asyncio.sleep(0.1)
                 except asyncio.TimeoutError:
                     print("Read timed out, but continuing...")
                     continue  # Skip this iteration and try reading again
@@ -246,6 +253,7 @@ async def read_body(reader, filename, progress, timeout):
     except Exception as e:
         print(f"Failed to write file: {e}")
         return False
+
 
 @app.before_request
 async def start_timer(request):
@@ -521,7 +529,7 @@ async def ota_events(request, sse):
             #print(f"Downloaded:{ota_progress}/{num_chunks}")
             progress = round(ota_progress / num_chunks * 100, 1)
             #print(f"progress {progress}%")
-            event = {"progress": progress, "size": ota_progress * 4, "status": shared.ota_lock}
+            event = {"progress": progress, "size": ota_progress, "status": shared.ota_lock}
             await sse.send(event)  # unnamed event
             await asyncio.sleep(0.5)
     else:
@@ -588,7 +596,7 @@ async def ota_upgrade(request):
                 global firmware_size
                 firmware_size = firmware_info["length"]
 
-                await download_file_async(link, filename, progress=True, timeout=1200)
+                await download_file_async(link, filename, timeout=1200)
                 print("Download complete")
 
                 with open('config/storage.json', 'w') as _write_file:
