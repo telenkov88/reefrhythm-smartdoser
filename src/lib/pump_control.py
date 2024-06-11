@@ -70,8 +70,8 @@ async def stepper_run(mks, desired_rpm_rate, duration, direction, rpm_table, exp
                     and shared.storage[f"pump{pump_id}"]:
                 filling_percentage = round(_remaining / shared.storage[f"pump{pump_id}"] * 100, 1)
                 if 0 < filling_percentage < shared.settings["empty_container_lvl"]:
-                    msg += f"{formatted_time} Pump{pump_id} {shared.settings['names'][pump_id - 1]}: " \
-                           f"Container {filling_percentage}% full"
+                    msg += f"{formatted_time} Pump{pump_id} {shared.settings['names'][pump_id - 1]}: "
+                    msg += f"Container {filling_percentage}% full"
                 elif filling_percentage == 0:
                     msg += f"{formatted_time} Pump{pump_id} {shared.settings['names'][pump_id - 1]}: Container empty"
             if msg and shared.settings["telegram_empty_container_msg"]:

@@ -444,7 +444,7 @@ class MQTTClient:
 
             try:
                 message = message.decode('utf-8')
-                message = json.loads(message.decode('utf-8'))
+                message = json.loads(message)
             except Exception as e:
                 print("Error: failed to decode message, ", e)
                 return

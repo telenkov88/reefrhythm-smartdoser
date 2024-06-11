@@ -125,10 +125,9 @@ def increment_uptime_counter(step=10):
     else:
         uptime_counter += step
     print(f"uptime {uptime_counter} seconds")
-    if shared.mqtt_worker.connected:
-        asyncio.run(shared.mqtt_worker.add_message_to_publish("uptime", f"{uptime_counter} seconds"))
-        asyncio.run(shared.mqtt_worker.add_message_to_publish("free_mem ",
-                                                              json.dumps({"free_mem": gc.mem_free() // 1024})))
+    asyncio.run(shared.mqtt_worker.add_message_to_publish("uptime", f"{uptime_counter} seconds"))
+    asyncio.run(shared.mqtt_worker.add_message_to_publish("free_mem ",
+                                                          json.dumps({"free_mem": gc.mem_free() // 1024})))
 
 
 # Set up a timer to call increment_uptime_counter every 10 seconds
