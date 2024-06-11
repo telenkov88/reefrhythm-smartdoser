@@ -132,7 +132,7 @@ def increment_uptime_counter(step=10):
     print(f"uptime {uptime_counter} seconds")
     if not shared.ota_lock:
         asyncio.run(shared.mqtt_worker.add_message_to_publish("uptime", f"{uptime_counter} seconds"))
-        asyncio.run(shared.mqtt_worker.add_message_to_publish("free_mem ",
+        asyncio.run(shared.mqtt_worker.add_message_to_publish("free_mem",
                                                               json.dumps({"free_mem": gc.mem_free() // 1024})))
 
 
