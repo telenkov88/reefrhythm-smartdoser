@@ -121,9 +121,6 @@ class MQTTWorker:
     def process_command(self, topic, command):
         if topic == "uptime":
             print("MQTT update keepalive timer")
-            self.client.conn_issue = None
-            self.last_message = time.time()
-            self.connected = True
             return
         print(f"MQTT process command, {topic}, {command}")
         try:

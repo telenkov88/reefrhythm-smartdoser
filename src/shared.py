@@ -7,7 +7,6 @@ from lib.mqtt_worker import MQTTWorker, mqtt_stats
 from lib.notifications import NotificationWorker, Telegram, Whatsapp
 from lib.servo42c import Servo42c
 from lib.stepper_doser_math import extrapolate_flow_rate, linear_interpolation, make_rpm_table
-import asyncio
 
 try:
     from release_tag import *

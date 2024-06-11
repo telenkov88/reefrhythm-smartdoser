@@ -3,13 +3,10 @@ connect: Establishes an asynchronous connection to the MQTT server, handling bot
 _send_connect and _receive_connack: Handle the MQTT connection handshake.
 publish: Sends messages to a topic, with support for QoS 1 acknowledgment handling.
 subscribe: Subscribes to a topic and handles acknowledgment of the subscription.
-loop_forever: A simple loop to keep the client running. This can be expanded to handle incoming messages and more complex event-driven logic.
 """
 import json
-import sys
 import time
 import asyncio
-from errno import ECONNRESET
 
 try:
     import ubinascii as binascii
@@ -89,7 +86,7 @@ class MQTTClient:
         try:
             self.reader, self.writer = await asyncio.wait_for(mqtt, timeout=self.socket_timeout)
         except Exception as e:
-            print("Connection failed")
+            print("Connection failed, ", e)
             self.connected = False
             return False
         await self._send_connect(clean_session)
@@ -113,8 +110,8 @@ class MQTTClient:
 
     async def _send_connect(self, clean_session):
         packet = bytearray(b"\x10")  # Connect command
-        # Start with a base length which includes the protocol name, version, connect flags, keepalive, and client ID length
-
+        # Start with a base length which includes:
+        # protocol name, version, connect flags, keepalive, and client ID length
         remaining_length = 2 + 4 + 1 + 1 + 2 + 2 + len(self.client_id)
 
         connect_flags = 0x02 if clean_session else 0
@@ -155,7 +152,8 @@ class MQTTClient:
             raise MQTTException(f"CONNACK returned error code {resp[3]}")
         self.connected = True
 
-    def _encode_length(self, length):
+    @staticmethod
+    def _encode_length(length):
         encoded = bytearray()
         while True:
             encoded_byte = length % 128
@@ -172,10 +170,10 @@ class MQTTClient:
         multiplier = 1
         value = 0
         while True:
-            encodedByte = await self.reader.readexactly(1)
-            encodedByte = encodedByte[0]
-            value += (encodedByte & 127) * multiplier
-            if encodedByte & 128 == 0:
+            encoded_byte = await self.reader.readexactly(1)
+            encoded_byte = encoded_byte[0]
+            value += (encoded_byte & 127) * multiplier
+            if encoded_byte & 128 == 0:
                 break
             multiplier *= 128
             if multiplier > 2097152:  # 128 * 128 * 128
@@ -192,6 +190,7 @@ class MQTTClient:
             remaining_length += 2  # Packet Identifier
         packet += self._encode_length(remaining_length)
         packet += len(topic).to_bytes(2, 'big') + topic.encode("utf-8")
+        pid = None
         if qos > 0:
             pid = next(self.newpid)
             packet += pid.to_bytes(2, 'big')
@@ -268,7 +267,7 @@ class MQTTClient:
             header = await self.reader.readexactly(1)
             if header[0] >> 4 != 11:  # UNSUBACK packet type
                 continue
-            size = await self._recv_len()
+            await self._recv_len()
             received_pid = int.from_bytes(await self.reader.readexactly(2), 'big')
             if received_pid == pid:
                 break
@@ -284,7 +283,7 @@ class MQTTClient:
             header = await self.reader.readexactly(1)
             if header[0] >> 4 != 9:  # SUBACK packet type
                 continue
-            size = await self._recv_len()
+            await self._recv_len()
             received_pid = int.from_bytes(await self.reader.readexactly(2), 'big')
             if received_pid != pid:
                 continue
@@ -358,7 +357,8 @@ class MQTTClient:
                 await self.ping()  # Send periodic pings if connected
             await asyncio.sleep(self.keepalive // 2)  # Check connection health at regular intervals
 
-    def on_message(self, topic, message):
+    @staticmethod
+    def on_message(topic, message):
         print(f"Received message on {topic}: {message}")
 
     async def read_exactly(self, num_bytes):
@@ -373,7 +373,7 @@ class MQTTClient:
         while True:
             if self.connected:
                 try:
-                    #print("Waiting for message...")
+                    # print("Waiting for message...")
                     first_byte = await self.reader.read(1)
                     if not first_byte:
                         print("Connection appears to be closed by the broker.")
@@ -406,7 +406,7 @@ class MQTTClient:
             remaining_length = await self._recv_len()
 
             if message_type == 3:  # PUBLISH
-                await self._handle_publish(remaining_length)
+                await self._handle_publish(remaining_length, qos=0)
             elif message_type == 9:  # SUBACK
                 await self._handle_suback()
             elif message_type == 13:  # PINGRESP
@@ -459,13 +459,14 @@ class MQTTClient:
             raise MQTTException("Error while handling publish")
 
     async def _handle_suback(self):
-        packet_identifier = await self.reader.readexactly(2)  # Read the packet identifier
+        await self.reader.readexactly(2)  # Read the packet identifier
         return_code = await self.reader.readexactly(1)
         if return_code == b'\x80':
             raise MQTTException("Subscription failed")
         print(f"Subscription acknowledged with QoS {return_code.hex()}")
 
-    async def _handle_pingresp(self):
+    @staticmethod
+    async def _handle_pingresp():
         print("Ping response received")
 
 
