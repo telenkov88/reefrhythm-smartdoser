@@ -28,7 +28,7 @@ def pid_gen(pid=0):
 
 class MQTTClient:
     def __init__(self, client_id, server, port=0, user=None, password=None, keepalive=60,
-                 ssl=False, ssl_params=None, debug=False):
+                 ssl=False, ssl_params=None, debug=False, socket_timeout=5):
         self.DEBUG = debug
         self.last_will_topic = None
         self.last_will_message = None
@@ -43,6 +43,7 @@ class MQTTClient:
         self.keepalive = keepalive
         self.last_ping_time = 0  # Timestamp of the last PINGREQ
         self.reconnect_timeout = 10
+        self.socket_timeout = socket_timeout
 
         self.ssl = ssl
         self.ssl_params = ssl_params if ssl_params else {}
@@ -75,7 +76,7 @@ class MQTTClient:
             raise MQTTException("No connection available for writing.")
         try:
             self.writer.write(data)
-            await asyncio.wait_for(self.writer.drain(), timeout=10)
+            await asyncio.wait_for(self.writer.drain(), timeout=self.socket_timeout)
         except asyncio.TimeoutError as e:
             print(f"Write timeout occurred: {e}")
             self.reconnection_required = True
@@ -87,7 +88,7 @@ class MQTTClient:
     async def connect(self, clean_session=True):
         mqtt = asyncio.open_connection(self.server, self.port)
         try:
-            self.reader, self.writer = await asyncio.wait_for(mqtt, timeout=5)
+            self.reader, self.writer = await asyncio.wait_for(mqtt, timeout=self.socket_timeout)
         except Exception as e:
             print("Connection failed")
             self.connected = False
@@ -96,7 +97,7 @@ class MQTTClient:
         await self._receive_connack()
         if clean_session:
             self.subscriptions = {}  # Clear previous subscriptions if clean session
-        else:
+        elif self.reconnection_required:
             await self.resubscribe_all()  # Resubscribe to all topics if not a clean session
         if self.last_will_topic:
             await self.publish(self.last_will_topic, b"Connected", retain=self.last_will_retain)
@@ -299,7 +300,7 @@ class MQTTClient:
             try:
                 # Attempt to send the DISCONNECT packet
                 self.writer.write(bytearray([0xE0, 0x00]))  # MQTT DISCONNECT packet
-                await asyncio.wait_for(self.writer.drain(), timeout=5)  # Short timeout for last attempt to send
+                await asyncio.wait_for(self.writer.drain(), timeout=self.socket_timeout)
             except Exception as e:
                 print(f"Error during graceful disconnect: {e}")
             finally:
@@ -337,6 +338,7 @@ class MQTTClient:
     async def ping(self):
         if not self.connected and not self.reconnection_required:
             print("Not connected, skipping ping.")
+            print("Not connected, skipping ping.")
             return
         try:
             await self.safe_write(b'\xc0\x00')  # Sending PINGREQ
@@ -345,6 +347,7 @@ class MQTTClient:
             self.reconnection_required = True
 
     async def maintain_connection(self):
+        print("MQTT maintain connection worker start")
         while True:
             await asyncio.sleep(self.keepalive // 2)  # Check connection health at regular intervals
 
@@ -354,15 +357,13 @@ class MQTTClient:
                 self.reconnection_required = False  # Reset flag after attempting to reconnect
             else:
                 await self.ping()  # Send periodic pings if connected
-            if self.connected and not self.subscribed:
-                await self.resubscribe_all()  # Resubscribe to all topics
 
     def on_message(self, topic, message):
         print(f"Received message on {topic}: {message}")
 
     async def read_exactly(self, num_bytes):
         try:
-            return await asyncio.wait_for(self.reader.readexactly(num_bytes), timeout=10)
+            return await asyncio.wait_for(self.reader.readexactly(num_bytes), timeout=self.socket_timeout)
         except asyncio.TimeoutError:
             raise MQTTException("Timeout occurred while trying to read from the broker.")
         except asyncio.IncompleteReadError:

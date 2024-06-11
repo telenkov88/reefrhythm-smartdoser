@@ -180,7 +180,7 @@ rpm_table = make_rpm_table()
 mqtt_keepalive = 60  # Keepalive timeout
 client_params = {'client_id': "ReefRhythm-" + mqtt_id, 'server': mqtt_settings["broker"], 'port': 1883,
                  'user': mqtt_settings["login"], 'password': mqtt_settings["password"], 'keepalive': mqtt_keepalive,
-                 "socket_timeout": 2}
+                 "socket_timeout": 5}
 
 
 start_mqtt_stats = mqtt_stats(version=RELEASE_TAG, hostname=settings["hostname"], names=settings["names"],
