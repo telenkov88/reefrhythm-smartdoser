@@ -25,8 +25,8 @@ ota.status.boot_ota = Mock(
 
 # Network Mocks
 network = MagicMock()
-network.WLAN = MagicMock()
-network.WLAN.ifconfig = Mock(return_value='127.0.0.1')
+network.WLAN.return_value.ifconfig.return_value = ('127.0.0.1', '255.255.255.0', '192.168.1.1', '192.168.1.1')
+
 net = network
 wifi = network.WLAN(network.STA_IF)
 ap = network.WLAN()

@@ -32,6 +32,12 @@ def check_defaults_settings(settings):
         settings["color"] = "dark"
     if "theme" not in settings:
         settings["theme"] = "cerulean"
+    if "whatsapp_number" not in settings:
+        settings["whatsapp_number"] = ""
+    if "whatsapp_apikey" not in settings:
+        settings["whatsapp_apikey"] = ""
+    if "telegram" not in settings:
+        settings["telegram"] = ""
 
 
 def check_defaults_storage(storage, max_pumps):

@@ -21,11 +21,6 @@ except ImportError:
 import asyncio
 import shared
 
-topics = {
-    'status': 'status',
-    'subscriptions': ['dose', 'run', 'stop', 'refill'],
-}
-
 
 def mqtt_stats(**kwargs):
     return {
@@ -52,12 +47,14 @@ class MQTTWorker:
         self.client = MQTTClient(**client_params)  # Initialize the MQTT client
         self.base_topic = f"/{client_params['client_id'].replace('-', '/')}/"
         print(self.base_topic)
-        self.topics = topics
         self.stats = stats
         self.command_handler = command_handler
         self.net = network
 
         self.mqtt_publish_queue = asyncQueue(maxsize=100)
+
+    async def start(self):
+        await self.setup_client()
         print(f"Service initialized at {self.base_topic}")
 
     async def setup_client(self):
@@ -65,13 +62,17 @@ class MQTTWorker:
             return
         while not shared.time_synced:
             await asyncio.sleep(1)
-        self.client.set_last_will(self.base_topic + self.topics['status'], 'Disconnected', retain=True)
-        #await self.client.connect()
-        await self.add_message_to_publish("hello/world", b"Hello MQTT")
-        for topic in self.topics['subscriptions']:
-            await self.client.subscribe(self.base_topic + topic)
+        self.client.set_last_will(self.base_topic + 'status', 'Disconnected', retain=True)
+
+        await self.client.subscribe(self.base_topic + 'dose', qos=0, cb=self.command_handler.dose)
+        await self.client.subscribe(self.base_topic + 'run', qos=0, cb=self.command_handler.run)
+        await self.client.subscribe(self.base_topic + 'stop', qos=0, cb=self.command_handler.stop)
+        await self.client.subscribe(self.base_topic + 'refill', qos=0, cb=self.command_handler.refill)
+
         await self.publish_stats()
+        asyncio.create_task(self.client.maintain_connection())
         asyncio.create_task(self.client.handle_messages())
+        asyncio.create_task(self.publish())
 
     async def publish(self):
         while self.service:
@@ -79,7 +80,7 @@ class MQTTWorker:
                 await asyncio.sleep(1)
             message = await self.mqtt_publish_queue.get()
             if message:
-                await self.client.publish(message['topic'], message['payload'], retain=message['retain'])
+                await self.client.publish(message['topic'], message['payload'].encode('utf-8'), retain=message['retain'])
                 print(f'Published to {message["topic"]}: {message["payload"]}')
                 self.mqtt_publish_queue.task_done()
 
@@ -143,32 +144,12 @@ class MQTTWorker:
 
 
 async def main():
-    try:
-        import json
-        # {"login": "login", "password": "password", "broker": "broker ip"}
-        with open("./config/mqtt.json", 'r') as read_file:
-            settings = json.load(read_file)
-            user = settings["login"]
-            password = settings["password"]
-            broker = settings["broker"]
-            print(f"Using broker {broker} with user {user}")
-    except OSError:
-        user = "mqtt"
-        password = "mqtt"
-        broker = "localhost"
-
-    client_params = {'client_id': "ReefRhythm-" + shared.mqtt_id,
-                     'server': broker, 'port': 1883, 'user': user, 'password': password}
-
-    stats = {"version": "debug_version", "hostname": "localhost"}
-    from lib.pump_control import CommandHandler
-    command_handler = CommandHandler()
-    mqtt_worker = MQTTWorker(client_params, stats, command_handler, shared.wifi)
-    asyncio.run(mqtt_worker.setup_client())
+    shared.time_synced = True
+    asyncio.create_task(shared.mqtt_worker.start())
     await asyncio.sleep(1)
     for i in range(100):
-        await mqtt_worker.add_message_to_publish(f"test", f"Msg No{i}")
-        await asyncio.sleep(10)
+        await shared.mqtt_worker.add_message_to_publish(f"test", f"Msg No{i}")
+        await asyncio.sleep(2)
     await asyncio.sleep(120)
 
 

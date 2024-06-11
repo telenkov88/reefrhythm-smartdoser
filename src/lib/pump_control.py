@@ -25,7 +25,7 @@ def to_float(arr):
         return arr
 
 
-async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_table, expression=False,
+async def stepper_run(mks, desired_rpm_rate, duration, direction, rpm_table, expression=False,
                       pump_dose=0, pump_id=None, weekdays=None):
     if weekdays is None:
         weekdays = [0, 1, 2, 3, 4, 5, 6]
@@ -42,7 +42,8 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
             if shared.mqtt_settings["broker"]:
                 print("Publish to mqtt")
                 _topic = f"{shared.doser_topic}/pump{pump_id}"
-                _data = {"id": pump_id, "name": shared.settings["names"][pump_id - 1], "dose": pump_dose,
+                _data = {"id": pump_id, "name": shared.settings["names"][pump_id - 1],
+                         "dose": pump_dose, "duration": duration,
                          "remain": shared.storage[f"remaining{pump_id}"], "storage": shared.storage[f"pump{pump_id}"]}
                 print("data", _data)
                 print({"topic": _topic, "data": _data})
@@ -57,7 +58,7 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
             msg = ""
             if shared.settings["whatsapp_dose_msg"] or shared.settings["telegram_dose_msg"]:
                 msg += f"{formatted_time} Pump{pump_id} {shared.settings['names'][pump_id - 1]}: "
-                msg += f"Dose {pump_dose}mL/{execution_time}sec, {_remaining}/{_storage}mL"
+                msg += f"Dose {pump_dose}mL/{duration}sec, {_remaining}/{_storage}mL"
             if msg and shared.settings["telegram_dose_msg"]:
                 await shared.telegram_worker.add_message(msg)
             if msg and shared.settings["whatsapp_dose_msg"]:
@@ -65,11 +66,12 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
                 await shared.whatsapp_worker.add_message(msg)
 
             msg = ""
-            if (shared.settings["whatsapp_empty_container_msg"] or shared.settings["telegram_empty_container_msg"]) and \
-                    shared.storage[f"pump{pump_id}"]:
+            if (shared.settings["whatsapp_empty_container_msg"] or shared.settings["telegram_empty_container_msg"]) \
+                    and shared.storage[f"pump{pump_id}"]:
                 filling_percentage = round(_remaining / shared.storage[f"pump{pump_id}"] * 100, 1)
                 if 0 < filling_percentage < shared.settings["empty_container_lvl"]:
-                    msg += f"{formatted_time} Pump{pump_id} {shared.settings['names'][pump_id - 1]}: Container {filling_percentage}% full"
+                    msg += f"{formatted_time} Pump{pump_id} {shared.settings['names'][pump_id - 1]}: " \
+                           f"Container {filling_percentage}% full"
                 elif filling_percentage == 0:
                     msg += f"{formatted_time} Pump{pump_id} {shared.settings['names'][pump_id - 1]}: Container empty"
             if msg and shared.settings["telegram_empty_container_msg"]:
@@ -92,11 +94,11 @@ async def stepper_run(mks, desired_rpm_rate, execution_time, direction, rpm_tabl
         result, logs = evaluate_expression(expression, globals())
         if result:
             print(f"Limits check pass")
-            calc_time = move_with_rpm(mks, desired_rpm_rate, execution_time, rpm_table, direction)
+            calc_time = move_with_rpm(mks, desired_rpm_rate, duration, rpm_table, direction)
             await change_remaining()
             return [calc_time]
     else:
-        calc_time = move_with_rpm(mks, desired_rpm_rate, execution_time, rpm_table, direction)
+        calc_time = move_with_rpm(mks, desired_rpm_rate, duration, rpm_table, direction)
         await change_remaining()
         await asyncio.sleep(1)
         return [calc_time]
@@ -110,7 +112,8 @@ async def stepper_stop(mks):
 
 
 class CommandHandler:
-    def check_dose_parameters(self, cmd):
+    @staticmethod
+    def check_dose_parameters(cmd):
         if all(key in cmd for key in ["id", "amount", "duration", "direction"]):
             # Check the range and validity of each parameter
             return (1 <= int(cmd["id"]) <= shared.PUMP_NUM and
@@ -119,7 +122,8 @@ class CommandHandler:
                     int(cmd["direction"]) in [0, 1])
         return False
 
-    def check_run_parameters(self, cmd):
+    @staticmethod
+    def check_run_parameters(cmd):
         if all(key in cmd for key in ["id", "rpm", "duration", "direction"]):
             # Check the range and validity of each parameter
             return (1 <= int(cmd["id"]) <= shared.PUMP_NUM and
@@ -128,12 +132,14 @@ class CommandHandler:
                     int(cmd["direction"]) in [0, 1])
         return False
 
-    def check_stop_parameters(self, cmd):
+    @staticmethod
+    def check_stop_parameters(cmd):
         if "id" in cmd:
             return 1 <= int(cmd["id"]) <= shared.PUMP_NUM
         return False
 
-    def check_refill_parameters(self, cmd):
+    @staticmethod
+    def check_refill_parameters(cmd):
         if "id" in cmd:
             if "storage" in cmd:
                 return (1 <= int(cmd["id"]) <= shared.PUMP_NUM and
@@ -191,7 +197,7 @@ class CommandHandler:
         shared.storage[f"remaining{command['id']}"] = shared.storage[f"pump{command['id']}"]
         _pump_id = command['id']
         _topic = f"{shared.doser_topic}/pump{_pump_id}"
-        _data = {"id": _pump_id, "name": shared.settings["names"][_pump_id - 1], "dose": 0,
+        _data = {"id": _pump_id, "name": shared.settings["names"][_pump_id - 1], "dose": 0, "duration": 1,
                  "remain": shared.storage[f"remaining{_pump_id}"], "storage": shared.storage[f"pump{_pump_id}"]}
         await shared.mqtt_worker.add_message_to_publish(f"pump{command['id']}", json.dumps(_data))
         await shared.mqtt_worker.publish_stats(
@@ -206,36 +212,41 @@ class Servo42c:
         print()
 
 
-
 class PumpController:
     def __init__(self, driver):
         self.driver = driver
         self.buffer = asyncQueue()
 
-    def dose(self, command):
+    @staticmethod
+    def dose(command):
         # Implement the dosing logic for the pump
         print(f"Dosing with command: {command}")
         # Implement control logic
         # Placeholder for actual dosing command to hardware
-        asyncio.create_task(shared.mqtt_worker.add_message_to_publish("/status/dose", {"status": "completed", "command": command}))
+        asyncio.create_task(shared.mqtt_worker.add_message_to_publish("/status/dose",
+                                                                      {"status": "completed", "command": command}))
         shared.whatsapp_worker.add_message("Dose completed successfully.")
         shared.telegram_worker.add_message("Dose completed successfully.")
 
-    def run(self, command):
+    @staticmethod
+    def run(command):
         # Implement the running logic for the pump
         print(f"Running with command: {command}")
 
-    def stop(self, command):
+    @staticmethod
+    def stop(command):
         # Implement the stopping logic for the pump
         print(f"Stopping with command: {command}")
         # Implement control logic
 
-    def refill(self, command):
+    @staticmethod
+    def refill(command):
         # Implement the refilling logic for the pump
         print(f"Refilling with command: {command}")
         # Implement control logic
 
-    async def worker(self):
+    @staticmethod
+    async def worker():
         try:
             while True:
                 print("Process commands")

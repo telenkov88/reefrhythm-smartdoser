@@ -7,6 +7,7 @@ from lib.mqtt_worker import MQTTWorker, mqtt_stats
 from lib.notifications import NotificationWorker, Telegram, Whatsapp
 from lib.servo42c import Servo42c
 from lib.stepper_doser_math import extrapolate_flow_rate, linear_interpolation, make_rpm_table
+import asyncio
 
 try:
     from release_tag import *
@@ -15,7 +16,6 @@ try:
     from machine import UART, Pin, ADC, unique_id
     import network
     import machine
-    import asyncio
     import lib.ntptime as ntptime
     import time
 
@@ -189,7 +189,7 @@ start_mqtt_stats = mqtt_stats(version=RELEASE_TAG, hostname=settings["hostname"]
                                     inversion=settings["inversion"],
                                     storage=storage, max_pumps=MAX_PUMPS)
 for _ in range(1, PUMP_NUM+1):
-    start_mqtt_stats[f"pump{_}"] = json.dumps({"dose": 0, "id": _, "remain": storage[f"remaining{_}"],
+    start_mqtt_stats[f"pump{_}"] = json.dumps({"dose": 0, "duration": 1, "id": _, "remain": storage[f"remaining{_}"],
                                                "storage": storage[f"pump{_}"],
                                                "name": settings["names"][_-1]})
 
