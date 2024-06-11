@@ -8,7 +8,6 @@ import re
 from lib.exec_code import evaluate_expression
 from machine import Timer
 from lib.decorator import restart_on_failure
-import requests
 import time
 from lib.pump_control import stepper_run
 from lib.analog_control import analog_control_worker
